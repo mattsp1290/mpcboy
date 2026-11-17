@@ -55,11 +55,63 @@ Not copied: `rackboy_core/rackboy_control.*` (VCV knob glue),
    ctest runs it once (`rackboy_suites`) with `WORKING_DIRECTORY tests/rackboy`
    so cwd-relative `fixtures/` and `audio/` lookups resolve.
 
+5. **WP3 / WP4 local changes** (all marked `// MPCBOY LOCAL MOD` in the source):
+   - `src/apu/rackboy_apu.{h,c}`:
+     - `rackboy_apu_run_stereo(apu, n, left, right)`: one APU pass, no muting,
+       no snapshot, no `band_limited` swap, own sample callback (swapped in and
+       restored), new `_cb_buf_r` field in `rackboy_apu_t`.
+     - Test-only register-write spy: `rackboy_apu_set_write_spy(fn, user)`. The
+       hook pointer is always compiled in and NULL unless a test sets it; it is
+       called from `rackboy_apu_write_reg` and from every write inside
+       `rackboy_apu_write_wave_ram`. (A compile-time define was not possible
+       because the plugin and the tests link the same `gbcore` library.)
+     - **Frame sequencer** (found missing, not in the plan): upstream SameBoy
+       fires `GB_apu_div_event` / `GB_apu_div_secondary_event` from the CPU's
+       DIV counter (`GB_set_internal_div_counter`). rackboy has no CPU and never
+       calls them, so in rackboy no length counter, volume envelope or sweep ever
+       advances (verified: NR11 length 16 + NRx4 bit 6 played for 500 ms). New
+       field `mpcboy_frame_seq` and `rackboy_apu_set_frame_sequencer()`;
+       `advance_cycles()` (factored out of `feed_samples`) then advances
+       `gb.div_counter` and fires the two events at bit 12 edges (every 4096
+       T-cycles), splitting the T-cycle chunk at each edge. Default off, in which
+       case the sequence of operations is identical to before, so
+       `rackboy_apu_run_samples` and the golden regression are unchanged.
+       `Engine::reset()` turns it on.
+   - `src/core/rackboy_pitch.{h,cpp}`: `pitch_square_11bit_cents`,
+     `pitch_wave_11bit_cents` (existing functions untouched; for whole
+     semitones the cents path evaluates the identical expression).
+   - `src/table/rackboy_table.{h,cpp}`:
+     - New `TableRegState` fields `bend_cents`, `fine_cents`, `noise_flags`,
+       `length_enable` (zeroed by `table_reg_state_reset`), constants
+       `kLengthEnableBit`, `kNoiseFixed`, `kNoiseWidth7`, struct `TriggerExtras`,
+       `table_trigger(..., const TriggerExtras* extras = nullptr)` (nullptr =
+       old behaviour, including the "semitones == 0 uses raw[4]" noise rule),
+       and `table_write_pitch()` (frequency rewrite for legato glide / bend).
+     - One helper `write_channel_pitch()` replaces the 8 pitch call sites. Line
+       numbers in `rackboy_table.cpp` at rackboy `245230d`:
+       `table_trigger`: 555 (Pulse 1, `pitch_square_11bit`), 591 (Pulse 2,
+       `pitch_square_11bit`), 623 (Wave, `pitch_wave_11bit`), 678 (Noise,
+       `pitch_noise_nr43`); `table_tick`: 853 (Pulse 1), 859 (Pulse 2),
+       865 (Wave), 880 (Noise). The helper composes
+       `(pitch_offset + vibrato) * 100 + fine_cents + bend_cents` (the WP5
+       `pbend_accum` term is a comment until WP5 adds the field) and writes
+       NRx3/NRx4 (with the trigger bit when called from `table_trigger`).
+       Noise rules: Fixed (`noise_flags` bit 0) never rewrites NR43 from pitch;
+       width (`noise_flags` bit 1) is OR'd into every NR43 write, including `N`.
+     - Length: `table_trigger` writes NR11/NR21/NR41 low 6 bits `64 - length`
+       and NR31 `256 - 4 * length` from `TriggerExtras.length`, never from
+       `raw[3]`; `write_freq_no_trigger`, `trigger_nrx4_byte` and every
+       NR44 write OR bit 6 while `length_enable` is set (also the `E` and `R`
+       paths).
+
 ## Test count
 
-`mpcboy_tests` (run from `tests/rackboy`): **426 test cases**, 153179
-assertions, 0 skipped, including the golden `audio regression` case. Later
-drift in this number should be explained in the commit that causes it.
+`mpcboy_tests` (run from `tests/rackboy`): **450 test cases**, 154873
+assertions, 0 skipped, including the golden `audio regression` case. The 426
+copied rackboy cases are unchanged and pass; the 24 added by WP3/WP4 live in
+`tests/unit/` (`stereo_pass_test.cpp` 4, `polyphase_test.cpp` 3,
+`engine_test.cpp` 17). Later drift in this number should be explained in the
+commit that causes it.
 
 ## Copied files
 

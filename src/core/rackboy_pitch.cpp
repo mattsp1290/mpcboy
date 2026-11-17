@@ -57,6 +57,16 @@ inline double semitone_to_hz(std::int16_t semitones_from_base) noexcept
 // Shared helper that maps a target frequency to the 11-bit pitch register
 // value for either CH1/CH2 or CH3. The only difference between the two
 // channels is the numerator in the Pan Docs formula.
+// MPCBOY LOCAL MOD: same expression as semitone_to_hz, but with a fractional
+// semitone count. For whole semitones every intermediate is exactly equal to
+// the integer version, so both paths round to the same register value.
+inline double cents_to_hz(std::int32_t cents_from_base) noexcept
+{
+    const double semis = static_cast<double>(cents_from_base) / 100.0;
+    const double midi_note = static_cast<double>(kBaseMidiNote) + semis;
+    return kA4Hz * std::exp2((midi_note - static_cast<double>(kA4MidiNote)) / 12.0);
+}
+
 inline std::uint16_t hz_to_11bit(double freq_hz, double numerator) noexcept
 {
     if (freq_hz <= 0.0) {
@@ -96,6 +106,18 @@ std::uint16_t pitch_wave_11bit(std::int16_t semitones_from_base) noexcept
 {
     return hz_to_11bit(semitone_to_hz(semitones_from_base),
                        kWaveFreqNumerator);
+}
+
+// MPCBOY LOCAL MOD
+std::uint16_t pitch_square_11bit_cents(std::int32_t cents_from_base) noexcept
+{
+    return hz_to_11bit(cents_to_hz(cents_from_base), kSquareFreqNumerator);
+}
+
+// MPCBOY LOCAL MOD
+std::uint16_t pitch_wave_11bit_cents(std::int32_t cents_from_base) noexcept
+{
+    return hz_to_11bit(cents_to_hz(cents_from_base), kWaveFreqNumerator);
 }
 
 std::uint8_t pitch_noise_nr43(std::int16_t semitones_from_base) noexcept

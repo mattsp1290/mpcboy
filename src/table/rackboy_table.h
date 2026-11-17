@@ -174,6 +174,26 @@ struct TableRegState {
     // (without the trigger bit). int16_t gives ±32767 semitones of headroom;
     // the pitch helpers clamp to hardware-representable extremes.
     int16_t pitch_offset;
+
+    // ---- MPCBOY LOCAL MOD (WP4) -------------------------------------------
+    // Pitch bend in cents, applied on top of the table pitch by
+    // write_channel_pitch. Set by the engine; table_trigger takes the initial
+    // value from TriggerExtras.
+    int16_t bend_cents;
+
+    // Per-instrument fine tune in cents (-50..+50). Set at trigger from
+    // TriggerExtras.
+    int8_t fine_cents;
+
+    // Noise options, set at trigger from TriggerExtras:
+    //   bit 0 (kNoiseFixed)  - NR43 never follows pitch (transposes, slides,
+    //                          vibrato, bend); only the `N` command changes it.
+    //   bit 1 (kNoiseWidth7) - NR43 bit 3 (7-bit LFSR) is OR'd into every write.
+    uint8_t noise_flags;
+
+    // 1 when a length counter is in use (TriggerExtras.length > 0). Every NRx4
+    // / NR44 write then carries bit 6 (length enable).
+    uint8_t length_enable;
 };
 
 // Enforce the POD contract at compile time. Same rationale as VoiceState's
@@ -200,7 +220,26 @@ inline void table_reg_state_reset(TableRegState& r) noexcept
     r.nr43_shape  = 0;
     r.wave_volume = 0;
     r.pitch_offset = 0;
+    r.bend_cents     = 0;  // MPCBOY LOCAL MOD
+    r.fine_cents     = 0;
+    r.noise_flags    = 0;
+    r.length_enable  = 0;
 }
+
+// MPCBOY LOCAL MOD: NRx4 bit 6 (length enable) and TableRegState::noise_flags.
+constexpr uint8_t kLengthEnableBit = 0x40;
+constexpr uint8_t kNoiseFixed      = 0x01;
+constexpr uint8_t kNoiseWidth7     = 0x02;
+
+// MPCBOY LOCAL MOD: companion data for table_trigger that does not fit the
+// 16-byte RackboyInstrument. Passing nullptr to table_trigger is exactly the
+// pre-mpcboy behaviour (no fine tune, no bend, no length, legacy noise rule).
+struct TriggerExtras {
+    int8_t   fine_cents;   // -50..+50
+    int16_t  bend_cents;   // current pitch bend, cents
+    uint8_t  noise_flags;  // kNoiseFixed | kNoiseWidth7
+    uint8_t  length;       // 0 = off, 1..64 steps (see 02-apu-and-voice.md)
+};
 
 // ---------------------------------------------------------------------------
 // table_trigger — Gate 1 rising-edge handler (AD #9)
@@ -229,6 +268,16 @@ void table_trigger(
     rackboy::core::VoiceChannel ch,
     const rackboy::sav::RackboyInstrument& inst,
     int16_t semitones_from_base,
+    rackboy_apu_t* apu,
+    const TriggerExtras* extras = nullptr) noexcept;  // MPCBOY LOCAL MOD: extras
+
+// MPCBOY LOCAL MOD: rewrite the channel's frequency registers (no trigger bit)
+// from regs + the voice's current vibrato phase, using the same pitch
+// composition as table_tick. For legato glide and pitch bend between ticks.
+void table_write_pitch(
+    const rackboy::core::VoiceState& voice,
+    TableRegState& regs,
+    rackboy::core::VoiceChannel ch,
     rackboy_apu_t* apu) noexcept;
 
 // ---------------------------------------------------------------------------

@@ -60,9 +60,79 @@ static void rackboy_sample_callback(GB_gameboy_t *gb, GB_sample_t *sample)
     }
 }
 
+/*
+ * MPCBOY LOCAL MOD: single-pass stereo callback. Stores both sides; used only
+ * by rackboy_apu_run_stereo, which swaps it in and restores
+ * rackboy_sample_callback afterwards.
+ */
+static void mpcboy_stereo_callback(GB_gameboy_t *gb, GB_sample_t *sample)
+{
+    rackboy_apu_t *apu = (rackboy_apu_t *)gb;
+
+    if (apu->_cb_pos < apu->_cb_target && apu->_cb_buf && apu->_cb_buf_r) {
+        apu->_cb_buf[apu->_cb_pos]   = (float)sample->left  / 32768.0f;
+        apu->_cb_buf_r[apu->_cb_pos] = (float)sample->right / 32768.0f;
+        apu->_cb_pos++;
+    }
+}
+
+/* MPCBOY LOCAL MOD: test-only register-write spy (NULL in production). */
+static rackboy_apu_write_spy_fn g_write_spy      = NULL;
+static void                    *g_write_spy_user = NULL;
+
+void rackboy_apu_set_write_spy(rackboy_apu_write_spy_fn fn, void *user)
+{
+    g_write_spy      = fn;
+    g_write_spy_user = user;
+}
+
+static inline void apu_write_spied(rackboy_apu_t *apu, uint8_t reg, uint8_t value)
+{
+    if (g_write_spy) g_write_spy(g_write_spy_user, (uint16_t)(0xFF00u | reg), value);
+    GB_apu_write(&apu->gb, reg, value);
+}
+
 /* ------------------------------------------------------------------ */
 /* Cycle feeder                                                        */
 /* ------------------------------------------------------------------ */
+
+/*
+ * MPCBOY LOCAL MOD: advance both counters by `t_cycles` (even) T-cycles. With
+ * the frame sequencer off this is exactly rackboy's original sequence (one
+ * GB_apu_run for the whole chunk). With it on, the chunk is split at every
+ * 4096-cycle edge of DIV bit 12 and, like SameBoy's
+ * GB_set_internal_div_counter, a falling edge fires GB_apu_div_event and a
+ * rising edge GB_apu_div_secondary_event.
+ */
+static void advance_cycles(rackboy_apu_t *apu, uint32_t t_cycles)
+{
+    const unsigned sr = apu->sample_rate;
+
+    while (t_cycles) {
+        uint32_t step = t_cycles;
+        if (apu->mpcboy_frame_seq) {
+            const uint32_t to_edge = 4096u - ((uint32_t)apu->gb.div_counter & 4095u);
+            if (step > to_edge) step = to_edge;
+        }
+
+        apu->gb.apu_output.sample_cycles += (uint32_t)((uint64_t)sr * step);
+        apu->gb.apu.apu_cycles = (uint16_t)(step / 2);
+        GB_apu_run(&apu->gb, true);
+        t_cycles -= step;
+
+        if (apu->mpcboy_frame_seq) {
+            const uint16_t old_div = apu->gb.div_counter;
+            const uint16_t new_div = (uint16_t)(old_div + step);
+            apu->gb.div_counter = new_div;
+            if ((uint16_t)(old_div & ~new_div) & 0x1000) {
+                GB_apu_div_event(&apu->gb);
+            }
+            else if ((uint16_t)(~old_div & new_div) & 0x1000) {
+                GB_apu_div_secondary_event(&apu->gb);
+            }
+        }
+    }
+}
 
 /*
  * Drive the APU for exactly `n` output samples by replicating SameBoy's
@@ -106,11 +176,7 @@ static void feed_samples(rackboy_apu_t *apu, uint32_t n)
         t_cycles = (t_cycles + 1) & ~1u;
 
         /* Replicate timing.c: advance both counters in lockstep. */
-        apu->gb.apu_output.sample_cycles += (uint32_t)((uint64_t)sr * t_cycles);
-        uint16_t apu_cyc = (uint16_t)(t_cycles / 2);
-
-        apu->gb.apu.apu_cycles = apu_cyc;
-        GB_apu_run(&apu->gb, true);
+        advance_cycles(apu, t_cycles);
     }
 }
 
@@ -138,6 +204,11 @@ void rackboy_apu_init(rackboy_apu_t *apu, unsigned sample_rate)
     GB_apu_write(&apu->gb, GB_IO_NR52, 0x80);
 }
 
+void rackboy_apu_set_frame_sequencer(rackboy_apu_t *apu, int enable)
+{
+    apu->mpcboy_frame_seq = enable ? 1 : 0;
+}
+
 void rackboy_apu_write_reg(rackboy_apu_t *apu, uint16_t addr, uint8_t value)
 {
     uint8_t reg = (uint8_t)(addr & 0xFF);
@@ -145,7 +216,7 @@ void rackboy_apu_write_reg(rackboy_apu_t *apu, uint16_t addr, uint8_t value)
     /* APU registers live at 0xFF10..0xFF3F (IO offsets 0x10..0x3F). */
     if (reg < 0x10 || reg > 0x3F) return;
 
-    GB_apu_write(&apu->gb, reg, value);
+    apu_write_spied(apu, reg, value);
 }
 
 /*
@@ -167,15 +238,31 @@ void rackboy_apu_write_wave_ram(rackboy_apu_t *apu, const uint8_t waveform[16])
      */
     const uint8_t saved_nr30 = apu->gb.io_registers[GB_IO_NR30];
 
-    GB_apu_write(&apu->gb, GB_IO_NR30, 0x00);
+    apu_write_spied(apu, GB_IO_NR30, 0x00);
 
     for (uint8_t i = 0; i < 16; i++) {
-        GB_apu_write(&apu->gb,
-                     (uint8_t)(GB_IO_WAV_START + i),
-                     waveform[i]);
+        apu_write_spied(apu, (uint8_t)(GB_IO_WAV_START + i), waveform[i]);
     }
 
-    GB_apu_write(&apu->gb, GB_IO_NR30, saved_nr30);
+    apu_write_spied(apu, GB_IO_NR30, saved_nr30);
+}
+
+void rackboy_apu_run_stereo(rackboy_apu_t *apu, uint32_t n,
+                            float *left, float *right)
+{
+    if (n == 0) return;
+
+    apu->_cb_buf    = left;
+    apu->_cb_buf_r  = right;
+    apu->_cb_pos    = 0;
+    apu->_cb_target = n;
+    apu->gb.apu_output.sample_callback = mpcboy_stereo_callback;
+
+    feed_samples(apu, n);
+
+    apu->gb.apu_output.sample_callback = rackboy_sample_callback;
+    apu->_cb_buf   = NULL;
+    apu->_cb_buf_r = NULL;
 }
 
 void rackboy_apu_run_samples(rackboy_apu_t *apu, uint32_t n,

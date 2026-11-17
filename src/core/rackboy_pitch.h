@@ -97,6 +97,14 @@ std::uint16_t pitch_wave_11bit(std::int16_t semitones_from_base) noexcept;
 // an accidental formula drift is caught loudly.
 std::uint8_t pitch_noise_nr43(std::int16_t semitones_from_base) noexcept;
 
+// MPCBOY LOCAL MOD: cents-resolution pitch. `cents_from_base` is the distance
+// from kBaseMidiNote in cents (semitone * 100); the result is the nearest
+// 11-bit register value, clamped like the semitone functions.
+// pitch_square_11bit_cents(n * 100) == pitch_square_11bit(n), same for wave.
+std::uint16_t pitch_square_11bit_cents(std::int32_t cents_from_base) noexcept;
+
+std::uint16_t pitch_wave_11bit_cents(std::int32_t cents_from_base) noexcept;
+
 }  // namespace core
 }  // namespace rackboy
 

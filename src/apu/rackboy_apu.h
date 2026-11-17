@@ -67,11 +67,19 @@ typedef struct rackboy_apu_s {
 
     /* -- internal callback context (set per-pass, not caller-visible) -- */
     float   *_cb_buf;       /* current channel output buffer              */
+    float   *_cb_buf_r;     /* MPCBOY LOCAL MOD: right buffer, run_stereo */
     uint32_t _cb_pos;       /* samples written so far this pass           */
     uint32_t _cb_target;    /* samples requested this pass                */
 
     /* -- configuration -- */
     unsigned sample_rate;   /* output sample rate (Hz), set at init       */
+
+    /* MPCBOY LOCAL MOD: when non-zero, feed_samples also advances
+     * gb.div_counter and fires GB_apu_div_event / GB_apu_div_secondary_event
+     * (the 512 Hz frame sequencer: length counters, envelopes, sweep).
+     * 0 (the default after init) keeps rackboy's original behaviour, in which
+     * those events never fire. */
+    uint8_t  mpcboy_frame_seq;
 } rackboy_apu_t;
 
 /* ------------------------------------------------------------------ */
@@ -122,6 +130,46 @@ void rackboy_apu_write_reg(rackboy_apu_t *apu, uint16_t addr, uint8_t value);
 void rackboy_apu_run_samples(rackboy_apu_t *apu, uint32_t n,
                               float *ch1, float *ch2, float *ch3,
                               float *ch4);
+
+/*
+ * MPCBOY LOCAL MOD.
+ *
+ * Render `n` frames in ONE pass to a stereo pair (`left`, `right`), each
+ * holding at least `n` floats. No channel muting, no snapshot, no band-limited
+ * state swap: every channel is mixed through NR50/NR51 exactly as the register
+ * values dictate, and the APU state simply carries over to the next call (so
+ * rendering N frames in one call equals rendering them in any number of
+ * smaller calls). Samples are SameBoy's int16 stereo output divided by 32768.
+ *
+ * Allocates nothing. Uses its own sample callback and restores rackboy's
+ * callback afterwards, so `rackboy_apu_run_samples` keeps working.
+ */
+void rackboy_apu_run_stereo(rackboy_apu_t *apu, uint32_t n,
+                            float *left, float *right);
+
+/*
+ * MPCBOY LOCAL MOD: enable or disable the frame sequencer (see the
+ * `mpcboy_frame_seq` field). Upstream SameBoy drives it from the CPU's DIV
+ * counter, which rackboy does not have, so without this no length counter,
+ * volume envelope or frequency sweep ever advances. Call after
+ * rackboy_apu_init (init clears it). Only affects rackboy_apu_run_stereo;
+ * rackboy_apu_run_samples (the 4-pass golden path) should keep it off.
+ */
+void rackboy_apu_set_frame_sequencer(rackboy_apu_t *apu, int enable);
+
+/*
+ * MPCBOY LOCAL MOD: test-only register-write spy.
+ *
+ * When `fn` is non-NULL it is called with (user, CPU address, value) for every
+ * write that goes through `rackboy_apu_write_reg` and for every write
+ * `rackboy_apu_write_wave_ram` performs (NR30 0, the 16 wave bytes, NR30
+ * restore), immediately before the write reaches the APU. NULL (the default)
+ * disables it; production code never sets it. A process-wide hook: one APU at
+ * a time under test.
+ */
+typedef void (*rackboy_apu_write_spy_fn)(void *user, uint16_t addr,
+                                         uint8_t value);
+void rackboy_apu_set_write_spy(rackboy_apu_write_spy_fn fn, void *user);
 
 /*
  * Write all 16 bytes of CH3 wave RAM ($FF30..$FF3F) from the provided
