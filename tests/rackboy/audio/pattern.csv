@@ -1,0 +1,49 @@
+# tests/audio/pattern.csv
+#
+# Trigger / clock pattern for the golden-audio regression
+# (bead rackboy-5wl). Binds AD #11's render window to an
+# explicit event stream:
+#
+#   * Total window: 2.000 s (96000 samples at 48 kHz).
+#   * Column schema per tests/audio/README.md "Trigger / clock pattern":
+#       time_seconds, event_type, event_value
+#     where event_value for gate1_rising is "p1,p2,wv,no" —
+#     the four instrument-slot indices to select on Pulse1,
+#     Pulse2, Wave, and Noise respectively. The committed
+#     fixture (rackboy-pj3) has pool counts {2, 0, 1, 1} per
+#     tests/fixtures/expected.json, so Pulse2 stays at slot
+#     0 (no-instrument) for the whole render.
+#
+# First row MUST be a gate1_rising at t=0 with an explicit
+# slot tuple (README "First-row rule"). This pattern keeps
+# the slot tuple fixed — knob_set is not exercised — and
+# interleaves Gate 1 retriggers with steady Gate 2 clocks
+# so the table interpreter advances per-voice cursors at
+# ~8 Hz (every 125 ms) across the render.
+#
+# Lines beginning with `#` are comments and are ignored by
+# the parser. Empty lines are ignored too. Whitespace around
+# commas is trimmed. Order within a single timestamp is
+# deterministic: gate1_rising is applied before gate2_rising
+# when they share the same timestamp, matching the inner
+# ASSESS/EXECUTE loop of tests/audio/regression.cpp.
+
+0.000, gate1_rising, "0,0,0,0"
+0.125, gate2_rising,
+0.250, gate2_rising,
+0.375, gate2_rising,
+0.500, gate1_rising, "1,0,0,0"
+0.500, gate2_rising,
+0.625, gate2_rising,
+0.750, gate2_rising,
+0.875, gate2_rising,
+1.000, gate1_rising, "0,0,0,0"
+1.000, gate2_rising,
+1.125, gate2_rising,
+1.250, gate2_rising,
+1.375, gate2_rising,
+1.500, gate1_rising, "1,0,0,0"
+1.500, gate2_rising,
+1.625, gate2_rising,
+1.750, gate2_rising,
+1.875, gate2_rising,

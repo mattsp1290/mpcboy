@@ -1,0 +1,1 @@
+{"name": "mpcboy", "manufacturer": "mpcboy", "version": "0.1.0", "format": "vst2", "kind": "instrument", "uid": "MbGb", "category": "Synth", "numInputs": 0, "numOutputs": 2, "file32": "VST/mpcboy-arm32.so", "file64": "VST/mpcboy-arm64.so", "description": "Game Boy mono synth: 4 layered DMG channels with BPM-synced LSDJ-style tables.", "license": "MIT"}
