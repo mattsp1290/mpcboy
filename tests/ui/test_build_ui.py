@@ -20,9 +20,11 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 SCRIPT = os.path.join(ROOT, "scripts", "build_ui.py")
 PARAMS = os.path.join(ROOT, "build", "params.json")
 sys.path.insert(0, os.path.join(ROOT, "vendor", "mpc-plugin-builder-sdk", "tools"))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 import gen_ui  # noqa: E402
 import make_ui_kit  # noqa: E402
+import check_ui_generated  # noqa: E402
 
 KIT_NAMES = ("knob_uni", "knob_bi", "fader_h_uni", "fader_h_bi", "toggle_on", "toggle_off",
              "seg2_on", "seg2_off", "seg3_on", "seg3_off", "seg4_on", "seg4_off")
@@ -102,10 +104,22 @@ class BuildUiTest(unittest.TestCase):
             self.assertEqual(a[name], b[name], "%s differs between two runs" % name)
 
     def test_matches_committed_tree(self):
-        gen = tree_files(os.path.join(self.base, "root"))
-        for rel, data in gen.items():
-            with open(os.path.join(ROOT, rel), "rb") as f:
-                self.assertEqual(f.read(), data, "%s is stale: re-run scripts/build_ui.py" % rel)
+        # PNGs compare by decoded pixels (a different zlib may compress differently); .inc exactly.
+        problems = check_ui_generated.compare_trees(os.path.join(self.base, "root"), ROOT)
+        self.assertEqual(problems, [], "re-run scripts/build_ui.py")
+
+    def test_png_compare_ignores_compression(self):
+        import zlib
+        a = check_ui_generated.tree_files(os.path.join(self.base, "root", "ui", "art"))["knob_uni.png"]
+        ihdr, raw = check_ui_generated.decode_png(a)
+        def chunk(tag, data):
+            body = tag + data
+            return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+        b = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw, 1)) + chunk(b"IEND", b"")
+        self.assertNotEqual(a, b)
+        self.assertTrue(check_ui_generated.same_content("x.png", a, b))
+        self.assertFalse(check_ui_generated.same_content("x.png", a, a[:-20] + b"\0" * 20))
+        self.assertFalse(check_ui_generated.same_content("x.inc", b"a", b"b"))
 
     def test_background_first_in_every_tab(self):
         tabs = get(get(self.tui, "pageData"), "tabs")

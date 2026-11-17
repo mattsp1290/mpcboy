@@ -80,7 +80,7 @@ const Asset* findAsset(const char* file)
     return nullptr;
 }
 
-Rect contentRect() { return {0, kContentY, 1280, 628}; }
+Rect contentRect() { return {0, kContentY, kTabWidth, kTabHeight}; }
 
 Rect tabButtonRect(int index)
 {
@@ -413,16 +413,20 @@ int tableCharX(int charCol) { return kTableGrid.textX + charCol * kPixelFontAdva
 int tableLineY(int line) { return kTableGrid.textY + line * kTableGrid.rowPitch; }
 
 namespace {
-int innerWidth() { return kTableGrid.panelBounds.w - 2 * (kTableGrid.textX - kTableGrid.panelBounds.x); }
-int bandHeight() { return kPixelFontHeight * kTableGrid.charScale + 4; }
+int innerWidth() { return kTableInnerWidth; }
+int bandHeight() { return kPixelFontHeight * kTableGrid.charScale + 2 * kTableBandPad; }
 }  // namespace
 
-Rect tableHeaderBand() { return {kTableGrid.textX - 2, kTableGrid.textY - 2, innerWidth() + 4, bandHeight()}; }
+Rect tableHeaderBand()
+{
+    return {kTableGrid.textX - kTableBandPad, kTableGrid.textY - kTableBandPad, innerWidth() + 2 * kTableBandPad, bandHeight()};
+}
 
 Rect tableCursorBand(int line)
 {
     const int adv = kPixelFontAdvance * kTableGrid.charScale;
-    return {kTableGrid.textX + adv - 2, tableLineY(line) - 2, innerWidth() - adv + 4, bandHeight()};
+    return {kTableGrid.textX + adv - kTableBandPad, tableLineY(line) - kTableBandPad, innerWidth() - adv + 2 * kTableBandPad,
+            bandHeight()};
 }
 
 }  // namespace mpcboy::ui

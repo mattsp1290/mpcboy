@@ -218,6 +218,8 @@ TEST_CASE("editor edits: the drain also runs on process()'s early-return paths")
     ctx.numFrames = 64;
     r.p->process(ctx);
     CHECK(r.p->content().live().tables.tables[0].rows[4].cmd2_param == 0x5a);
+    Content pub;
+    CHECK(publishedRow(*r.p, 0, 4, pub).cmd2_param == 0x5a);   // published by the early path itself
 
     // Unsupported rate (silence path).
     r.p->prepare(88200.0, 512);
@@ -225,11 +227,25 @@ TEST_CASE("editor edits: the drain also runs on process()'s early-return paths")
     onEditorThread([&] { r.p->editorSet(ED_Val2, normOf(*r.p, ED_Val2, 0x21)); });
     r.block();
     CHECK(r.p->content().live().tables.tables[0].rows[4].cmd2_param == 0x21);
+    CHECK(publishedRow(*r.p, 0, 4, pub).cmd2_param == 0x21);   // visible to the TABLE grid at once
     r.p->prepare(44100.0, 512);
     r.block();
     r.block();
     Content c;
     CHECK(publishedRow(*r.p, 0, 4, c).cmd2_param == 0x21);
+}
+
+TEST_CASE("editor edits: an out-of-range norm packs the clamped value, not a read-back")
+{
+    PluginRig r;
+    r.p->set(ED_Table, 1);
+    r.p->set(ED_Row, 3);
+    r.block();
+    onEditorThread([&] { r.p->editorSet(ED_Val1, 7.5f); });   // clamps to 1.0 -> 0xff
+    r.block();
+    r.block();
+    Content c;
+    CHECK(static_cast<int>(publishedRow(*r.p, 0, 3, c).cmd1_param) == static_cast<int>(r.p->param(ED_Val1).toPlain(1.0f)));
 }
 
 TEST_CASE("editor edits: host writes to 51..58 from a non-audio thread are still rejected")

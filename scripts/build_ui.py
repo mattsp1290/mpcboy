@@ -29,7 +29,6 @@ Standard library only; Python 3.9+.
 import argparse
 import json
 import os
-import shutil
 import struct
 import sys
 import tempfile
@@ -58,6 +57,21 @@ KIT_NAMES = ("knob_uni", "knob_bi", "fader_h_uni", "fader_h_bi", "toggle_on", "t
              "seg2_on", "seg2_off", "seg3_on", "seg3_off", "seg4_on", "seg4_off")
 FRAMES = 127
 TAB_W, TAB_H = 1280, 628
+
+# Text sizes and table geometry shared with the Mac editor (emitted into ui_layout.inc; the
+# editor and the previews both read them from here, nothing is retyped in C++).
+LABEL_SCALE_THRESHOLD = 24.0   # a label whose font height is below this uses 2x font pixels, else 3x
+TAB_TITLE_FONT_H = 20.0        # tab bar button titles
+SLIDER_ROW_H = 30              # firmware slider approximation: name row, then value row, each this tall
+SLIDER_NAME_FONT_H = 20.0
+SLIDER_VALUE_FONT_H = 26.0
+SLIDER_BAR_BOTTOM = 10         # value bar frame: this many units above the slider's bottom edge
+SLIDER_BAR_H = 8               # frame height (the fill is 1 unit inside it)
+TABLE_BAND_PAD = 2             # highlight bands extend this far around the text cells
+
+
+def label_scale(font_height):
+    return 2 if font_height < LABEL_SCALE_THRESHOLD else 3
 
 
 class BuildError(Exception):
@@ -235,13 +249,27 @@ def grid_origin(bounds, inset, grid):
     return bounds[0] + inset + grid["padding"], bounds[1] + inset + grid["padding"]
 
 
+def table_metrics(bounds, inset, grid):
+    """(ox, oy, inner_w, line_chars): the text origin, the text area width and how many font cells fit a line.
+
+    Raises BuildError when a column does not fit the line."""
+    ox, oy = grid_origin(bounds, inset, grid)
+    inner_w = bounds[2] - 2 * inset - 2 * grid["padding"]
+    line_chars = inner_w // (ui_art.FONT_ADVANCE * grid["charScale"])
+    for col in grid["columns"]:
+        if col["x"] + max(col["chars"], len(col["title"])) > line_chars:
+            raise BuildError("table column %r (x=%d, %d chars) overflows the %d-character line"
+                             % (col["title"], col["x"], max(col["chars"], len(col["title"])), line_chars))
+    return ox, oy, inner_w, line_chars
+
+
 def decorate_table(bg, P, bounds, inset, grid, cursor):
     """The MPC's static stand-in for the editor's live table grid: header, 8 rows, row 0 under the cursor."""
     s = grid["charScale"]
     adv = ui_art.FONT_ADVANCE * s
-    ox, oy = grid_origin(bounds, inset, grid)
-    inner_w = bounds[2] - 2 * inset - 2 * grid["padding"]
-    bg.rect(ox - 2, oy - 2, inner_w + 4, ui_art.FONT_H * s + 4, P.light)
+    ox, oy, inner_w, _ = table_metrics(bounds, inset, grid)
+    pad = TABLE_BAND_PAD
+    bg.rect(ox - pad, oy - pad, inner_w + 2 * pad, ui_art.FONT_H * s + 2 * pad, P.light)
     for col in grid["columns"]:
         ui_art.draw_text(bg, col["title"], ox + col["x"] * adv, oy, s, P.darkest)
     samples = ("--", "--", "+00", "-", "00", "-", "00")
@@ -249,7 +277,7 @@ def decorate_table(bg, P, bounds, inset, grid, cursor):
         y = oy + (r + 1) * grid["rowPitch"]
         ink = P.darkest
         if r == 0:
-            bg.rect(ox + adv - 2, y - 2, inner_w - adv + 4, ui_art.FONT_H * s + 4, P.darkest)
+            bg.rect(ox + adv - pad, y - pad, inner_w - adv + 2 * pad, ui_art.FONT_H * s + 2 * pad, P.darkest)
             ink = P.lightest
             bg.blit(cursor, ox, y)
         for col, text in zip(grid["columns"], ("%02X" % r,) + samples[1:]):
@@ -345,7 +373,9 @@ def walk_layout(tui, params):
                 page["controls"].append({"param": index, "name": name, "kind": KIND_ENUM[base], "menu": menu,
                                          "component": def_index[t], "slot": bounds, "visible": vis, "captions": []})
             elif t == "Label" and page["controls"] and oget(cd, "name").startswith(page["controls"][-1]["name"] + " seg "):
-                page["controls"][-1]["captions"].append((oget(oget(cd, "data"), "text"), bounds))
+                data = oget(cd, "data")
+                height = float(oget(oget(oget(data, "textStyle"), "font"), "height"))
+                page["controls"][-1]["captions"].append((oget(data, "text"), bounds, height))
             else:
                 raise BuildError("tab %s: entry %s (%s) has no editor mapping" % (page["name"], oget(cd, "name"), t))
         pages.append(page)
@@ -373,7 +403,7 @@ def emit_layout(spec, style, defs, pages, art, P):
     pal = gb["palette"]
     out = ["// %s" % GENERATED_NOTE,
            "// Included by src/ui/ui_layout.h inside namespace mpcboy::ui. All bounds are in design units",
-           "// (1280 x 628 per tab; one design unit = one point in the Mac editor).", ""]
+           "// (%d x %d per tab; one design unit = one point in the Mac editor)." % (TAB_W, TAB_H), ""]
     theme = [argb(style[k]) for k in ("background", "accent", "text", "muted")]
     theme += [argb(pal[k]) for k in ("lcdDarkest", "lcdDark", "lcdLight", "lcdLightest", "lcdPanel", "shellLight",
                                      "shellDark", "labelAccent", "magenta", "caption")]
@@ -405,7 +435,7 @@ def emit_layout(spec, style, defs, pages, art, P):
         for ci, c in enumerate(page["controls"]):
             if c["captions"]:
                 out.append("inline constexpr Caption kPage%dControl%dCaptions[] = {%s};" % (
-                    pi, ci, ", ".join("{%s, %s}" % (cstr(t), crect(r)) for t, r in c["captions"])))
+                    pi, ci, ", ".join("{%s, %s, %.1ff}" % (cstr(t), crect(r), h) for t, r, h in c["captions"])))
         out.append("inline constexpr Control kPage%dControls[] = {  // %s" % (pi, page["name"]))
         for ci, c in enumerate(page["controls"]):
             caps = ("kPage%dControl%dCaptions, %d" % (pi, ci, len(c["captions"]))) if c["captions"] else "nullptr, 0"
@@ -438,6 +468,8 @@ def emit_layout(spec, style, defs, pages, art, P):
         crect((0, y, TAB_W, tb["height"])), cstr("tab_bar.png"), cstr("tab_on.png"), cstr("tab_off.png"),
         first_x, (tb["height"] - tb["buttonHeight"]) // 2, tb["pitch"]))
     out.append("inline constexpr Rect kTabButtonSize = {0, 0, %d, %d};" % (tb["buttonWidth"], tb["buttonHeight"]))
+    out.append("inline constexpr int kTabWidth = %d;   // one page (tab content)" % TAB_W)
+    out.append("inline constexpr int kTabHeight = %d;" % TAB_H)
     out.append("inline constexpr int kEditorWidth = %d;" % TAB_W)
     out.append("inline constexpr int kEditorHeight = %d;" % (TAB_H + tb["height"]))
     out.append("inline constexpr int kContentY = %d;  // tab content origin inside the editor window" % (0 if tb["position"] == "bottom" else tb["height"]))
@@ -450,13 +482,27 @@ def emit_layout(spec, style, defs, pages, art, P):
     g = p["grid"]
     b = panel_bounds(p)
     inset = ui_art.LCD_INSET
-    ox, oy = grid_origin(b, inset, g)
+    ox, oy, inner_w, line_chars = table_metrics(b, inset, g)
     out.append("inline constexpr TableColumn kTableColumns[] = {%s};" % ", ".join(
         "{%s, %d, %d}" % (cstr(c["title"]), c["x"], c["chars"]) for c in g["columns"]))
+    out.append("inline constexpr int kTableLineChars = %d;   // font cells per text line (the LCD text area)" % line_chars)
+    out.append("inline constexpr int kTableInnerWidth = %d;   // text area width, design units" % inner_w)
+    out.append("inline constexpr int kTableBandPad = %d;      // highlight bands extend this far around the text cells" % TABLE_BAND_PAD)
     out.append("// Text grid of the TABLE page LCD (tab coordinates): header row, then visibleRows rows.")
     out.append("inline constexpr TableGrid kTableGrid = {%d, %s, %d, %d, %d, %d, %d, %s, %s, kTableColumns, %d};" % (
         [x["name"] for x in pages].index(pg["name"]), crect(b), ox, oy, g["charScale"], g["rowPitch"], g["visibleRows"],
         cstr(p["image"]), cstr(g["cursorImage"]), len(g["columns"])))
+    out.append("")
+    out.append("// Text sizes (shared by the previews and the editor).")
+    out.append("inline constexpr float kLabelScaleThreshold = %.1ff;   // font height below this: 2x font pixels, else 3x" % LABEL_SCALE_THRESHOLD)
+    out.append("inline constexpr float kTabTitleFontHeight = %.1ff;" % TAB_TITLE_FONT_H)
+    out.append("// Firmware slider approximation: a name row and a value row (each kSliderRowHeight tall), then a")
+    out.append("// value bar frame kSliderBarBottom above the bottom edge.")
+    out.append("inline constexpr int kSliderRowHeight = %d;" % SLIDER_ROW_H)
+    out.append("inline constexpr float kSliderNameFontHeight = %.1ff;" % SLIDER_NAME_FONT_H)
+    out.append("inline constexpr float kSliderValueFontHeight = %.1ff;" % SLIDER_VALUE_FONT_H)
+    out.append("inline constexpr int kSliderBarBottom = %d;" % SLIDER_BAR_BOTTOM)
+    out.append("inline constexpr int kSliderBarHeight = %d;" % SLIDER_BAR_H)
     return "\n".join(out) + "\n"
 
 
@@ -481,7 +527,7 @@ def emit_font():
 # --------------------------------------------------------------------------------------------
 def preview_text(img, text, bounds, height, justify, colour):
     x, y, w, h = bounds
-    s = 2 if height < 24.0 else 3
+    s = label_scale(height)
     tw = ui_art.text_width(text, s)
     tx = x if justify == "Left" else (x + w - tw if justify == "Right" else x + (w - tw) // 2)
     ty = y + (h - ui_art.FONT_H * s) // 2
@@ -523,12 +569,12 @@ def render_preview(page, defs, art, params, style, P):
             elif ch["type"] == "Slider":
                 # Approximation: the firmware draws its own (unthemable) slider with name and value.
                 muted, text_c = argb_bytes(int(style["muted"], 16)), argb_bytes(int(style["text"], 16))
-                preview_text(img, p.name.upper(), (bx, by, bw, 30), 20.0, "Left", muted)
-                preview_text(img, p.display.upper(), (bx, by + 30, bw, 30), 26.0, "Left", text_c)
-                img.frame(bx, by + bh - 10, bw, 8, muted)
-                img.rect(bx + 1, by + bh - 9, int((bw - 2) * val), 6, text_c)
-        for text, (x, y, w, h) in c["captions"]:
-            preview_text(img, text.upper(), (x, y, w, h), 18.7, "Centre", P.caption)
+                preview_text(img, p.name.upper(), (bx, by, bw, SLIDER_ROW_H), SLIDER_NAME_FONT_H, "Left", muted)
+                preview_text(img, p.display.upper(), (bx, by + SLIDER_ROW_H, bw, SLIDER_ROW_H), SLIDER_VALUE_FONT_H, "Left", text_c)
+                img.frame(bx, by + bh - SLIDER_BAR_BOTTOM, bw, SLIDER_BAR_H, muted)
+                img.rect(bx + 1, by + bh - SLIDER_BAR_BOTTOM + 1, int((bw - 2) * val), SLIDER_BAR_H - 2, text_c)
+        for text, (x, y, w, h), height in c["captions"]:
+            preview_text(img, text.upper(), (x, y, w, h), height, "Centre", P.caption)
     return img
 
 
@@ -544,7 +590,7 @@ def render_tabbar_preview(spec, pages, art, P):
         x = first_x + i * tb["pitch"]
         img.blit(btn, x, by)
         title = spec["gb"]["titles"][page.name]
-        preview_text(img, title, (x, by, btn.w, btn.h), 20.0, "Centre", P.caption if on else P.shell)
+        preview_text(img, title, (x, by, btn.w, btn.h), TAB_TITLE_FONT_H, "Centre", P.caption if on else P.shell)
     return img
 
 
@@ -597,12 +643,30 @@ def build(args):
     tui, qlinks = build_tree(params, pages, style, frames, art)
     defs, layout_pages = walk_layout(tui, params)
 
+    # Render and validate everything in memory first; nothing is written until it all succeeded,
+    # so a BuildError never leaves a partial tree.
+    art_files = {f: v[3] for f, v in art.files.items()}
+    gen_files = {"ui_layout.inc": emit_layout(spec, style, defs, layout_pages, art, P).encode(),
+                 "pixel_font.inc": emit_font().encode()}
+    skin_files = {}
+    if args.skins:
+        skin_files["TUI.json"] = (gen_ui.dump_json(tui) + "\n").encode("utf-8")
+        skin_files["Q-Links.json"] = (gen_ui.dump_json(qlinks) + "\n").encode("utf-8")
+        for img in sorted(gen_ui.referenced_images(tui, set())):
+            if img not in art.files:
+                raise BuildError("TUI.json references %s, which build_ui.py did not render" % img)
+            skin_files[img] = art_files[img]
+    preview_files = {}
+    if args.preview_dir:
+        for page in layout_pages:
+            preview_files[page["name"].lower() + ".png"] = png_bytes(TAB_W, render_preview(page, defs, art, params, style, P).rows())
+        preview_files["tabbar.png"] = png_bytes(TAB_W, render_tabbar_preview(spec, pages, art, P).rows())
+
     root = os.path.abspath(args.root)
     art_dir = os.path.join(root, "ui", "art")
     gen_dir = os.path.join(root, "src", "ui", "generated")
-    changed = sync_dir(art_dir, {f: v[3] for f, v in art.files.items()}, ".png")
-    changed += sync_dir(gen_dir, {"ui_layout.inc": emit_layout(spec, style, defs, layout_pages, art, P).encode(),
-                                  "pixel_font.inc": emit_font().encode()}, ".inc")
+    changed = sync_dir(art_dir, art_files, ".png")
+    changed += sync_dir(gen_dir, gen_files, ".inc")
     if not args.quiet:
         print("build_ui: %d art files in %s, layout in %s (%d changed)"
               % (len(art.files), os.path.relpath(art_dir, os.getcwd()), os.path.relpath(gen_dir, os.getcwd()), len(changed)))
@@ -611,26 +675,15 @@ def build(args):
 
     if args.skins:
         os.makedirs(args.skins, exist_ok=True)
-        with open(os.path.join(args.skins, "TUI.json"), "w", encoding="utf-8", newline="\n") as f:
-            f.write(gen_ui.dump_json(tui) + "\n")
-        with open(os.path.join(args.skins, "Q-Links.json"), "w", encoding="utf-8", newline="\n") as f:
-            f.write(gen_ui.dump_json(qlinks) + "\n")
-        images = sorted(gen_ui.referenced_images(tui, set()))
-        for img in images:
-            if img not in art.files:
-                raise BuildError("TUI.json references %s, which build_ui.py did not render" % img)
-            shutil.copyfile(os.path.join(art_dir, img), os.path.join(args.skins, img))
+        for name, data in skin_files.items():
+            write_if_changed(os.path.join(args.skins, name), data)
         if not args.quiet:
             n_controls = sum(1 for pg in pages for c in pg.controls if c.param is not None)
             print("build_ui: wrote %s (TUI.json, Q-Links.json, %d images; %d pages, %d bound controls)"
-                  % (args.skins, len(images), len(pages), n_controls))
+                  % (args.skins, len(skin_files) - 2, len(pages), n_controls))
 
     if args.preview_dir:
-        files = {}
-        for page in layout_pages:
-            files[page["name"].lower() + ".png"] = png_bytes(TAB_W, render_preview(page, defs, art, params, style, P).rows())
-        files["tabbar.png"] = png_bytes(TAB_W, render_tabbar_preview(spec, pages, art, P).rows())
-        sync_dir(args.preview_dir, files, ".png")
+        sync_dir(args.preview_dir, preview_files, ".png")
         if not args.quiet:
             print("build_ui: previews in %s" % args.preview_dir)
 

@@ -164,10 +164,14 @@ void MpcBoyPlugin::editorSet(int index, float norm)
         const int col = index - ED_Vol;
         const int table = capValid_[col] ? capTable_[col] : getInt(ED_Table) - 1;
         const int row = capValid_[col] ? capRow_[col] : getInt(ED_Row);
+        // The slot carries the value computed from the argument, not a read-back of the shared
+        // parameter (a concurrent host write could change it in between).
+        const float n = std::min(1.0f, std::max(0.0f, norm));
+        const int value = static_cast<int>(std::lround(param(index).toPlain(n)));
         editorWriter_.store(selfId(), std::memory_order_relaxed);
-        setNormalised(index, norm);   // display only
+        setNormalised(index, n);   // display only
         editorWriter_.store(0, std::memory_order_relaxed);
-        cellSlots_[col].store(packCell(table, row, getInt(index)), std::memory_order_release);
+        cellSlots_[col].store(packCell(table, row, value), std::memory_order_release);
     }
     else if (index >= Imp_Go && index <= Imp_Rescan)
     {
@@ -219,6 +223,16 @@ void MpcBoyPlugin::drainEditor()
     }
     for (int k = 0; k < kNumImportTriggers; ++k)
         if (triggerSlots_[k].exchange(false, std::memory_order_acq_rel)) triggers_.acceptFromEditor(k);
+}
+
+// Early-return paths (no outputs, unsupported rate): beginBlock() first so staged content is
+// consumed before the edits apply (as in a full block), then again to publish the edits, so the
+// TABLE grid and saveExtraState see them.
+void MpcBoyPlugin::drainEarly()
+{
+    store_->beginBlock();
+    drainEditor();
+    store_->beginBlock();
 }
 
 // Audio thread: write the triggers back to 0, follow the worker's list and its
@@ -352,12 +366,12 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
 
     if (ctx.numOutputs < 1 || ctx.outputs == nullptr || ctx.outputs[0] == nullptr)
     {
-        drainEditor();   // editor edits still land (published by the next full block)
+        drainEarly();   // editor edits still land and are published
         return;
     }
     if (silent_ || ctx.numOutputs < 2 || ctx.outputs[1] == nullptr)
     {
-        drainEditor();
+        drainEarly();
         for (int c = 0; c < ctx.numOutputs; ++c)
             if (ctx.outputs[c]) std::memset(ctx.outputs[c], 0, sizeof(float) * static_cast<size_t>(ctx.numFrames));
         return;

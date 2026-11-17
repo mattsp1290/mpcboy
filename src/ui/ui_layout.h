@@ -6,7 +6,8 @@
 // component tree that becomes the MPC's Plugin Skins/TUI.json, so slot bounds, widget
 // sub-bounds and segment positions are never retyped.
 //
-// Coordinates are design units: a tab is 1280 x 628; the Mac editor draws one point per unit.
+// Coordinates are design units: a tab is kTabWidth x kTabHeight (generated); the Mac editor draws
+// one point per unit.
 // Colours are 0xAARRGGBB. Film strips are vertical; width/height in Asset are one frame.
 // Platform-free and header-only: no allocation, no dependencies beyond <cstdint>.
 #pragma once
@@ -104,6 +105,7 @@ struct Caption
 {
     const char* text;  // segment caption (one per choice)
     Rect bounds;       // tab coordinates
+    float fontHeight;  // MPC label font height (selects the editor's font scale: labelScale)
 };
 
 struct Control

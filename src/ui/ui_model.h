@@ -7,9 +7,9 @@
 // this copies its documented feel (vertical drag for knobs, horizontal for faders, tap for
 // segments and toggles) and is unit-tested in tests/unit/ui_model_test.cpp.
 //
-// Coordinates: "tab" coordinates are design units inside the 1280 x 628 page; "window"
-// coordinates are the editor view (1280 x 704: the page at kContentY plus the tab bar). The Mac
-// editor draws one point per design unit.
+// Coordinates: "tab" coordinates are design units inside the kTabWidth x kTabHeight page; "window"
+// coordinates are the editor view (kEditorWidth x kEditorHeight: the page at kContentY plus the
+// tab bar). The Mac editor draws one point per design unit.
 //
 // No SDK or Cocoa headers; the only dependency is gbcore's Content type (table_bank.h).
 #pragma once
@@ -122,7 +122,7 @@ private:
 const PixelGlyph& glyph(char ch);
 int textWidth(const char* text, int scale);
 // Font cell scale for a label of the given (MPC) font height: the previews' rule.
-inline int labelScale(float fontHeight) { return fontHeight < 24.0f ? 2 : 3; }
+inline int labelScale(float fontHeight) { return fontHeight < kLabelScaleThreshold ? 2 : 3; }
 struct Point
 {
     int x, y;
@@ -165,7 +165,7 @@ void rasterizeText(const char* text, int x, int y, int scale, const Rect* clip, 
 }
 
 // ---- TABLE page text grid (LSDJ style) ------------------------------------------------------
-constexpr int kTableLineChars = 32;   // characters per text line (plus NUL)
+// kTableLineChars (generated): characters per text line (plus NUL)
 struct TableLine
 {
     char text[kTableLineChars + 1];   // columns at their character positions, spaces between

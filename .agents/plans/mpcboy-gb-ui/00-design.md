@@ -159,3 +159,10 @@ Not shared, because the MPC firmware implements its own interaction: hit-testing
    - Acceptance: in Ableton the GB UI shows; dragging a knob changes the sound and records automation; tabs switch; a table cell edit changes the grid and the sound; closing and reopening the editor and removing the plugin are safe.
    - `check.sh` and host_sim pass at all rates, the CFBundle load test passes, and MPC builds are unchanged apart from the skin.
 5. **Verify** with check.sh, a visual check in Ableton via computer use, and MPC skin preview PNGs. The MPC on-device check stays the pending G-EDIT gate.
+
+## Implementation notes
+
+- The shared `MpcBoyPlugin` (also built for the MPC) now carries the editor slots and the drain: per block it does a few atomic exchanges (`cellSlots_`, `triggerSlots_`) in `drainEditor()`. On the MPC nothing ever sets the slots (no editor exists there), so the drain is a no-op beyond those loads.
+- On `process()`'s early-return paths (no outputs, unsupported rate) the drain is bracketed by `beginBlock()` calls (`drainEarly()`), so editor edits are published for the TABLE grid and `saveExtraState` even when no audio renders.
+- Text sizes, the label-scale threshold, the tab size and the table line/band geometry are emitted by `scripts/build_ui.py` into `ui_layout.inc` and used by both the previews and the editor; nothing is retyped in C++.
+- `scripts/check_ui_generated.py` is the stale check: it compares decoded PNG pixels and exact `.inc` text, so a different zlib cannot cause false staleness.

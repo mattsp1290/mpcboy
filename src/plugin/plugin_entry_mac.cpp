@@ -5,7 +5,7 @@
 // It follows MPC_PLUGIN_ENTRY_BODY (VST version check, createEffect) and then sets
 // effFlagsHasEditor and installs a dispatcher that handles the editor opcodes and forwards the
 // rest to the SDK's (see .agents/plans/mpcboy-gb-ui/00-design.md "Dispatcher wrap"):
-//   effEditGetRect  *(ERect**)ptr = a member ERect {0, 0, 704, 1280}; the same before and after open
+//   effEditGetRect  *(ERect**)ptr = a member ERect {0, 0, kEditorHeight, kEditorWidth}; the same before and after open
 //   effEditOpen     ptr = the host's NSView*; adds the editor view (idempotent)
 //   effEditClose    removes it; safe when nothing is open
 //   effEditIdle     nothing (the editor has its own 30 Hz timer)

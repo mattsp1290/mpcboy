@@ -101,10 +101,10 @@ inline constexpr ComponentDef kComponents[] = {
 };
 inline constexpr int kNumComponents = 11;
 
-inline constexpr Caption kPage0Control2Captions[] = {{"Always", {678, 99, 122, 40}}, {"Legato", {804, 99, 122, 40}}};
-inline constexpr Caption kPage0Control3Captions[] = {{"Cut", {998, 99, 122, 40}}, {"Ring", {1124, 99, 122, 40}}};
-inline constexpr Caption kPage0Control8Captions[] = {{"Sync", {38, 400, 122, 40}}, {"Free", {164, 400, 122, 40}}};
-inline constexpr Caption kPage0Control10Captions[] = {{"Note", {678, 400, 122, 40}}, {"Grid", {804, 400, 122, 40}}};
+inline constexpr Caption kPage0Control2Captions[] = {{"Always", {678, 99, 122, 40}, 18.7f}, {"Legato", {804, 99, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control3Captions[] = {{"Cut", {998, 99, 122, 40}, 18.7f}, {"Ring", {1124, 99, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control8Captions[] = {{"Sync", {38, 400, 122, 40}, 18.7f}, {"Free", {164, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control10Captions[] = {{"Note", {678, 400, 122, 40}, 18.7f}, {"Grid", {804, 400, 122, 40}, 18.7f}};
 inline constexpr Control kPage0Controls[] = {  // MAIN
     {1, "Volume", WidgetKind::FaderUni, false, 0, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {0, "Bend Range", WidgetKind::KnobUni, false, 1, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
@@ -120,10 +120,10 @@ inline constexpr Control kPage0Controls[] = {  // MAIN
     {8, "Free Hz", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {5, 1, 2}, nullptr, 0},
     {4, "Vel>Vol", WidgetKind::Toggle, false, 3, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
-inline constexpr Caption kPage1Control2Captions[] = {{"Down", {678, 99, 122, 40}}, {"Up", {804, 99, 122, 40}}};
-inline constexpr Caption kPage1Control4Captions[] = {{"12.5%", {38, 250, 58, 40}}, {"25%", {100, 250, 58, 40}}, {"50%", {162, 250, 58, 40}}, {"75%", {224, 250, 58, 40}}};
-inline constexpr Caption kPage1Control7Captions[] = {{"Off", {998, 250, 58, 40}}, {"L", {1060, 250, 58, 40}}, {"C", {1122, 250, 58, 40}}, {"R", {1184, 250, 58, 40}}};
-inline constexpr Caption kPage1Control9Captions[] = {{"Up", {358, 400, 122, 40}}, {"Down", {484, 400, 122, 40}}};
+inline constexpr Caption kPage1Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
+inline constexpr Caption kPage1Control4Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage1Control7Captions[] = {{"Off", {998, 250, 58, 40}, 18.7f}, {"L", {1060, 250, 58, 40}, 18.7f}, {"C", {1122, 250, 58, 40}, 18.7f}, {"R", {1184, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage1Control9Captions[] = {{"Up", {358, 400, 122, 40}, 18.7f}, {"Down", {484, 400, 122, 40}, 18.7f}};
 inline constexpr Control kPage1Controls[] = {  // PULSE1
     {9, "P1 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {10, "P1 Volume", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
@@ -139,9 +139,9 @@ inline constexpr Control kPage1Controls[] = {  // PULSE1
     {17, "P1 Length", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {21, "P1 Table", WidgetKind::SliderWithFocus, true, 4, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
-inline constexpr Caption kPage2Control2Captions[] = {{"Down", {678, 99, 122, 40}}, {"Up", {804, 99, 122, 40}}};
-inline constexpr Caption kPage2Control4Captions[] = {{"12.5%", {38, 250, 58, 40}}, {"25%", {100, 250, 58, 40}}, {"50%", {162, 250, 58, 40}}, {"75%", {224, 250, 58, 40}}};
-inline constexpr Caption kPage2Control7Captions[] = {{"Off", {998, 250, 58, 40}}, {"L", {1060, 250, 58, 40}}, {"C", {1122, 250, 58, 40}}, {"R", {1184, 250, 58, 40}}};
+inline constexpr Caption kPage2Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
+inline constexpr Caption kPage2Control4Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage2Control7Captions[] = {{"Off", {998, 250, 58, 40}, 18.7f}, {"L", {1060, 250, 58, 40}, 18.7f}, {"C", {1122, 250, 58, 40}, 18.7f}, {"R", {1184, 250, 58, 40}, 18.7f}};
 inline constexpr Control kPage2Controls[] = {  // PULSE2
     {22, "P2 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {23, "P2 Volume", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
@@ -154,8 +154,8 @@ inline constexpr Control kPage2Controls[] = {  // PULSE2
     {30, "P2 Length", WidgetKind::KnobUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {31, "P2 Table", WidgetKind::SliderWithFocus, true, 4, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
-inline constexpr Caption kPage3Control1Captions[] = {{"0%", {358, 99, 58, 40}}, {"25%", {420, 99, 58, 40}}, {"50%", {482, 99, 58, 40}}, {"100%", {544, 99, 58, 40}}};
-inline constexpr Caption kPage3Control3Captions[] = {{"Off", {998, 99, 58, 40}}, {"L", {1060, 99, 58, 40}}, {"C", {1122, 99, 58, 40}}, {"R", {1184, 99, 58, 40}}};
+inline constexpr Caption kPage3Control1Captions[] = {{"0%", {358, 99, 58, 40}, 18.7f}, {"25%", {420, 99, 58, 40}, 18.7f}, {"50%", {482, 99, 58, 40}, 18.7f}, {"100%", {544, 99, 58, 40}, 18.7f}};
+inline constexpr Caption kPage3Control3Captions[] = {{"Off", {998, 99, 58, 40}, 18.7f}, {"L", {1060, 99, 58, 40}, 18.7f}, {"C", {1122, 99, 58, 40}, 18.7f}, {"R", {1184, 99, 58, 40}, 18.7f}};
 inline constexpr Control kPage3Controls[] = {  // WAVE
     {32, "WV On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {33, "WV Level", WidgetKind::Radio4, false, 5, {343, 45, 278, 107}, {-1, 0, 0}, kPage3Control1Captions, 4},
@@ -166,10 +166,10 @@ inline constexpr Control kPage3Controls[] = {  // WAVE
     {38, "WV Length", WidgetKind::KnobUni, false, 1, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {39, "WV Table", WidgetKind::SliderWithFocus, true, 4, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
-inline constexpr Caption kPage4Control2Captions[] = {{"Down", {678, 99, 122, 40}}, {"Up", {804, 99, 122, 40}}};
-inline constexpr Caption kPage4Control4Captions[] = {{"15-bit", {38, 250, 122, 40}}, {"7-bit", {164, 250, 122, 40}}};
-inline constexpr Caption kPage4Control5Captions[] = {{"Track", {358, 250, 122, 40}}, {"Fixed", {484, 250, 122, 40}}};
-inline constexpr Caption kPage4Control8Captions[] = {{"Off", {38, 400, 58, 40}}, {"L", {100, 400, 58, 40}}, {"C", {162, 400, 58, 40}}, {"R", {224, 400, 58, 40}}};
+inline constexpr Caption kPage4Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
+inline constexpr Caption kPage4Control4Captions[] = {{"15-bit", {38, 250, 122, 40}, 18.7f}, {"7-bit", {164, 250, 122, 40}, 18.7f}};
+inline constexpr Caption kPage4Control5Captions[] = {{"Track", {358, 250, 122, 40}, 18.7f}, {"Fixed", {484, 250, 122, 40}, 18.7f}};
+inline constexpr Caption kPage4Control8Captions[] = {{"Off", {38, 400, 58, 40}, 18.7f}, {"L", {100, 400, 58, 40}, 18.7f}, {"C", {162, 400, 58, 40}, 18.7f}, {"R", {224, 400, 58, 40}, 18.7f}};
 inline constexpr Control kPage4Controls[] = {  // NOISE
     {40, "NZ On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {41, "NZ Volume", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
@@ -213,10 +213,26 @@ inline constexpr int kNumPages = 6;
 // Editor tab bar (bottom of the window): one button per page.
 inline constexpr TabBar kTabBar = {{0, 628, 1280, 76}, "tab_bar.png", "tab_on.png", "tab_off.png", 10, 12, 212};
 inline constexpr Rect kTabButtonSize = {0, 0, 200, 52};
+inline constexpr int kTabWidth = 1280;   // one page (tab content)
+inline constexpr int kTabHeight = 628;
 inline constexpr int kEditorWidth = 1280;
 inline constexpr int kEditorHeight = 704;
 inline constexpr int kContentY = 0;  // tab content origin inside the editor window
 
 inline constexpr TableColumn kTableColumns[] = {{"ROW", 1, 2}, {"VOL", 5, 2}, {"TSP", 9, 3}, {"CMD", 14, 1}, {"VAL", 18, 2}, {"CMD", 23, 1}, {"VAL", 27, 2}};
+inline constexpr int kTableLineChars = 31;   // font cells per text line (the LCD text area)
+inline constexpr int kTableInnerWidth = 574;   // text area width, design units
+inline constexpr int kTableBandPad = 2;      // highlight bands extend this far around the text cells
 // Text grid of the TABLE page LCD (tab coordinates): header row, then visibleRows rows.
 inline constexpr TableGrid kTableGrid = {5, {663, 45, 598, 258}, 675, 57, 3, 26, 8, "lcd_table_panel.png", "cursor.png", kTableColumns, 7};
+
+// Text sizes (shared by the previews and the editor).
+inline constexpr float kLabelScaleThreshold = 24.0f;   // font height below this: 2x font pixels, else 3x
+inline constexpr float kTabTitleFontHeight = 20.0f;
+// Firmware slider approximation: a name row and a value row (each kSliderRowHeight tall), then a
+// value bar frame kSliderBarBottom above the bottom edge.
+inline constexpr int kSliderRowHeight = 30;
+inline constexpr float kSliderNameFontHeight = 20.0f;
+inline constexpr float kSliderValueFontHeight = 26.0f;
+inline constexpr int kSliderBarBottom = 10;
+inline constexpr int kSliderBarHeight = 8;

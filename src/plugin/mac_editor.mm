@@ -324,10 +324,13 @@ void drawControl(CGContextRef ctx, Art& art, const Snapshot& s, const ui::Contro
             {
                 // The firmware draws its own (unthemable) slider; this matches the previews:
                 // name, value and a thin value bar.
-                drawText(ctx, name, {r.x, r.y, r.w, 30}, 2, ui::Justify::Left, t.muted);
-                drawText(ctx, value, {r.x, r.y + 30, r.w, 30}, 3, ui::Justify::Left, t.text);
-                frameRect(ctx, r.x, r.y + r.h - 10, r.w, 8, t.muted);
-                fillRect(ctx, r.x + 1, r.y + r.h - 9, static_cast<int>((r.w - 2) * v), 6, t.text);
+                drawText(ctx, name, {r.x, r.y, r.w, ui::kSliderRowHeight}, ui::labelScale(ui::kSliderNameFontHeight),
+                         ui::Justify::Left, t.muted);
+                drawText(ctx, value, {r.x, r.y + ui::kSliderRowHeight, r.w, ui::kSliderRowHeight},
+                         ui::labelScale(ui::kSliderValueFontHeight), ui::Justify::Left, t.text);
+                frameRect(ctx, r.x, r.y + r.h - ui::kSliderBarBottom, r.w, ui::kSliderBarHeight, t.muted);
+                fillRect(ctx, r.x + 1, r.y + r.h - ui::kSliderBarBottom + 1, static_cast<int>((r.w - 2) * v),
+                         ui::kSliderBarHeight - 2, t.text);
                 break;
             }
             default:
@@ -338,7 +341,7 @@ void drawControl(CGContextRef ctx, Art& art, const Snapshot& s, const ui::Contro
     {
         ui::Rect r = c.captions[k].bounds;
         r.y += oy;
-        drawText(ctx, upper(c.captions[k].text), r, 2, ui::Justify::Centre, t.caption);
+        drawText(ctx, upper(c.captions[k].text), r, ui::labelScale(c.captions[k].fontHeight), ui::Justify::Centre, t.caption);
     }
 }
 
@@ -354,13 +357,14 @@ void drawTabBar(CGContextRef ctx, Art& art, int page)
         const ui::Rect b = ui::tabButtonRect(i);
         if (CGImageRef f = art.frame(on ? tb.onImage : tb.offImage, 0)) drawImage(ctx, f, b.x, b.y);
         else fillRect(ctx, b.x, b.y, b.w, b.h, on ? t.magenta : t.labelAccent);
-        drawText(ctx, ui::page(i).title, b, 2, ui::Justify::Centre, on ? t.caption : t.shellLight);
+        drawText(ctx, ui::page(i).title, b, ui::labelScale(ui::kTabTitleFontHeight), ui::Justify::Centre, on ? t.caption : t.shellLight);
     }
 }
 
 // The whole editor in a flipped context (origin top-left, one unit per design unit).
 void drawEditor(CGContextRef ctx, Art& art, const Snapshot& s)
 {
+    CGContextSaveGState(ctx);   // leave the host's / caller's context state as found
     CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
     CGContextSetShouldAntialias(ctx, false);
     CGContextSetAllowsAntialiasing(ctx, false);
@@ -376,6 +380,7 @@ void drawEditor(CGContextRef ctx, Art& art, const Snapshot& s)
         if (ui::isVisible(c, s.norm, s.numParams)) drawControl(ctx, art, s, c, oy);
     }
     drawTabBar(ctx, art, s.page);
+    CGContextRestoreGState(ctx);
 }
 
 bool sameLine(const ui::TableLine& a, const ui::TableLine& b)
@@ -539,6 +544,8 @@ std::string defaultArtDir() { return mpc::pluginFolder() + "/ui"; }
 - (void)refresh
 {
     if (!plugin_) return;
+    // Nothing to show while the window is hidden, minimised or fully covered.
+    if (self.window && !(self.window.occlusionState & NSWindowOcclusionStateVisible)) return;
     takeSnapshot(*plugin_, page_, *scratch_, *next_);
     Snapshot& a = *shown_;
     Snapshot& b = *next_;
@@ -675,7 +682,12 @@ MacEditor::~MacEditor()
 bool MacEditor::open(void* parentView)
 {
     if (parentView == nullptr) return false;
-    NSView* parent = (__bridge NSView*)parentView;
+    // The host passes an NSView (or, from some hosts, its NSWindow): check before using it.
+    id obj = (__bridge id)parentView;
+    NSView* parent = nil;
+    if ([obj isKindOfClass:[NSView class]]) parent = obj;
+    else if ([obj isKindOfClass:[NSWindow class]]) parent = [(NSWindow*)obj contentView];
+    if (parent == nil) return false;
     if (!impl_) impl_ = new Impl();
     if (!impl_->art)
     {

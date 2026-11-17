@@ -76,6 +76,7 @@ private:
     void snapshotSettings(bool force);
     void resyncCursor();
     void drainEditor();      // audio thread: apply the editor's cell edits and triggers
+    void drainEarly();       // audio thread: drainEditor() for the early-return paths, then publish
     void sendHost(int opcode, int index, float opt);
 
     // Editor -> audio thread slots (latest wins, any number of producers, never overflow).
