@@ -14,12 +14,11 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 
 #ifdef MPCBOY_CPU_PROBE
-#include <chrono>
 #include <time.h>
 #endif
 
@@ -73,7 +72,9 @@ MpcBoyPlugin::MpcBoyPlugin() : mpc::Plugin(makeInfo())
         trigHigh_[k].store(false, std::memory_order_relaxed);
         trigReset_[k].store(false, std::memory_order_relaxed);
         trigLastNs_[k].store(0, std::memory_order_relaxed);
+        trigPending_[k].store(false, std::memory_order_relaxed);
     }
+    now_.store(&steadyNs, std::memory_order_relaxed);
     // All allocation happens here, never on the audio thread.
     PolyphaseResampler48To441::ensureTable();
     engine_ = std::make_unique<Engine>();
@@ -137,6 +138,8 @@ void MpcBoyPlugin::parameterChanged(int index, float plainValue)
     }
 }
 
+void MpcBoyPlugin::setClockForTest(NowFn fn) { now_.store(fn ? fn : &steadyNs, std::memory_order_release); }
+
 // Any thread. A 0 -> 1 edge acts once; a second edge within 250 ms is ignored
 // (one tap can arrive as two presses on the device). The value is always set
 // back to 0 later, from process().
@@ -153,27 +156,32 @@ void MpcBoyPlugin::onImportTrigger(int index, float plainValue)
     // Like editor cells (WP5 rule 4): screen taps arrive on the audio thread, while
     // project and preset loads run on the UI thread. A trigger restored as 1 by a
     // load must not start an import or undo; it is only reset to 0.
-    if (!ContentStore::onAudioThread()) return;
+    if (!store_->onAudioThread()) return;
 
-    const long long now = steadyNs();
+    const long long now = now_.load(std::memory_order_acquire)();
     const long long last = trigLastNs_[k].load(std::memory_order_acquire);
     if (last != 0 && now - last < kTriggerDebounceNs) return;
     trigLastNs_[k].store(now, std::memory_order_release);
-    if (!importer_) return;
-
-    switch (index)
-    {
-        case Imp_Go: importer_->requestImport(getInt(Imp_File) - 1); break;   // ignored while one is running
-        case Imp_Undo: store_->requestUndo(); break;
-        case Imp_Rescan: importer_->requestScan(); break;
-        default: break;
-    }
+    trigPending_[k].store(true, std::memory_order_release);   // acted on by serviceImport() in process()
 }
 
 // Audio thread: write the triggers back to 0, follow the worker's list and its
 // suggested selection, and ask for a host refresh (the existing <= 10 Hz path).
 void MpcBoyPlugin::serviceImport()
 {
+    for (int k = 0; k < kNumImportTriggers; ++k)
+    {
+        if (trigPending_[k].exchange(false, std::memory_order_acq_rel))
+        {
+            switch (Imp_Go + k)
+            {
+                case Imp_Go: importer_->requestImport(getInt(Imp_File) - 1); break;   // ignored while one is running
+                case Imp_Undo: store_->requestUndo(); break;
+                case Imp_Rescan: importer_->requestScan(); break;
+                default: break;
+            }
+        }
+    }
     for (int k = 0; k < kNumImportTriggers; ++k)
         if (trigReset_[k].exchange(false, std::memory_order_acq_rel))
         {
@@ -203,6 +211,7 @@ void MpcBoyPlugin::saveExtraState(std::vector<uint8_t>& out)
 
 void MpcBoyPlugin::loadExtraState(const uint8_t* data, size_t size)
 {
+    for (int k = 0; k < kNumImportTriggers; ++k) trigPending_[k].store(false, std::memory_order_release);   // a restored 1 must not act
     Content c;
     std::string name;
     if (!decodeState(data, size, c, &name)) return;   // corrupt or foreign: keep the current content
@@ -226,7 +235,12 @@ bool MpcBoyPlugin::formatValue(int index, float plainValue, std::string& out)
 #endif
     if (index == Imp_File)
     {
-        out = importer_->displayText(static_cast<int>(std::lround(plainValue)) - 1);
+        // No mutex, no allocation (this can run inside process() via the host
+        // refresh): the text is at most 15 characters, which fits std::string's
+        // small buffer.
+        char buf[ImportWorker::kDisplayBufSize];
+        importer_->displayTextInto(static_cast<int>(std::lround(plainValue)) - 1, buf);
+        out.assign(buf);
         return true;
     }
     return formatParamValue(index, plainValue, out);
@@ -267,7 +281,7 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
 #ifdef MPCBOY_CPU_PROBE
     const long long t0 = nowNs();
 #endif
-    ContentStore::markAudioThread();
+    store_->markAudioThread();
 
     bool forceSettings = false;
     if (resetPending_.exchange(false, std::memory_order_acq_rel))

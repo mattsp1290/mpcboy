@@ -92,7 +92,7 @@ def wav_peak_db(path):
 def main():
     build = os.path.join(ROOT, "build")
 
-    step("require the built artefacts")
+    step("require the built artefacts (and refuse probe or stale builds)")
     native = None
     for cand in ("mpcboy.dylib", "mpcboy.so"):
         p = os.path.join(build, "native", cand)
@@ -107,6 +107,21 @@ def main():
         raise Fail("missing build output (run the three presets first): " + ", ".join(os.path.relpath(m, ROOT) for m in missing))
     for p in (native, arm32, arm64, host_sim):
         print("   found " + os.path.relpath(p, ROOT))
+    # A CPU-probe build (MPCBOY_CPU_PROBE=ON) holds a note by itself and adds a
+    # parameter: it must never be shipped. Probe builds are named mpcboy-probe-*,
+    # but a cache that was switched to ON in place is caught here too, and an arm
+    # artefact older than the native build means a preset was not rebuilt.
+    for lib in (native, arm32, arm64):
+        cache = os.path.join(os.path.dirname(lib), "CMakeCache.txt")
+        if os.path.isfile(cache):
+            with open(cache, encoding="utf-8") as f:
+                if re.search(r"^MPCBOY_CPU_PROBE:BOOL=ON$", f.read(), re.M):
+                    raise Fail("%s was configured with MPCBOY_CPU_PROBE=ON" % os.path.relpath(os.path.dirname(lib), ROOT))
+        if "probe" in os.path.basename(lib):
+            raise Fail("%s is a probe build" % os.path.relpath(lib, ROOT))
+    for lib in (arm32, arm64):
+        if os.path.getmtime(lib) < os.path.getmtime(native):
+            raise Fail("%s is older than the native build: rebuild all presets" % os.path.relpath(lib, ROOT))
 
     step("read plugin/plugin.json, prepare dist/<folder>")
     with open(os.path.join(ROOT, "plugin", "plugin.json"), "r", encoding="utf-8") as f:
@@ -132,6 +147,13 @@ def main():
     for k, v in expect.items():
         if d.get(k) != v:
             raise Fail("plugin reports %s=%r but plugin.json says %r" % (k, d.get(k), v))
+    if any(p.get("name") == "CPU us" for p in d["params"]):
+        raise Fail("the native build is a CPU-probe build (it has the 'CPU us' parameter)")
+    # SDK encoding: version 1000 = 1.0.0.0, i.e. a*1000 + b*100 + c*10 + d.
+    v4 = [int(x) for x in four_part_version(version).split(".")]
+    expect_ver = v4[0] * 1000 + v4[1] * 100 + v4[2] * 10 + v4[3]
+    if d.get("version") != expect_ver:
+        raise Fail("plugin reports version %r but plugin.json says %s (= %d)" % (d.get("version"), version, expect_ver))
     print("   dump ok: name=%s vendor=%s uid=%s, %d parameters, %d programs"
           % (d["name"], d["vendor"], d["uid"], len(d["params"]), d.get("numPrograms", 0)))
 
@@ -166,9 +188,9 @@ def main():
         f.write('<?xml version="1.0" encoding="utf-8"?>\n'
                 '<plugincontent version="1.0">\n'
                 "    <version>%s</version>\n"
-                "    <uiversion>0.1.0.0</uiversion>\n"
-                "</plugincontent>\n" % four_part_version(version))
-    print("   version.xml: version %s, uiversion 0.1.0.0" % four_part_version(version))
+                "    <uiversion>%s</uiversion>\n"
+                "</plugincontent>\n" % (four_part_version(version), four_part_version(version)))
+    print("   version.xml: version and uiversion %s" % four_part_version(version))
 
     step("generate the skins (gen_ui.py)")
     skins = os.path.join(out_dir, "Plugin Skins")

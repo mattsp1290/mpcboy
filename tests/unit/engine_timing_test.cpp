@@ -39,9 +39,9 @@ struct ClockRig
     ClockRig()
     {
         e = std::make_unique<Engine>();
-        rackboy_apu_set_write_spy(&ClockRig::spy, this);
+        rackboy_apu_set_write_spy(e->apu(), &ClockRig::spy, this);
     }
-    ~ClockRig() { rackboy_apu_set_write_spy(nullptr, nullptr); }
+    ~ClockRig() { rackboy_apu_set_write_spy(e->apu(), nullptr, nullptr); }
     static void spy(void* u, uint16_t a, uint8_t v)
     {
         auto* r = static_cast<ClockRig*>(u);
@@ -133,24 +133,38 @@ TEST_CASE("engine timing: ticks follow the note-on, not the block grid (note at 
     CHECK(worst <= 2.0);
 }
 
-TEST_CASE("engine timing 7: a grid tick at the note-on's frame applies row 0 then row 1, once each")
+// In Sync/Grid phase the note owns the grid tick it lands on. MIDI is applied
+// before a tick at the same frame, so without this the note's row 0 and the grid
+// tick's row 1 would hit the same APU frame and row 0 would never be heard (most
+// sequencer notes are quantised onto grid ticks). A grid tick at the note-on
+// frame, or within half a period after it, is therefore absorbed as the note's
+// own tick 0; the first row 1 comes at the following grid tick, so row 0 sounds
+// for about one period.
+TEST_CASE("engine timing 7: a grid tick at (or just after) the note-on belongs to row 0; row 1 waits for the next grid tick")
 {
-    ClockRig r;
-    r.s.ch[0].tableSlot = 0;
-    for (int i = 1; i < 4; ++i) r.s.ch[i].enabled = false;
-    r.s.tick.phase = TickPhase::Grid;
-    r.e->applySettings(r.s);
-    setTable(r.e->ownBank().tables[0], octave());
-    r.tr.playing = true;
-    r.tr.ppqValid = true;
-    r.tr.ppqStart = 1.0 - 100.5 / 22050.0;   // grid tick k = 24 at host frame 100.5
-    r.run(512, {noteOn(100, 60)}, 512);
-    const auto fw = freqWrites(r.log, NR13, NR14);
-    REQUIRE(fw.size() == 3);
-    CHECK(fw[0].trigger);
-    CHECK(fw[1].freq == rackboy::core::pitch_square_11bit(-12));        // row 0 (tick 0)
-    CHECK(fw[2].freq == rackboy::core::pitch_square_11bit(-12 + 12));   // row 1 (the grid tick)
-    CHECK(fw[0].apu == fw[2].apu);
+    for (int noteFrame : {100, 99, 1000})   // on the tick (tick k = 24 at 100.5), one frame before it, 19 frames before tick k = 25
+    {
+        CAPTURE(noteFrame);
+        ClockRig r;
+        r.s.ch[0].tableSlot = 0;
+        for (int i = 1; i < 4; ++i) r.s.ch[i].enabled = false;
+        r.s.tick.phase = TickPhase::Grid;
+        r.e->applySettings(r.s);
+        setTable(r.e->ownBank().tables[0], octave());
+        r.tr.playing = true;
+        r.tr.ppqValid = true;
+        r.tr.ppqStart = 1.0 - 100.5 / 22050.0;   // grid tick k = 24 at host frame 100.5, k = 25 at 1019.25
+        r.run(2048, {noteOn(noteFrame, 60)}, 2048);
+        const auto fw = freqWrites(r.log, NR13, NR14);
+        REQUIRE(fw.size() == (noteFrame == 1000 ? 3u : 4u));   // trigger, row 0, row 1 (and row 2 at the grid tick after it, 1938)
+        CHECK(fw[0].trigger);
+        CHECK(fw[1].freq == rackboy::core::pitch_square_11bit(-12));        // row 0 (tick 0)
+        CHECK(fw[2].freq == rackboy::core::pitch_square_11bit(-12 + 12));   // row 1
+        const double next = noteFrame == 1000 ? 1019.25 + 918.75 : 1019.25;   // the first grid tick not absorbed
+        CHECK(std::fabs(apuToHost(fw[2].apu) - next) <= 2.0);
+        CHECK(fw[1].apu < fw[2].apu);
+        CHECK(fw[0].apu == fw[1].apu);   // row 0 is written at the trigger, not later
+    }
 }
 
 TEST_CASE("engine timing: a legato glide does not reset the tick phase; a retrigger does")

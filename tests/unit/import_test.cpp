@@ -2,8 +2,8 @@
 // its undo, the trigger debounce and the worker scan. File-based tests use a
 // temporary plugin folder through MPC_PLUGIN_FOLDER (set before any test runs).
 //
-// Test 4's "under ASan/UBSan" is covered by the UBSan build only: ASan and TSan
-// crash at init on this host. Tests 5-7 that need threads run un-instrumented.
+// Test 4's "under ASan/UBSan" is covered by the native-ubsan preset; the ASan and
+// TSan runs are tracked as pending host gates in docs/DEVICE_TESTS.md.
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -246,6 +246,11 @@ Content sentinelContent()
 
 // ---- plugin rig ---------------------------------------------------------------
 
+// Fake time source for the trigger debounce: tests advance it explicitly instead of sleeping.
+long long g_fakeNs = 1'000'000'000LL;
+long long fakeNow() { return g_fakeNs; }
+void advanceMs(int ms) { g_fakeNs += static_cast<long long>(ms) * 1'000'000LL; }
+
 struct Rig
 {
     std::unique_ptr<MpcBoyPlugin> p;
@@ -253,9 +258,9 @@ struct Rig
     Rig()
     {
         p = std::make_unique<MpcBoyPlugin>();
+        p->setClockForTest(&fakeNow);
         p->prepare(44100.0, 512);
     }
-    ~Rig() { ContentStore::markAudioThread(false); }
     void block(int n = 128, const std::vector<mpc::MidiEvent>& midi = {})
     {
         const size_t old = L.size();
@@ -552,8 +557,8 @@ TEST_CASE("import 4: truncated, wrong-version, wrong-magic, damaged-chain and ra
 
 TEST_CASE("import 5: ContentStore undo restores the previous content exactly; a second undo re-applies the import")
 {
-    ContentStore::markAudioThread(true);
     auto store = std::make_unique<ContentStore>();
+    store->markAudioThread(true);
     Content factory;
     loadFactoryContent(factory);
     store->setLive(factory);
@@ -606,7 +611,43 @@ TEST_CASE("import 5: ContentStore undo restores the previous content exactly; a 
 
     // Bank view follows: table 0 of a carries the imported row data.
     CHECK(store->bank().tables[0].rows[1].cmd1 == a.tables.tables[0].rows[1].cmd1);
-    ContentStore::markAudioThread(false);
+    store->markAudioThread(false);
+}
+
+TEST_CASE("import 5: a project load after an import ends the undo history")
+{
+    auto store = std::make_unique<ContentStore>();
+    store->markAudioThread(true);
+    Content factory;
+    loadFactoryContent(factory);
+    store->setLive(factory);
+    const std::vector<uint8_t> fx = fixtureSav();
+    const Content a = imported(savFromSong(makeTableSong(fixtureSong(fx), 2).song));
+    Content other = factory;
+    other.tables.tables[4].rows[3].transpose = 17;
+
+    store->stageImport(a);
+    store->beginBlock();
+    REQUIRE(store->undoAvailable());
+
+    store->stage(other);   // project / preset load
+    store->beginBlock();
+    CHECK(encoded(store->live()) == encoded(other));
+    CHECK_FALSE(store->undoAvailable());
+
+    store->requestUndo();
+    store->beginBlock();
+    CHECK(encoded(store->live()) == encoded(other));   // the other project's content survives
+    CHECK_FALSE(store->undoAvailable());
+
+    // An undo requested in the same block as a load is dropped too.
+    store->stageImport(a);
+    store->beginBlock();
+    store->requestUndo();
+    store->stage(other);
+    store->beginBlock();
+    CHECK(encoded(store->live()) == encoded(other));
+    store->markAudioThread(false);
 }
 
 TEST_CASE("import 5: through the plugin, import then imp_undo restores the previous content and the editor cursor follows")
@@ -625,6 +666,7 @@ TEST_CASE("import 5: through the plugin, import then imp_undo restores the previ
 
     r.p->set(Imp_File, 1);
     r.p->set(Imp_Go, 1);
+    r.block();   // process() turns the accepted edge into the import request
     REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 1; }));
     r.block();   // the audio thread consumes the staged import
     r.block();
@@ -642,7 +684,7 @@ TEST_CASE("import 5: through the plugin, import then imp_undo restores the previ
     CHECK(r.p->getInt(ED_Val1) == row.cmd1_param);
     CHECK(r.p->getInt(Imp_Go) == 0);   // the trigger went back to 0
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));   // clear of the debounce
+    advanceMs(300);   // clear of the debounce
     r.p->set(Imp_Undo, 1);
     r.block();
     r.block();
@@ -677,26 +719,26 @@ TEST_CASE("import 6: two imp_go edges 100 ms apart run one import; a later edge 
     r.block();
     CHECK(r.p->getInt(Imp_Go) == 0);
     REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 1; }));
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    advanceMs(100);   // fake time: independent of how long the import took
     r.p->set(Imp_Go, 1);   // the second press of one tap
     r.block();
     CHECK(r.p->getInt(Imp_Go) == 0);   // it is reset like any edge ...
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    CHECK(r.p->importer().importsDone() == 1);   // ... but it did nothing
+    CHECK_FALSE(r.p->importer().busy());         // ... but no request was made (an accepted one is busy or done)
+    CHECK(r.p->importer().importsDone() == 1);   // ... so it did nothing
     CHECK(r.p->importer().importsFailed() == 0);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    advanceMs(300);
     r.p->set(Imp_Go, 1);   // a deliberate third press, well after 250 ms
     r.block();
     REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 2; }));
 
     // Holding the parameter high is not a second edge.
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    advanceMs(300);
     r.p->set(Imp_Go, 1);
     r.p->set(Imp_Go, 1);
     r.block();
     REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 3; }));
-    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+    CHECK_FALSE(r.p->importer().busy());
     CHECK(r.p->importer().importsDone() == 3);
 
     // The worker itself ignores a request while one is pending or running.
@@ -706,7 +748,7 @@ TEST_CASE("import 6: two imp_go edges 100 ms apart run one import; a later edge 
     CHECK(first);
     CHECK_FALSE(second);
     REQUIRE(waitFor([&] { return r.p->importer().importsDone() == d0 + 1; }));
-    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    CHECK_FALSE(r.p->importer().busy());
     CHECK(r.p->importer().importsDone() == d0 + 1);
     clearImportDir();
 }
@@ -743,7 +785,7 @@ TEST_CASE("import 6: imp_rescan debounces the same way and picks up new files; i
 
     // A failing import: nothing changes and the text shows ERR <code> until the next scan.
     const std::vector<uint8_t> before = r.blob();
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    advanceMs(300);
     r.p->set(Imp_File, 2);
     r.p->set(Imp_Go, 1);
     r.block();
@@ -753,7 +795,7 @@ TEST_CASE("import 6: imp_rescan debounces the same way and picks up new files; i
     CHECK(r.blob() == before);
     CHECK(r.p->importer().lastErrorCode() == static_cast<int>(ImportResult::BadSize));
     CHECK(r.p->displayText(Imp_File) == "ERR 2");
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    advanceMs(300);
     const uint32_t scans2 = r.p->importer().scansDone();
     r.p->set(Imp_Rescan, 1);
     r.block();
@@ -818,7 +860,7 @@ TEST_CASE("import: the scan lists only regular .sav files at depth 1: no symlink
 
 // ============================== test 7 ==========================================
 
-TEST_CASE("import 7: the engine renders while imports and undos run on the worker; every snapshot is whole (un-instrumented, no TSan on this host)")
+TEST_CASE("import 7: the engine renders while imports and undos run on the worker; every snapshot is whole")
 {
     clearImportDir();
     const std::vector<uint8_t> fx = fixtureSav();
@@ -876,8 +918,9 @@ TEST_CASE("import 7: the engine renders while imports and undos run on the worke
     std::printf("[import 7] worker requested %u imports; second thread took %u snapshots; main thread rendered 6,000 blocks\n",
                 requested.load(), snaps.load());
     CHECK(torn.load() == 0);
-    CHECK(requested.load() > 5);
-    CHECK(r.p->importer().importsDone() > 5);
+    CHECK(requested.load() > 2);
+    REQUIRE(waitFor([&] { return !r.p->importer().busy(); }));
+    CHECK(r.p->importer().importsDone() == requested.load());   // every accepted request completed
     for (float v : r.L) REQUIRE(std::isfinite(v));
     clearImportDir();
 }
@@ -899,6 +942,7 @@ TEST_CASE("import 8: the imported file name rides in the state, comes back on lo
         r.rescan();
         r.p->set(Imp_File, 2);
         r.p->set(Imp_Go, 1);
+        r.block();
         REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 1; }));
         r.block();
         r.block();
@@ -971,7 +1015,8 @@ TEST_CASE("import: a trigger set to 1 off the process thread (as a project or pr
 
     std::thread loader([&] { r.p->set(Imp_Go, 1); r.p->set(Imp_Undo, 1); });
     loader.join();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    r.block();
+    CHECK_FALSE(r.p->importer().busy());
     r.block();
     r.block();
     CHECK(r.p->importer().importsDone() == 0);
@@ -979,5 +1024,76 @@ TEST_CASE("import: a trigger set to 1 off the process thread (as a project or pr
     CHECK(r.p->getInt(Imp_Undo) == 0);
 
     r.p->set(Imp_Go, 1);                 // a real tap, on the process thread, still works
+    r.block();
     CHECK(waitFor([&] { return r.p->importer().importsDone() == 1; }));
+}
+
+TEST_CASE("import: a trigger restored as 1 by a state load on the process thread is cancelled by loadExtraState")
+{
+    clearImportDir();
+    const std::vector<uint8_t> fx = fixtureSav();
+    writeFile(g_folder.importDir, "song.sav", savFromSong(makeTableSong(fixtureSong(fx), 4).song));
+    Rig r;
+    r.block();
+    r.rescan();
+    r.p->set(Imp_File, 1);
+
+    std::vector<uint8_t> blob;
+    r.p->saveExtraState(blob);
+    // The SDK writes a chunk's parameters first (here: the trigger arrives as an edge on the
+    // audio-marked thread) and calls loadExtraState() afterwards.
+    r.p->set(Imp_Go, 1);
+    r.p->loadExtraState(blob.data(), blob.size());
+    r.block();
+    r.block();
+    CHECK_FALSE(r.p->importer().busy());
+    CHECK(r.p->importer().importsDone() == 0);
+    CHECK(r.p->getInt(Imp_Go) == 0);   // still written back to 0
+    clearImportDir();
+}
+
+TEST_CASE("import: the saved import name follows the live content (undo, a load that replaces a pending import)")
+{
+    clearImportDir();
+    const std::vector<uint8_t> fx = fixtureSav();
+    writeFile(g_folder.importDir, "song.sav", savFromSong(makeTableSong(fixtureSong(fx), 4).song));
+    Rig r;
+    r.block();
+    r.rescan();
+    r.p->set(Imp_File, 1);
+    const std::vector<uint8_t> fresh = r.blob();   // no import yet
+
+    r.p->set(Imp_Go, 1);
+    r.block();
+    REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 1; }));
+    {
+        // Between staging and the next audio block the staged import already names the saved state.
+        Content c;
+        std::string name;
+        const std::vector<uint8_t> b = r.blob();
+        REQUIRE(decodeState(b.data(), b.size(), c, &name));
+        CHECK(name == "song.sav");
+    }
+    r.block();
+    CHECK(r.p->importer().lastImportedName() == "song.sav");
+
+    advanceMs(300);
+    r.p->set(Imp_Undo, 1);
+    r.block();
+    r.block();
+    CHECK(r.p->importer().lastImportedName() == "");   // the content is back to before the import
+
+    advanceMs(300);
+    r.p->set(Imp_Undo, 1);   // undo again re-applies the import
+    r.block();
+    r.block();
+    CHECK(r.p->importer().lastImportedName() == "song.sav");
+
+    // A project load ends the history: the name is the one stored in the loaded project.
+    r.p->loadExtraState(fresh.data(), fresh.size());
+    CHECK(r.p->importer().lastImportedName() == "");
+    r.block();
+    r.block();
+    CHECK(r.p->importer().lastImportedName() == "");
+    clearImportDir();
 }

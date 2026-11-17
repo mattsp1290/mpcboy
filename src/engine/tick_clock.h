@@ -59,8 +59,12 @@ public:
     void pop();
 
     // Restarts the note phase at `hostFrameOffset` of the current block (call
-    // only on a trigger). First tick lands one period later. No effect on the
-    // schedule in a Grid-effective block.
+    // only on a trigger). First tick lands one period later. In a Grid-effective
+    // block the schedule stays on the grid, but the note owns the grid tick it
+    // lands on: a grid tick at the note-on frame, or within half a period after
+    // it, is consumed (it would otherwise apply row 1 at the same frame as row
+    // 0, or an inaudibly short moment later), so row 0 is heard for about one
+    // period.
     void noteOn(int hostFrameOffset);
 
     void endBlock();
@@ -79,12 +83,13 @@ public:
 
 private:
     void findNext();
+    double gridDist(long long k) const;   // host frames from the block start to grid index k
     void beginGridBlock(const TickBlockInput& in);
 
     TickMode mode_ = TickMode::Sync;
     TickPhase phase_ = TickPhase::Note;
     int tpb_ = 24;
-    double freeHz_ = 59.73;
+    double freeHz_ = kDmgFrameHz;
 
     double lastBpm_ = 120.0;
     double bpmUsed_ = 120.0;
@@ -102,8 +107,6 @@ private:
     long long lastK_ = -1;        // last grid index emitted (continuous playback)
     long long nextK_ = 0;
     double gridPpq0_ = 0.0;
-    double framesPerTick_ = 0.0;  // grid: host frames per tick at the current tempo
-    double gridNextDist_ = 0.0;
 
     int frames_ = 0;
     int nextOffset_ = -1;

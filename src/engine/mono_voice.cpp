@@ -1,5 +1,6 @@
 #include "mono_voice.h"
 
+#include "engine_consts.h"
 #include "instrument_encoder.h"
 #include "rackboy_apu.h"
 #include "rackboy_pitch.h"
@@ -18,7 +19,7 @@ int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 }  // namespace
 
-void MonoVoice::init(rackboy_apu_t* apu, const uint8_t (*waves)[16])
+void MonoVoice::init(rackboy_apu_t* apu, const uint8_t (*waves)[kWaveBytes])
 {
     apu_ = apu;
     waves_ = waves;
@@ -69,7 +70,7 @@ void MonoVoice::writeNr51()
         if (s_.ch[i].enabled) v = static_cast<uint8_t>(v | pan_nr51_bits(i, s_.ch[i].pan));
     if (v != lastNr51_)
     {
-        rackboy_apu_write_reg(apu_, 0xFF25, v);
+        rackboy_apu_write_reg(apu_, kNR51, v);
         lastNr51_ = v;
     }
 }
@@ -136,7 +137,7 @@ void MonoVoice::trigger(int note, int velocity, const rackboy::sav::RackboyBank&
             }
         }
         if (ch == VoiceChannel::Wave && waves_)
-            rackboy_apu_write_wave_ram(apu_, waves_[clampi(cs.waveSlot, 0, 15)]);
+            rackboy_apu_write_wave_ram(apu_, waves_[clampi(cs.waveSlot, 0, kNumWaves - 1)]);
 
         const rackboy::sav::RackboyInstrument inst = encode_instrument(ch, cs);
         const tbl::TriggerExtras extras = encode_trigger_extras(ch, cs, bendCents_);

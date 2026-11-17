@@ -173,7 +173,7 @@ TEST_CASE("plugin 8: state v2 round-trips the imported file name (empty, short, 
     CHECK(blob.size() <= kStateMaxSize);
 }
 
-TEST_CASE("plugin 1: 10,000 random blobs never crash (no ASan on this host: UBSan build covers UB)")
+TEST_CASE("plugin 1: 10,000 random blobs never crash")
 {
     std::mt19937 rng(1234);
     std::vector<uint8_t> blob;
@@ -239,6 +239,32 @@ TEST_CASE("plugin 2: parameter table shape, names, ids and flags")
 #endif
 }
 
+// The parameter freeze rule (04-plugin-params-ui-state.md): ids are never renamed or
+// reordered; new parameters are only appended (and this list grows with them).
+TEST_CASE("plugin 2: the ordered list of all 63 parameter ids is frozen")
+{
+    static const char* const kIds[] = {
+        "bendrng", "vol", "retrig", "noteoff", "velvol", "tblmode",
+        "tblrate", "tblphase", "freehz", "p1_on", "p1_vol", "p1_envdir",
+        "p1_envspd", "p1_duty", "p1_tsp", "p1_fine", "p1_pan", "p1_len",
+        "p1_swtime", "p1_swdir", "p1_swshift", "p1_tbl", "p2_on", "p2_vol",
+        "p2_envdir", "p2_envspd", "p2_duty", "p2_tsp", "p2_fine", "p2_pan",
+        "p2_len", "p2_tbl", "wv_on", "wv_level", "wv_wave", "wv_tsp",
+        "wv_fine", "wv_pan", "wv_len", "wv_tbl", "nz_on", "nz_vol",
+        "nz_envdir", "nz_envspd", "nz_width", "nz_pmode", "nz_shape", "nz_tsp",
+        "nz_pan", "nz_len", "nz_tbl", "ed_tbl", "ed_row", "ed_vol",
+        "ed_tsp", "ed_cmd1", "ed_val1", "ed_cmd2", "ed_val2", "imp_file",
+        "imp_go", "imp_undo", "imp_rescan"};
+    static_assert(sizeof(kIds) / sizeof(kIds[0]) == 63, "the golden list has 63 ids");
+    const std::vector<mpc::Param> p = buildParams();
+    REQUIRE(p.size() >= 63);
+    for (size_t i = 0; i < 63; ++i)
+    {
+        CAPTURE(i);
+        CHECK(p[i].id == kIds[i]);
+    }
+}
+
 TEST_CASE("plugin 2: each parameter's default maps to the documented ChannelSettings default")
 {
     const std::vector<mpc::Param> p = buildParams();
@@ -250,7 +276,6 @@ TEST_CASE("plugin 2: each parameter's default maps to the documented ChannelSett
     CHECK(s.retrigger == RetriggerMode::Always);
     CHECK(s.noteOff == NoteOffMode::Cut);
     CHECK_FALSE(s.velToVol);
-    CHECK(s.masterGain == 1.0f);
     CHECK(s.tick.enabled);
     CHECK(s.tick.mode == TickMode::Sync);
     CHECK(s.tick.ticksPerBeat == 24);

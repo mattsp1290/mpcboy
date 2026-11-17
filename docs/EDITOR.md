@@ -48,6 +48,33 @@ The factory tables are 1 MajArp, 2 MinArp, 3 Octave, 4 Vibrato, 5 KickDrop,
   controls to the cursor's cell; loading never writes a cell through the
   controls.
 
+## Host notifications from `process()` (device risk)
+
+After the cursor moves or an import changes the list, `process()` tells the host
+that parameters 53-62 changed (`audioMasterAutomate` x10, then
+`audioMasterUpdateDisplay`), at most ten times per second. This is a decision
+from the plan (the community wrapper does the same from `processReplacing` and
+it is proven on the device); G-EDIT below is where it is verified. The SDK header
+advises against reporting parameters from the audio thread, and the host may
+answer `UpdateDisplay` by re-reading the display strings on the same thread. What
+the plugin does about it:
+
+- `formatValue` for `Imp File` reads a fixed-size name table published by the
+  import worker behind a seqlock (`ImportWorker::displayTextInto`): no mutex,
+  no allocation (the text is at most 15 characters, inside `std::string`'s
+  small buffer). The other formatted values use `snprintf` into a small buffer
+  and short assignments.
+- The remaining risk is outside the plugin: `Plugin::displayText` is SDK code and
+  builds a `std::string` per call, and the generic parameter display for
+  choice parameters copies the choice text (all choice labels here are short).
+  If the host's re-read runs inside `process()` its cost is the host's and is
+  not bounded by us. G-EDIT must therefore also record `process()` p99 while the
+  cursor moves and an import runs (use the probe build of `docs/BENCH.md`), and
+  must confirm `effSetChunk` / program loads never run on the thread that runs
+  `process()` (the audio-thread mark is sticky; see `src/plugin/MpcBoyPlugin.h`).
+  If the MPC accepts these reports from a non-audio thread, move them to the
+  import worker's loop.
+
 ## G-EDIT device spike
 
 Status: **pending (needs user's MPC Live III).** No device result is recorded
@@ -68,6 +95,8 @@ pad playing a table, and record each check:
 | 6 | No audio dropout while scrolling rows quickly. | pending |
 | 7 | All six tabs are reachable from the function keys. | pending |
 | 8 | A `slider` with `"overlay": "menu"` on a 17-entry choice (`P1 Table`) opens a populated list. If it opens empty, switch those controls to `knob` widgets in `plugin/ui.json`. | pending |
+| 10 | `process()` p99 (probe build, `docs/BENCH.md`) stays within the CPU budget while the cursor moves quickly and an import runs: the 10 Hz notifications and display re-reads cost nothing audible. | pending |
+| 11 | `effSetChunk` (project load) and program changes arrive on a thread that is not the one that calls `process()`. If they do not, a trigger restored as 1 could act: it is cancelled by `loadExtraState`, but a restored cell value would be written into the live tables. | pending |
 | 9 | A cell edit made on the screen changes the table (proves that screen edits arrive on the audio thread). If it does not, stop and return to the user. | pending |
 
 Outcomes (from the plan): all pass - done. Only 2 fails - keep the design and

@@ -55,8 +55,9 @@ bool consistent(const Content& c)
 
 struct AudioThreadGuard
 {
-    AudioThreadGuard() { ContentStore::markAudioThread(true); }
-    ~AudioThreadGuard() { ContentStore::markAudioThread(false); }
+    explicit AudioThreadGuard(ContentStore& s) : store(s) { store.markAudioThread(true); }
+    ~AudioThreadGuard() { store.markAudioThread(false); }
+    ContentStore& store;
 };
 
 }  // namespace
@@ -89,7 +90,7 @@ TEST_CASE("content 5: staging, published reads and audio-thread edits race-free 
     });
 
     {
-        AudioThreadGuard audio;
+        AudioThreadGuard audio(*store);
         for (int block = 0; block < 10000; ++block)
         {
             store->editLive([&](Content& c) { c.tables.tables[kNumTables - 1].rows[0].transpose = static_cast<int8_t>(block); });
@@ -122,7 +123,7 @@ TEST_CASE("content 6: cell edits from a non-audio thread are ignored; on the aud
     CHECK(store.rejectedEdits() == 1);
     CHECK(store.live().tables.tables[3].rows[5].transpose == 0);
 
-    AudioThreadGuard audio;
+    AudioThreadGuard audio(store);
     CHECK(store.editLive(edit));
     CHECK(store.live().tables.tables[3].rows[5].transpose == 7);
     Content pub;
@@ -142,7 +143,7 @@ TEST_CASE("content 7: two bulk loads in a row, the second wins, and the writer n
     fillPattern(b, 22);
     auto fut = std::async(std::launch::async, [&] { store.stage(a); store.stage(b); });
     REQUIRE(fut.wait_for(std::chrono::seconds(5)) == std::future_status::ready);   // no audio block ran
-    AudioThreadGuard audio;
+    AudioThreadGuard audio(store);
     CHECK(store.beginBlock());
     CHECK(static_cast<uint8_t>(store.live().waves.waves[0][0]) == 22);
     Content pub;

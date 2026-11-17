@@ -11,7 +11,7 @@ constexpr double kGridEps = 1e-6;   // in ticks: a tick at ppq0 - eps still coun
 double TickClock::periodFor(TickMode mode, double bpm, int ticksPerBeat, double freeHz)
 {
     if (mode == TickMode::Free)
-        return kSampleRate / (freeHz > 0.01 ? freeHz : 59.73);
+        return kSampleRate / (freeHz > 0.01 ? freeHz : kDmgFrameHz);
     return kSampleRate * 60.0 / (bpm * (ticksPerBeat > 0 ? ticksPerBeat : 24));
 }
 
@@ -39,7 +39,7 @@ void TickClock::setSettings(TickMode mode, int ticksPerBeat, TickPhase phase, do
     mode_ = mode;
     phase_ = phase;
     tpb_ = ticksPerBeat > 0 ? ticksPerBeat : 24;
-    freeHz_ = freeHz > 0.01 ? freeHz : 59.73;
+    freeHz_ = freeHz > 0.01 ? freeHz : kDmgFrameHz;
 }
 
 void TickClock::beginGridBlock(const TickBlockInput& in)
@@ -55,7 +55,6 @@ void TickClock::beginGridBlock(const TickBlockInput& in)
         kFirst = lastK_ + 1;          // never tick the same grid index twice
     nextK_ = kFirst;
     gridPpq0_ = ppq0;
-    framesPerTick_ = period_;
     predictedPpq_ = ppq0 + in.frames * ppqPerFrame;
     haveGridPrev_ = true;
 }
@@ -77,6 +76,12 @@ void TickClock::beginBlock(const TickBlockInput& in)
     findNext();
 }
 
+double TickClock::gridDist(long long k) const
+{
+    const double ppqPerFrame = bpmUsed_ / (60.0 * kSampleRate);
+    return (static_cast<double>(k) / tpb_ - gridPpq0_) / ppqPerFrame;
+}
+
 void TickClock::findNext()
 {
     nextOffset_ = -1;
@@ -84,8 +89,7 @@ void TickClock::findNext()
     double d;
     if (gridActive_)
     {
-        const double ppqPerFrame = bpmUsed_ / (60.0 * kSampleRate);
-        d = (static_cast<double>(nextK_) / tpb_ - gridPpq0_) / ppqPerFrame;
+        d = gridDist(nextK_);
     }
     else
     {
@@ -114,7 +118,21 @@ void TickClock::pop()
 void TickClock::noteOn(int hostFrameOffset)
 {
     active_ = true;
-    if (gridActive_) return;   // grid: row 1 waits for the next grid tick
+    if (gridActive_)
+    {
+        // Row 1 waits for a grid tick, but row 0 owns the tick it lands on (or
+        // one just after it, even in the next host block). Events are taken in
+        // offset order, so every tick before the note-on was already consumed
+        // and nextK_ is the first tick at or after it.
+        const double d = gridDist(nextK_);
+        if (d - hostFrameOffset <= period_ * 0.5)
+        {
+            lastK_ = nextK_;
+            ++nextK_;
+            findNext();
+        }
+        return;
+    }
     nextDist_ = static_cast<double>(hostFrameOffset) + period_;
     findNext();
 }
@@ -123,8 +141,7 @@ void TickClock::endBlock()
 {
     if (gridActive_)
     {
-        const double ppqPerFrame = bpmUsed_ / (60.0 * kSampleRate);
-        auto dist = [&](long long k) { return (static_cast<double>(k) / tpb_ - gridPpq0_) / ppqPerFrame; };
+        auto dist = [&](long long k) { return gridDist(k); };
         while (dist(nextK_) < frames_) { lastK_ = nextK_; ++nextK_; ++dropped_; }   // only after the cap
         nextDist_ = dist(nextK_) - frames_;
         active_ = true;

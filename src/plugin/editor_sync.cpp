@@ -1,6 +1,7 @@
 #include "editor_sync.h"
 
 #include "param_bridge.h"
+#include "rackboy_sav_tables.h"
 
 namespace mpcboy {
 
@@ -41,9 +42,9 @@ bool EditorSync::onCellParam(int col, int value, int table, int row, ContentStor
 {
     if (col < 0 || col >= kEditorCols) return false;
     if (value == shown(col)) return false;
-    if (!ContentStore::onAudioThread()) return false;
+    if (!store.onAudioThread()) return false;
     const int t = clampi(table, 0, kNumTables - 1);
-    const int r = clampi(row, 0, 15);
+    const int r = clampi(row, 0, static_cast<int>(rackboy::sav::kTableRowsPerTable) - 1);
     const bool applied = store.editLive([&](Content& c) { setCellValue(c.tables.tables[t].rows[r], col, value); });
     if (applied) setShown(col, value);
     return applied;
@@ -51,7 +52,7 @@ bool EditorSync::onCellParam(int col, int value, int table, int row, ContentStor
 
 void EditorSync::resync(const Content& live, int table, int row, int out[kEditorCols])
 {
-    const auto& cell = live.tables.tables[clampi(table, 0, kNumTables - 1)].rows[clampi(row, 0, 15)];
+    const auto& cell = live.tables.tables[clampi(table, 0, kNumTables - 1)].rows[clampi(row, 0, static_cast<int>(rackboy::sav::kTableRowsPerTable) - 1)];
     for (int col = 0; col < kEditorCols; ++col)
     {
         out[col] = cellValue(cell, col);

@@ -64,7 +64,7 @@ public:
     Engine();
 
     // Audio-thread only. Init sequence of 02-apu-and-voice.md: APU init,
-    // NR52 = 0x80, NR50 = 0x77, NR51 = 0x00, wave RAM = slot 0; clears the note
+    // (init writes NR52 = 0x80), NR50 = 0x77, NR51 = 0x00, wave RAM = slot 0; clears the note
     // stack, voices and bend; resets the resampler (primed) and DC blocker.
     void reset();
 
@@ -74,7 +74,7 @@ public:
     // bank of its own (no tables) and 16 default wave slots.
     void setBank(const rackboy::sav::RackboyBank* bank) { bank_ = bank ? bank : &ownBank_; }
     rackboy::sav::RackboyBank& ownBank() { return ownBank_; }
-    void setWave(int slot, const uint8_t bytes[16]);
+    void setWave(int slot, const uint8_t bytes[kWaveBytes]);
 
     // Use a ContentStore (WP5) as the source of tables and waves instead of the
     // engine's own bank: render() begins every block with store->beginBlock()
@@ -109,7 +109,7 @@ private:
     EngineSettings settings_;
     rackboy::sav::RackboyBank ownBank_;
     const rackboy::sav::RackboyBank* bank_;
-    uint8_t waves_[16][16];
+    uint8_t waves_[kNumWaves][kWaveBytes];
     uint64_t apuFrames_ = 0;
     int curHostOffset_ = 0;     // chunk-relative offset of the event being applied
     int curBlockOffset_ = 0;    // block-relative (chunk base + curHostOffset_)

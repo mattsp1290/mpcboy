@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "engine_consts.h"
 #include "rackboy_table.h"
 
 namespace mpcboy {
@@ -19,9 +20,9 @@ namespace {
 constexpr int kDcFlushDelay = 240;
 
 // Default wave for every slot until content is loaded: a 4-bit saw.
-void fillDefaultWave(uint8_t out[16])
+void fillDefaultWave(uint8_t out[kWaveBytes])
 {
-    for (int j = 0; j < 16; ++j)
+    for (int j = 0; j < kWaveBytes; ++j)
     {
         const int a = (2 * j) * 15 / 31;
         const int b = (2 * j + 1) * 15 / 31;
@@ -33,17 +34,18 @@ void fillDefaultWave(uint8_t out[16])
 
 Engine::Engine()
 {
+    std::memset(&apu_, 0, sizeof(apu_));   // reset() below reads the (test-only) write spy before the first init
     rackboy::sav::bank_reset(ownBank_);
     bank_ = &ownBank_;
-    for (int i = 0; i < 16; ++i) fillDefaultWave(waves_[i]);
+    for (int i = 0; i < kNumWaves; ++i) fillDefaultWave(waves_[i]);
     voice_.init(&apu_, waves_);
     reset();
 }
 
-void Engine::setWave(int slot, const uint8_t bytes[16])
+void Engine::setWave(int slot, const uint8_t bytes[kWaveBytes])
 {
-    if (slot < 0 || slot > 15) return;
-    std::memcpy(waves_[slot], bytes, 16);
+    if (slot < 0 || slot >= kNumWaves) return;
+    std::memcpy(waves_[slot], bytes, kWaveBytes);
 }
 
 void Engine::attachContent(ContentStore* store)
@@ -71,11 +73,14 @@ void Engine::syncWaves()
 
 void Engine::reset()
 {
-    rackboy_apu_init(&apu_, kApuRate);                 // also writes NR52 = 0x80
+    // rackboy_apu_init clears the whole struct, including a test's write spy: keep it across a reset.
+    const rackboy_apu_write_spy_fn spy = apu_._spy;
+    void* const spyUser = apu_._spy_user;
+    rackboy_apu_init(&apu_, kApuRate);
+    rackboy_apu_set_write_spy(&apu_, spy, spyUser);
     rackboy_apu_set_frame_sequencer(&apu_, 1);         // length / envelope / sweep clocks (MPCBOY LOCAL MOD)
-    rackboy_apu_write_reg(&apu_, 0xFF26, 0x80);        // NR52: APU on
-    rackboy_apu_write_reg(&apu_, 0xFF24, 0x77);        // NR50: both sides at maximum
-    rackboy_apu_write_reg(&apu_, 0xFF25, 0x00);        // NR51: silent until a note
+    rackboy_apu_write_reg(&apu_, kNR50, 0x77);    // NR50: both sides at maximum (NR52 = 0x80 was written by init)
+    rackboy_apu_write_reg(&apu_, kNR51, 0x00);    // NR51: silent until a note
     rackboy_apu_write_wave_ram(&apu_, waves_[0]);      // wave RAM = slot 0
     voice_.reset();
     voice_.applySettings(settings_);
@@ -248,9 +253,6 @@ void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, fl
     {
         dc_.process(left, right, n);
     }
-    const float g = settings_.masterGain;
-    if (g != 1.0f)
-        for (int i = 0; i < n; ++i) { left[i] *= g; right[i] *= g; }
 }
 
 }  // namespace mpcboy

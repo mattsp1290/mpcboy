@@ -76,7 +76,7 @@ const std::vector<ProgramDef>& programDefs();
 constexpr int kProgramStack4 = 6;
 
 // `plain` holds the plain values of parameters 0..kNumEngineParams-1.
-// masterGain stays 1: the plugin applies Volume through its own smoother.
+// Volume is not an engine setting: the plugin applies it through its own smoother.
 EngineSettings proposedSettings(const float* plain);
 
 // Linear gain of the Volume parameter (dB).

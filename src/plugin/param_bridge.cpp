@@ -70,7 +70,7 @@ std::vector<mpc::Param> buildParams()
         add(mpc::choiceParam("tblrate", "Tbl Rate", rate, kDefaultTickChoice));
     }
     add(mpc::choiceParam("tblphase", "Tbl Phase", {"Note", "Grid"}, 0));
-    add(mpc::floatParam("freehz", "Free Hz", 1.0f, 240.0f, 59.73f, "Hz", 2));
+    add(mpc::floatParam("freehz", "Free Hz", 1.0f, 240.0f, static_cast<float>(kDmgFrameHz), "Hz", 2));
 
     // Pulse 1 then Pulse 2.
     for (int c = 0; c < 2; ++c)
@@ -183,7 +183,6 @@ EngineSettings proposedSettings(const float* v)
     s.retrigger = I(P_Retrigger) == 1 ? RetriggerMode::Legato : RetriggerMode::Always;
     s.noteOff = I(P_NoteOff) == 1 ? NoteOffMode::Ring : NoteOffMode::Cut;
     s.velToVol = I(P_VelVol) != 0;
-    s.masterGain = 1.0f;
     s.tick.enabled = true;
     s.tick.mode = I(P_TblClock) == 1 ? TickMode::Free : TickMode::Sync;
     s.tick.ticksPerBeat = static_cast<uint16_t>(kTicksPerBeatChoices[clampi(I(P_TblRate), 0, kNumTickChoices - 1)]);

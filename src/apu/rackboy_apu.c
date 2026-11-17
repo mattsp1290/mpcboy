@@ -76,19 +76,17 @@ static void mpcboy_stereo_callback(GB_gameboy_t *gb, GB_sample_t *sample)
     }
 }
 
-/* MPCBOY LOCAL MOD: test-only register-write spy (NULL in production). */
-static rackboy_apu_write_spy_fn g_write_spy      = NULL;
-static void                    *g_write_spy_user = NULL;
-
-void rackboy_apu_set_write_spy(rackboy_apu_write_spy_fn fn, void *user)
+/* MPCBOY LOCAL MOD: test-only register-write spy (NULL in production), per APU. */
+void rackboy_apu_set_write_spy(rackboy_apu_t *apu, rackboy_apu_write_spy_fn fn,
+                               void *user)
 {
-    g_write_spy      = fn;
-    g_write_spy_user = user;
+    apu->_spy      = fn;
+    apu->_spy_user = user;
 }
 
 static inline void apu_write_spied(rackboy_apu_t *apu, uint8_t reg, uint8_t value)
 {
-    if (g_write_spy) g_write_spy(g_write_spy_user, (uint16_t)(0xFF00u | reg), value);
+    if (apu->_spy) apu->_spy(apu->_spy_user, (uint16_t)(0xFF00u | reg), value);
     GB_apu_write(&apu->gb, reg, value);
 }
 
@@ -186,7 +184,7 @@ static void feed_samples(rackboy_apu_t *apu, uint32_t n)
 
 void rackboy_apu_init(rackboy_apu_t *apu, unsigned sample_rate)
 {
-    memset(apu, 0, sizeof(*apu));
+    memset(apu, 0, sizeof(*apu));   /* also clears the (MPCBOY LOCAL MOD) write spy */
 
     apu->sample_rate = sample_rate;
     apu->gb.model    = GB_MODEL_DMG_B;

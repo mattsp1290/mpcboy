@@ -2,12 +2,15 @@
 
 #include <cstring>
 
+#include "rackboy_sav_tables.h"
+
 namespace mpcboy {
 
 namespace {
 constexpr size_t kTablesOffset = 5;
+constexpr int kRows = static_cast<int>(rackboy::sav::kTableRowsPerTable);   // 16
 constexpr size_t kRowBytes = 7;
-constexpr size_t kWavesOffset = kTablesOffset + kNumTables * 16 * kRowBytes;   // 1797
+constexpr size_t kWavesOffset = kTablesOffset + kNumTables * kRows * kRowBytes;   // 1797
 constexpr size_t kNameLenOffset = kWavesOffset + kNumWaves * kWaveBytes;       // 2053
 constexpr size_t kNameOffset = kNameLenOffset + 1;                             // 2054
 static_assert(kWavesOffset == 1797 && kNameLenOffset == 2053 && kNameOffset + 4 == kStateSize, "state layout");
@@ -34,7 +37,7 @@ void encodeState(const Content& c, std::vector<uint8_t>& out, const std::string&
     p[4] = kStateVersion;
     uint8_t* q = p + kTablesOffset;
     for (int t = 0; t < kNumTables; ++t)
-        for (int r = 0; r < 16; ++r)
+        for (int r = 0; r < kRows; ++r)
         {
             const auto& row = c.tables.tables[t].rows[r];
             q[0] = row.has_vol ? 1 : 0;
@@ -71,7 +74,7 @@ bool decodeState(const uint8_t* data, size_t size, Content& out, std::string* im
     for (int t = 0; t < kNumTables; ++t)
     {
         c.tables.tables[t].occupied = true;
-        for (int r = 0; r < 16; ++r)
+        for (int r = 0; r < kRows; ++r)
         {
             auto& row = c.tables.tables[t].rows[r];
             row.has_vol = q[0] != 0;

@@ -24,13 +24,6 @@ constexpr uint16_t NR13 = 0xFF13, NR14 = 0xFF14, NR23 = 0xFF18, NR24 = 0xFF19, N
 double hzOfSquare(uint16_t x) { return 131072.0 / (2048.0 - x); }
 double centsOfSquare(uint16_t x) { return 1200.0 * std::log2(hzOfSquare(x) / 523.2511306011972); }
 
-size_t countWrites(const std::vector<W>& log, uint16_t addr, size_t from = 0)
-{
-    size_t n = 0;
-    for (size_t i = from; i < log.size(); ++i) n += log[i].addr == addr;
-    return n;
-}
-
 // The vendored vibrato shaper, restated from its documentation (V command):
 // triangle in [-128, +128], scaled by depth / 128 with truncation.
 int vibratoSemis(uint8_t phase, uint8_t depth)
@@ -315,6 +308,22 @@ TEST_CASE("engine 8: bend, fine tune, vibrato and slide compose as documented")
     CHECK(bendSeen > 0);
 }
 
+TEST_CASE("engine 9: a table E retrigger after the note's Length expired sounds for Length again, not for the hardware maximum")
+{
+    constexpr long kDelay = 118;
+    Rig r;
+    setTable(r.e->ownBank().tables[0], {{0, 0, 0, 0, 0}, {0, 'E', 0xF0, 0, 0}});
+    r.only(0);
+    r.s.ch[0].length = 4;   // 4/256 s = 15.6 ms
+    r.s.ch[0].tableSlot = 0;
+    r.apply();
+    r.run(22050, {noteOn(0, 60), tickAt(13230)});   // the retrigger at 300 ms, long after the first sound ended
+    const long end = lastEdge(r.L, 0, 0.005f);
+    const double ms = static_cast<double>(end - kDelay) / 44.1;
+    std::printf("[engine 9] E retrigger at 300 ms with length 4: sound ends at %.2f ms\n", ms);
+    CHECK(ms == doctest::Approx(300.0 + 15.6).epsilon(10.0 / 315.6));
+}
+
 TEST_CASE("engine 9: length silences Pulse 1 after 62.5 ms and Wave after 250 ms")
 {
     constexpr long kDelay = 118;   // resampler group delay, host frames
@@ -512,14 +521,12 @@ TEST_CASE("engine: reset restores the power-on sequence and a long block is chun
     r.log.clear();
     r.e->reset();
     const std::vector<W> init = r.log;
-    // NR52, NR50, NR51 and wave RAM (NR30 0, 16 bytes, NR30 restore) were written
-    REQUIRE(init.size() >= 3);
-    CHECK(init[0].addr == 0xFF26);
-    CHECK(init[0].v == 0x80);
-    CHECK(init[1].addr == 0xFF24);
-    CHECK(init[1].v == 0x77);
-    CHECK(init[2].addr == 0xFF25);
-    CHECK(init[2].v == 0x00);
+    // NR50, NR51 and wave RAM (NR30 0, 16 bytes, NR30 restore) were written (rackboy_apu_init itself writes NR52 = 0x80)
+    REQUIRE(init.size() >= 2);
+    CHECK(init[0].addr == 0xFF24);
+    CHECK(init[0].v == 0x77);
+    CHECK(init[1].addr == 0xFF25);
+    CHECK(init[1].v == 0x00);
     // 1000 host frames in one call (> 512) must equal the same audio in 128-frame blocks
     Rig a, b;
     a.run(1000, {noteOn(0, 60)}, 1000);

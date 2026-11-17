@@ -5,6 +5,11 @@
 //   UI thread     prepare(), reset(), loadExtraState(), saveExtraState(), formatValue()
 // reset() and prepare() only set atomic flags; loadExtraState() stages content;
 // saveExtraState() reads the published snapshot.
+// "The audio thread" is the thread that last ran process() (ContentStore::
+// markAudioThread: a sticky per-store thread id, never cleared). Editor-cell and
+// import-trigger parameter writes only act when they arrive on that thread; in
+// the native tests the thread that calls process() therefore stays "the audio
+// thread" of that plugin instance for its whole life.
 #pragma once
 
 #include <atomic>
@@ -43,6 +48,11 @@ public:
     mpcboy::ContentStore& content() { return *store_; }
     uint32_t hostRefreshCount() const { return hostRefreshes_.load(std::memory_order_relaxed); }
     mpcboy::ImportWorker& importer() { return *importer_; }
+    mpcboy::Engine& engine() { return *engine_; }   // tests only (register-write spy)
+    // Time source of the import-trigger debounce (steady_clock nanoseconds by
+    // default). Tests inject a fake clock; pass nullptr to restore the default.
+    using NowFn = long long (*)();
+    void setClockForTest(NowFn fn);
 
 private:
     void onImportTrigger(int index, float plainValue);
@@ -65,6 +75,11 @@ private:
     std::atomic<bool> trigHigh_[mpcboy::kNumImportTriggers];
     std::atomic<bool> trigReset_[mpcboy::kNumImportTriggers];
     std::atomic<long long> trigLastNs_[mpcboy::kNumImportTriggers];
+    // An accepted edge waits here until process() acts on it, and loadExtraState()
+    // discards it: the SDK writes the parameters of a chunk before it calls
+    // loadExtraState(), so a trigger restored as 1 is cancelled before it acts.
+    std::atomic<bool> trigPending_[mpcboy::kNumImportTriggers];
+    std::atomic<NowFn> now_;
 
     // Audio thread only.
     float lastNorm_[mpcboy::kNumEngineParams];

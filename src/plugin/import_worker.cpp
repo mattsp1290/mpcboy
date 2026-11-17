@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -35,10 +36,25 @@ bool nameLess(const std::string& a, const std::string& b)
     return a < b;   // same letters, different case: bytewise
 }
 
+// The text shown for a file: the name without ".sav", at most 8 bytes (a UTF-8
+// sequence is never cut in half). May be empty.
+std::string displayStem(std::string n)
+{
+    if (endsWithSav(n)) n.resize(n.size() - 4);
+    if (n.size() > 8)
+    {
+        size_t cut = 8;
+        while (cut > 0 && (static_cast<unsigned char>(n[cut]) & 0xC0) == 0x80) --cut;
+        n.resize(cut);
+    }
+    return n;
+}
+
 }  // namespace
 
 ImportWorker::ImportWorker(std::string dir, ContentStore& store) : dir_(std::move(dir)), store_(store)
 {
+    for (auto& w : dispWords_) w.store(0, std::memory_order_relaxed);
     scanRequested_.store(true, std::memory_order_relaxed);   // the initial scan
     thread_ = std::thread([this] { run(); });
 }
@@ -58,7 +74,11 @@ bool ImportWorker::requestImport(int index)
 
 std::string ImportWorker::lastImportedName() const
 {
+    const uint32_t t = store_.importTicket();   // before the mutex: it may wait one memcpy
     std::lock_guard<std::mutex> g(mu_);
+    if (t != 0)
+        for (const auto& e : imports_by_ticket_)
+            if (e.first == t) return e.second;
     return lastImported_;
 }
 
@@ -92,18 +112,68 @@ std::string ImportWorker::fileName(int index) const
 
 std::string ImportWorker::displayText(int index) const
 {
+    char buf[kDisplayBufSize];
+    displayTextInto(index, buf);
+    return std::string(buf);
+}
+
+size_t ImportWorker::displayTextInto(int index, char* buf) const
+{
+    auto put = [&](const char* t) {
+        size_t n = 0;
+        while (t[n] != '\0' && n < static_cast<size_t>(kDisplayBufSize) - 1) { buf[n] = t[n]; ++n; }
+        buf[n] = '\0';
+        return n;
+    };
     const int err = errCode_.load(std::memory_order_acquire);
-    if (err != 0) return "ERR " + std::to_string(err);
-    std::string n = fileName(index);
-    if (n.empty()) return "-";
-    if (endsWithSav(n)) n.resize(n.size() - 4);
-    if (n.size() > 8)
+    if (err != 0)
     {
-        size_t cut = 8;   // do not cut a UTF-8 sequence in half
-        while (cut > 0 && (static_cast<unsigned char>(n[cut]) & 0xC0) == 0x80) --cut;
-        n.resize(cut);
+        char t[kDisplayBufSize];
+        std::snprintf(t, sizeof(t), "ERR %d", err);
+        return put(t);
     }
-    return n.empty() ? "-" : n;
+    if (index < 0) return put("-");
+    char name[kDispWords * 4 + 1];
+    bool ok = false;
+    for (int attempt = 0; attempt < 64 && !ok; ++attempt)
+    {
+        const uint32_t s1 = dispSeq_.load(std::memory_order_acquire);
+        if (s1 & 1u) continue;   // a scan is publishing: retry (bounded, never blocks)
+        if (index >= static_cast<int>(dispCount_.load(std::memory_order_relaxed)))
+        {
+            std::atomic_thread_fence(std::memory_order_acquire);
+            if (dispSeq_.load(std::memory_order_relaxed) == s1) return put("-");
+            continue;
+        }
+        uint32_t w[kDispWords];
+        for (int i = 0; i < kDispWords; ++i) w[i] = dispWords_[index * kDispWords + i].load(std::memory_order_relaxed);
+        std::atomic_thread_fence(std::memory_order_acquire);
+        if (dispSeq_.load(std::memory_order_relaxed) != s1) continue;
+        std::memcpy(name, w, sizeof(w));
+        name[sizeof(w)] = '\0';
+        ok = true;
+    }
+    if (!ok || name[0] == '\0') return put("-");
+    return put(name);
+}
+
+void ImportWorker::publishDisplay(const std::vector<std::string>& names)
+{
+    uint32_t buf[kMaxImportFiles * kDispWords] = {};
+    const size_t n = names.size() < static_cast<size_t>(kMaxImportFiles) ? names.size() : static_cast<size_t>(kMaxImportFiles);
+    for (size_t i = 0; i < n; ++i)
+    {
+        const std::string stem = displayStem(names[i]);
+        char e[kDispWords * 4] = {};
+        std::memcpy(e, stem.data(), stem.size() < 8 ? stem.size() : 8);
+        std::memcpy(&buf[i * kDispWords], e, sizeof(e));
+    }
+    const uint32_t s = dispSeq_.load(std::memory_order_relaxed);
+    dispSeq_.store(s + 1, std::memory_order_relaxed);   // odd: write in progress
+    std::atomic_thread_fence(std::memory_order_release);
+    for (size_t i = 0; i < n * kDispWords; ++i) dispWords_[i].store(buf[i], std::memory_order_relaxed);
+    dispCount_.store(static_cast<uint32_t>(n), std::memory_order_relaxed);
+    dispSeq_.store(s + 2, std::memory_order_release);   // even: stable
 }
 
 ImportReport ImportWorker::lastReport() const
@@ -126,10 +196,12 @@ void ImportWorker::run()
         }
         // Poll: no condition variable, so requests from the audio thread never
         // touch a lock or a futex.
-        for (int i = 0; i < 5 && !stop_.load(std::memory_order_acquire) && !scanRequested_.load(std::memory_order_acquire) &&
-                        importIdx_.load(std::memory_order_acquire) < 0;
-             ++i)
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        // Idle poll at 50 Hz (one wakeup per 20 ms per instance). A request waits at
+        // most one interval, which a user-initiated import with a 250 ms debounce
+        // does not notice. stop is rechecked by the loop condition.
+        if (!stop_.load(std::memory_order_acquire) && !scanRequested_.load(std::memory_order_acquire) &&
+            !resolveRequested_.load(std::memory_order_acquire) && importIdx_.load(std::memory_order_acquire) < 0)
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
 }
 
@@ -154,6 +226,7 @@ void ImportWorker::scan()
     std::sort(names.begin(), names.end(), nameLess);
     if (names.size() > static_cast<size_t>(kMaxImportFiles)) names.resize(static_cast<size_t>(kMaxImportFiles));
     files_ = names;
+    publishDisplay(names);
     {
         std::lock_guard<std::mutex> g(mu_);
         shared_ = names;
@@ -196,13 +269,17 @@ void ImportWorker::importFile(int index)
 
     if (r == ImportResult::Ok)
     {
+        errCode_.store(0, std::memory_order_release);
+        // Register the name under the ticket before staging, so a save that sees
+        // the staged slot can already resolve it.
+        const uint32_t ticket = store_.nextImportTicket();
         {
             std::lock_guard<std::mutex> g(mu_);
-            lastImported_ = name;
+            imports_by_ticket_.emplace_back(ticket, name);
+            if (imports_by_ticket_.size() > 8) imports_by_ticket_.erase(imports_by_ticket_.begin());
             report_ = rep;
         }
-        errCode_.store(0, std::memory_order_release);
-        store_.stageImport(c);
+        store_.stageImportWithTicket(c, ticket);
         imports_.fetch_add(1, std::memory_order_release);
     }
     else

@@ -11,6 +11,7 @@
 #include "rackboy_sav_types.h"
 #include "rackboy_table.h"
 #include "rackboy_voice.h"
+#include "table_bank.h"
 
 namespace mpcboy {
 
@@ -20,7 +21,7 @@ public:
     // `apu` must outlive the voice. `waves` points at 16 wave slots of 16
     // bytes (32 packed 4-bit samples), or is nullptr (then no wave RAM write
     // happens before a Wave trigger).
-    void init(rackboy_apu_t* apu, const uint8_t (*waves)[16]);
+    void init(rackboy_apu_t* apu, const uint8_t (*waves)[kWaveBytes]);
 
     // Clear note stack, voice/table state and bend. Does not touch the APU.
     void reset();
@@ -60,7 +61,7 @@ private:
     void rewriteAllPitch();
 
     rackboy_apu_t* apu_ = nullptr;
-    const uint8_t (*waves_)[16] = nullptr;
+    const uint8_t (*waves_)[kWaveBytes] = nullptr;
     EngineSettings s_;
     NoteStack stack_;
     rackboy::core::VoiceState voices_[4];

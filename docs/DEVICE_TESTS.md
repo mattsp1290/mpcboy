@@ -12,6 +12,22 @@ the release (see the plan's definition of done).
 | G-CPU (WP3 test 7) | pending (needs user's MPC Live III) | Build the CPU probe plugin (`-DMPCBOY_CPU_PROBE=ON`, see `docs/BENCH.md` for the exact commands), install the folder, insert it on a track. Since WP7 the probe is the real plugin with the `Stack4` program, a note it holds by itself, and the read-only parameter `CPU us` showing `m<mean> p99 <p99>` in microseconds per process() call (refreshed once per second). Hold at a 128-frame buffer for 60 s. Pass: mean <= 145 us and p99 <= 290 us. Not run: no device result is claimed. If it is still pending at WP10 it is a release blocker (WP10 row 9). |
 | G-EDIT (WP8) | pending (needs user's MPC Live III) | The nine checks are listed in `docs/EDITOR.md`. |
 
+## Host gates (sanitizers)
+
+The plan (`07-execution-handoff.md`) requires ASan and TSan `ctest` runs with 0
+reports for the WP5, WP7 and WP11 PRs. On the development Mac the `native-asan`
+and `native-tsan` binaries crash or hang at initialisation, so those two gates
+are **pending**; no result is claimed. What did run is `native-ubsan` (UBSan, asserts
+on, `-fno-sanitize-recover`). The thread-safety claims for `ContentStore`, the
+seqlocks, the import worker and the lifecycle calls therefore rest on the
+stress tests (`content 5`, `plugin 6`, `import 7`) run un-instrumented.
+
+| Gate | Status | Command |
+|---|---|---|
+| `native-ubsan` full tests (asserts on) | passes on the dev Mac | `cmake --preset native-ubsan && cmake --build --preset native-ubsan && (cd tests/rackboy && ../../build/native-ubsan/mpcboy_tests)` |
+| `native-tsan` ctest (WP5 test 5, WP7 test 6, WP11 tests 6-7) | pending (TSan does not run on the dev Mac) | on Linux x86_64 or arm64: `cmake --preset native-tsan && cmake --build --preset native-tsan && ctest --preset native-tsan` |
+| `native-asan` ctest (WP7 test 1, WP11 test 4) | pending | same with `native-asan` |
+
 ## WP11 (LSDJ `.sav` import) device test
 
 Status of the code: implemented and verified natively (`tests/unit/import_test.cpp`).

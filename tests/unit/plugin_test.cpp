@@ -19,9 +19,8 @@ using namespace mpcboy;
 
 namespace {
 
-// The thread that calls process() is "the audio thread". Unmark it at the end of
-// every test so the other suites (which expect off-thread edits to be rejected)
-// are unaffected.
+// The thread that calls process() is "the audio thread" of that plugin's store
+// (the mark is per instance, so it dies with the rig).
 struct PluginRig
 {
     std::unique_ptr<MpcBoyPlugin> p;
@@ -36,7 +35,6 @@ struct PluginRig
         p = std::make_unique<MpcBoyPlugin>();
         p->prepare(44100.0, 512);
     }
-    ~PluginRig() { ContentStore::markAudioThread(false); }
 
     // One process() call with `block` frames and the given block-relative events.
     void block(int n, const std::vector<mpc::MidiEvent>& midi = {})
@@ -340,7 +338,7 @@ TEST_CASE("plugin 5: load safety - a state load from another thread never writes
     CHECK(original != validBlob);
 }
 
-TEST_CASE("plugin 6: lifecycle calls from a second thread while process runs 10,000 blocks (un-instrumented; TSan unavailable on this host)")
+TEST_CASE("plugin 6: lifecycle calls from a second thread while process runs 10,000 blocks")
 {
     PluginRig r;
     r.block(128);
@@ -495,10 +493,10 @@ TEST_CASE("plugin 9: Stack4 layers all four channels from one note; peak above -
     PluginRig r;
     r.p->setProgram(kProgramStack4);
     r.block(128);                                    // applies the reset
-    rackboy_apu_set_write_spy(&Spy::cb, &spy);
+    rackboy_apu_set_write_spy(r.p->engine().apu(), &Spy::cb, &spy);
     r.run(r.pos + 44100 / 2, {on(r.pos + 100, 60)}, 128);
     r.run(r.pos + 128, {mpc::MidiEvent::noteOn(0, 64, 100, static_cast<int>(r.pos + 10))}, 128);   // second overlapping note: legato/glide, no second voice
-    rackboy_apu_set_write_spy(nullptr, nullptr);
+    rackboy_apu_set_write_spy(r.p->engine().apu(), nullptr, nullptr);
 
     auto distinct = [&](uint16_t lo, uint16_t hi) {
         std::vector<int> f;

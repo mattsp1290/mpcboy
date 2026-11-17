@@ -109,6 +109,12 @@ budget on this Mac is about 10x; the device itself is unmeasured (below).
    MPCBOY_BUILD_SUFFIX=-probe scripts/make_min_folder.sh      # -> build/minfolder-probe/, SDK validator runs on it
    ```
 
+   A probe build gets its own file names (`mpcboy-probe.dylib`,
+   `mpcboy-probe-arm32.so`, `mpcboy-probe-arm64.so`); `make_min_folder.sh` points
+   the probe folder's `plugin.json` `file32`/`file64` at them, and
+   `package_mpc.py` refuses to package a probe build. Always use a separate `-B`
+   directory: `MPCBOY_CPU_PROBE` is a cached option.
+
    (The arm64 and arm32 probe builds were produced and the folder passed the
    SDK validator with 0 errors, 0 warnings. The native probe also runs under
    `host_sim ... test` with no failures.)
@@ -124,7 +130,7 @@ budget on this Mac is about 10x; the device itself is unmeasured (below).
    (`dbg_us`) displays `m<mean> p99 <p99>` in microseconds.
 4. Hold for 60 s. Pass: mean <= 145 us and p99 <= 290 us.
 5. Record the readings here and in `docs/DEVICE_TESTS.md`. If it fails,
-   profile and fix before WP5 (candidates in order: SameBoy per-sample feeding
+   profile and fix before the WP10 row 9 release gate (candidates in order: SameBoy per-sample feeding
    in `feed_samples`, then resampler taps 257 -> 129 with polyphase test 5
    re-run). If it cannot be run now it stays "pending" and is a release blocker
    at WP10 row 9.

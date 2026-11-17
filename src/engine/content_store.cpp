@@ -2,15 +2,23 @@
 
 #include <cstring>
 #include <utility>
+#include <pthread.h>
 #include <sched.h>
+#include <type_traits>
 
 #include "bank_adapter.h"
 
 namespace mpcboy {
 
 namespace {
-thread_local bool tlAudioThread = false;
-}
+// pthread_self() reads the thread pointer register: no TLS block lookup, no allocation.
+template <typename T>
+uintptr_t toId(T t, std::true_type) { return reinterpret_cast<uintptr_t>(t); }
+template <typename T>
+uintptr_t toId(T t, std::false_type) { return static_cast<uintptr_t>(t); }
+
+uintptr_t selfId() { return toId(pthread_self(), std::is_pointer<pthread_t>()); }
+}  // namespace
 
 ContentStore::ContentStore()
 {
@@ -22,8 +30,25 @@ ContentStore::ContentStore()
     publish();
 }
 
-void ContentStore::markAudioThread(bool on) { tlAudioThread = on; }
-bool ContentStore::onAudioThread() { return tlAudioThread; }
+void ContentStore::markAudioThread(bool on)
+{
+    const uintptr_t me = selfId();
+    if (on)
+    {
+        audioThread_.store(me, std::memory_order_relaxed);
+    }
+    else
+    {
+        uintptr_t expected = me;
+        audioThread_.compare_exchange_strong(expected, 0, std::memory_order_relaxed);
+    }
+}
+
+bool ContentStore::onAudioThread() const
+{
+    const uintptr_t a = audioThread_.load(std::memory_order_relaxed);
+    return a != 0 && a == selfId();
+}
 
 void ContentStore::touchLive() { ++liveGen_; }
 
@@ -53,10 +78,21 @@ bool ContentStore::beginBlock()
     int expected = Ready;
     if (stagedState_.compare_exchange_strong(expected, Reading, std::memory_order_acquire))
     {
-        if (stagedIsImport_)
+        if (stagedTicket_ != 0)
         {
             undo_ = live_;   // one level of undo: the content just before this import
+            undoTicket_ = curTicket_.load(std::memory_order_relaxed);
+            curTicket_.store(stagedTicket_, std::memory_order_release);
             undoValid_.store(true, std::memory_order_release);
+        }
+        else
+        {
+            // A project / preset load starts a new history: an undo copy from an
+            // earlier import must not bring another project's tables back.
+            undoValid_.store(false, std::memory_order_release);
+            undoRequested_.store(false, std::memory_order_relaxed);
+            undoTicket_ = 0;
+            curTicket_.store(0, std::memory_order_release);
         }
         live_ = staged_;
         syncBank(bank_, live_);
@@ -71,6 +107,9 @@ bool ContentStore::beginBlock()
     if (undoRequested_.exchange(false, std::memory_order_acq_rel) && undoValid_.load(std::memory_order_acquire))
     {
         std::swap(live_, undo_);   // a second undo re-applies the import
+        const uint32_t was = curTicket_.load(std::memory_order_relaxed);
+        curTicket_.store(undoTicket_, std::memory_order_release);
+        undoTicket_ = was;
         syncBank(bank_, live_);
         touchLive();
         ++bulkGen_;
@@ -87,9 +126,9 @@ bool ContentStore::beginBlock()
     return changed;
 }
 
-void ContentStore::stage(const Content& c) { stageImpl(c, false); }
+void ContentStore::stage(const Content& c) { stageImpl(c, 0); }
 
-void ContentStore::stageImpl(const Content& c, bool isImport)
+void ContentStore::stageImpl(const Content& c, uint32_t importTicket)
 {
     for (;;)
     {
@@ -104,8 +143,25 @@ void ContentStore::stageImpl(const Content& c, bool isImport)
         sched_yield();   // Writing (another writer) or Reading (one memcpy)
     }
     staged_ = c;
-    stagedIsImport_ = isImport;
+    stagedTicket_ = importTicket;
     stagedState_.store(Ready, std::memory_order_release);
+}
+
+uint32_t ContentStore::importTicket()
+{
+    for (;;)
+    {
+        int state = stagedState_.load(std::memory_order_acquire);
+        if (state == Empty) return curTicket_.load(std::memory_order_acquire);
+        if (state == Ready)
+        {
+            if (!stagedState_.compare_exchange_weak(state, Reading, std::memory_order_acquire)) continue;
+            const uint32_t t = stagedTicket_;
+            stagedState_.store(Ready, std::memory_order_release);
+            return t;
+        }
+        sched_yield();   // Writing or Reading
+    }
 }
 
 void ContentStore::readLatest(Content& out)

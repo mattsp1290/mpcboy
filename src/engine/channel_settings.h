@@ -4,6 +4,8 @@
 
 #include <cstdint>
 
+#include "engine_consts.h"
+
 namespace mpcboy {
 
 enum class Pan : uint8_t { Off = 0, L = 1, C = 2, R = 3 };
@@ -39,7 +41,7 @@ struct TickSettings
     TickMode mode = TickMode::Sync;
     TickPhase phase = TickPhase::Note;
     uint16_t ticksPerBeat = 24;
-    float freeHz = 59.73f;       // DMG frame rate
+    float freeHz = static_cast<float>(kDmgFrameHz);   // DMG frame rate
 };
 
 struct ChannelSettings
@@ -75,7 +77,6 @@ struct EngineSettings
     RetriggerMode retrigger = RetriggerMode::Always;
     NoteOffMode noteOff = NoteOffMode::Cut;
     bool velToVol = false;      // scale the initial envelope volume by velocity
-    float masterGain = 1.0f;    // applied after the DC blocker
     TickSettings tick;
 
     EngineSettings()

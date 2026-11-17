@@ -110,9 +110,12 @@ For the CPU probe used on the device, see `docs/BENCH.md`.
 
 ## Verification status
 
-Done natively: unit and plugin-level tests (`ctest`), UBSan runs, the SDK
-host simulator, the strict SDK validator on the packaged folder, arm32 and
-arm64 builds. **Pending on the user's MPC Live III** (every one is a release
+Done natively: unit and plugin-level tests (`ctest`), UBSan runs (preset
+`native-ubsan`, asserts on, `-fno-sanitize-recover`), the SDK host simulator, the strict SDK validator on the packaged folder, arm32 and
+arm64 builds. **Pending sanitizer gates:** the `native-asan` and `native-tsan` presets exist
+but their binaries crash or hang at initialisation on the development Mac, so
+the plan's ASan/TSan `ctest` gates are not met yet; the exact commands to run
+on Linux are in `docs/DEVICE_TESTS.md` ("Host gates"). **Pending on the user's MPC Live III** (every one is a release
 blocker, see `docs/DEVICE_TESTS.md`): G-CPU (CPU use of one instance), G-EDIT
 (the table editor's cursor behaviour, `docs/EDITOR.md`), and the WP10
 checklist of 11 device checks, plus WP11's device test 9 (the `.sav` import on

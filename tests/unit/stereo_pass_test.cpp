@@ -196,7 +196,7 @@ TEST_CASE("stereo pass 1: run_stereo replay equals the sum of the four golden ch
         for (auto& r : regs) rackboy::table::table_reg_state_reset(r);
 
         SpyCtx ctx{&log, 0};
-        rackboy_apu_set_write_spy(spy_cb, &ctx);
+        rackboy_apu_set_write_spy(&apu, spy_cb, &ctx);
         std::size_t ei = 0;
         for (std::size_t s = 0; s < kSamples; ++s)
         {
@@ -221,7 +221,7 @@ TEST_CASE("stereo pass 1: run_stereo replay equals the sum of the four golden ch
                 }
             }
         }
-        rackboy_apu_set_write_spy(nullptr, nullptr);
+        rackboy_apu_set_write_spy(&apu, nullptr, nullptr);
     }
     REQUIRE(log.size() > 20);
 

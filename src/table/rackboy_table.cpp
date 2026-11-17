@@ -286,6 +286,33 @@ static void kill_channel(
     voice.kill_ticks_remaining = 0;
 }
 
+// MPCBOY LOCAL MOD: before a table retrigger (`E`, `R`, `W`, volume column)
+// reload the configured length. On hardware a trigger reloads the length
+// counter to its maximum only when it has run out, so without this a retrigger
+// after the note's Length expired would sound for 64/256 s (pulse, noise) or
+// 1 s (wave) instead of Length. Rewriting NRx1 / NR31 restarts the counter at
+// the configured value; the pulse duty bits are kept.
+static void reload_length(const TableRegState& regs,
+                          rackboy::core::VoiceChannel ch,
+                          rackboy_apu_t* apu) noexcept
+{
+    if (!regs.length_enable) return;
+    switch (ch) {
+    case rackboy::core::VoiceChannel::Pulse1:
+        rackboy_apu_write_reg(apu, kNR11, static_cast<uint8_t>(regs.duty | regs.len_lo6));
+        break;
+    case rackboy::core::VoiceChannel::Pulse2:
+        rackboy_apu_write_reg(apu, kNR21, static_cast<uint8_t>(regs.duty | regs.len_lo6));
+        break;
+    case rackboy::core::VoiceChannel::Wave:
+        rackboy_apu_write_reg(apu, kNR31, regs.len_nr31);
+        break;
+    case rackboy::core::VoiceChannel::Noise:
+        rackboy_apu_write_reg(apu, kNR41, regs.len_lo6);
+        break;
+    }
+}
+
 // MPCBOY LOCAL MOD: write an envelope byte and retrigger with the running
 // frequency. This is the `E` command's effect and the table volume column's
 // (Pulse/Noise: NRx2 = value; Wave: NR32 = value & 0x60, which restarts the
@@ -296,6 +323,7 @@ static void write_envelope_retrigger(
     rackboy::core::VoiceChannel ch,
     rackboy_apu_t* apu) noexcept
 {
+    reload_length(regs, ch, apu);
     switch (ch) {
     case rackboy::core::VoiceChannel::Pulse1:
         regs.envelope = value;
@@ -356,7 +384,8 @@ static void write_envelope_retrigger(
 //   'O' (0x4F) = global no-op: output routing command (host owns
 //                channel-to-bus routing; NR51 panning unmodeled)
 //                [DONE rackboy-ydc]
-//   'P' (0x50) = rackboy-TODO: pitch bend command (per-voice)
+//   'P' (0x50) = pitch bend command (per-voice) [MPCBOY LOCAL MOD: implemented
+//                in the case below; was rackboy-TODO]
 //   'Q' (0x51) = rackboy-TODO: not in docs/LSDJ_REFERENCE.md's v1
 //                per-voice / channel-specific / global / deferred
 //                tables — the label needs cross-check against the
@@ -506,6 +535,7 @@ static void dispatch_command(
             // engine path (table_trigger got TriggerExtras): the vendored
             // wave_set_test asserts the legacy no-retrigger behaviour.
             if (regs.engine_mode) {
+                reload_length(regs, ch, apu);
                 rackboy_apu_write_reg(apu, kNR34,
                                       trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
             }
@@ -614,10 +644,9 @@ static void dispatch_command(
     // register (NRx2 for Pulse/Noise, NR30 DAC-off for Wave) and
     // clearing the voice's triggered flag so future Gate 2 ticks
     // skip this voice. Per docs/LSDJ_REFERENCE.md, K's param
-    // encodes a tick delay before the kill fires; for v1 this is
-    // simplified to immediate kill regardless of param value. A
-    // future bead may add a kill-timer field to VoiceState for
-    // proper deferred kill semantics.
+    // encodes a tick delay before the kill fires. MPCBOY LOCAL MOD: the
+    // original v1 killed at once regardless of param; the deferred kill
+    // (kill_ticks_remaining) is implemented below, see the case body.
     case 'K':
         // MPCBOY LOCAL MOD (WP5): Kxx with xx == 0 kills at once (the
         // original behaviour); xx > 0 arms kill_ticks_remaining and the
@@ -730,7 +759,10 @@ void table_trigger(
     // Length register payloads: pulse/noise NRx1 low 6 bits = 64 - length,
     // wave NR31 = 256 - 4 * length (counter 4 * length steps).
     const uint8_t len_lo6 = length ? static_cast<uint8_t>((64u - length) & 0x3Fu) : 0x3F;
-    const uint8_t len_nr31 = length ? static_cast<uint8_t>(256u - 4u * length > 255u ? 255u : 256u - 4u * length) : 0xFF;
+    const uint8_t len_nr31 = length ? static_cast<uint8_t>(256u - 4u * length) : 0xFF;   // MPCBOY LOCAL MOD: length is 1..64 here, so no clamp
+
+    regs.len_lo6       = len_lo6;    // MPCBOY LOCAL MOD: kept for table retriggers
+    regs.len_nr31      = len_nr31;
 
     switch (ch) {
     // -----------------------------------------------------------------------
@@ -1067,6 +1099,7 @@ void table_tick(
         --voice.retrigger_counter_ticks;
         if (voice.retrigger_counter_ticks == 0) {
             voice.retrigger_counter_ticks = voice.retrigger_period_ticks;
+            reload_length(regs, ch, apu);   // MPCBOY LOCAL MOD
             switch (ch) {
             case rackboy::core::VoiceChannel::Pulse1:
                 rackboy_apu_write_reg(apu, kNR14,

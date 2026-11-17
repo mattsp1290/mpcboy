@@ -33,6 +33,9 @@
 extern "C" {
 #endif
 
+/* MPCBOY LOCAL MOD: register-write spy callback type (see rackboy_apu_set_write_spy). */
+typedef void (*rackboy_apu_write_spy_fn)(void *user, uint16_t addr, uint8_t value);
+
 /* ------------------------------------------------------------------ */
 /* Driver state                                                        */
 /* ------------------------------------------------------------------ */
@@ -80,6 +83,11 @@ typedef struct rackboy_apu_s {
      * 0 (the default after init) keeps rackboy's original behaviour, in which
      * those events never fire. */
     uint8_t  mpcboy_frame_seq;
+
+    /* MPCBOY LOCAL MOD: test-only register-write spy (NULL in production);
+     * cleared by rackboy_apu_init. */
+    rackboy_apu_write_spy_fn _spy;
+    void                    *_spy_user;
 } rackboy_apu_t;
 
 /* ------------------------------------------------------------------ */
@@ -152,24 +160,25 @@ void rackboy_apu_run_stereo(rackboy_apu_t *apu, uint32_t n,
  * `mpcboy_frame_seq` field). Upstream SameBoy drives it from the CPU's DIV
  * counter, which rackboy does not have, so without this no length counter,
  * volume envelope or frequency sweep ever advances. Call after
- * rackboy_apu_init (init clears it). Only affects rackboy_apu_run_stereo;
- * rackboy_apu_run_samples (the 4-pass golden path) should keep it off.
+ * rackboy_apu_init (init clears it). Affects every render path (the flag is
+ * read in feed_samples, which rackboy_apu_run_stereo and rackboy_apu_run_samples
+ * both use); rackboy_apu_run_samples (the 4-pass golden path) must keep it off.
  */
 void rackboy_apu_set_frame_sequencer(rackboy_apu_t *apu, int enable);
 
 /*
- * MPCBOY LOCAL MOD: test-only register-write spy.
+ * MPCBOY LOCAL MOD: test-only register-write spy, one per APU instance.
  *
  * When `fn` is non-NULL it is called with (user, CPU address, value) for every
- * write that goes through `rackboy_apu_write_reg` and for every write
- * `rackboy_apu_write_wave_ram` performs (NR30 0, the 16 wave bytes, NR30
+ * write that goes through `rackboy_apu_write_reg` on THIS apu and for every
+ * write `rackboy_apu_write_wave_ram` performs (NR30 0, the 16 wave bytes, NR30
  * restore), immediately before the write reaches the APU. NULL (the default)
- * disables it; production code never sets it. A process-wide hook: one APU at
- * a time under test.
+ * disables it; production code never sets it. The hook lives in the
+ * rackboy_apu_t, so there is no process-global mutable state. Set it after
+ * rackboy_apu_init (init clears it, as it clears the whole struct).
  */
-typedef void (*rackboy_apu_write_spy_fn)(void *user, uint16_t addr,
-                                         uint8_t value);
-void rackboy_apu_set_write_spy(rackboy_apu_write_spy_fn fn, void *user);
+void rackboy_apu_set_write_spy(rackboy_apu_t *apu, rackboy_apu_write_spy_fn fn,
+                               void *user);
 
 /*
  * Write all 16 bytes of CH3 wave RAM ($FF30..$FF3F) from the provided

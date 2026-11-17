@@ -213,7 +213,7 @@ TEST_CASE("tick clock 6: an invalid tempo uses the last valid one, 120 from a co
     for (size_t i = 1; i < c.ticks.size(); ++i) CHECK(std::fabs(c.ticks[i] - c.ticks[i - 1] - 918.75) <= 1.0);
 }
 
-TEST_CASE("tick clock 7: a note-on retriggers the phase; a grid tick at the same frame keeps its slot")
+TEST_CASE("tick clock 7: a note-on retriggers the phase; a grid tick at the note-on is absorbed by the note")
 {
     // Note phase: the first tick after a note-on is one period later, whatever ran before.
     Harness h;
@@ -224,13 +224,22 @@ TEST_CASE("tick clock 7: a note-on retriggers the phase; a grid tick at the same
     REQUIRE(h.ticks.size() >= 1);
     CHECK(std::fabs(h.ticks[0] - (static_cast<double>(h.pos - 1024) + 100 + 918.75)) <= 1.0);
 
-    // Grid phase: the note-on does not move the schedule (the engine-level ordering test covers the order).
-    Harness g;
-    g.clock.setSettings(TickMode::Sync, 24, TickPhase::Grid, 59.73);
-    const double ppq0 = 1.0 - 100.5 / 22050.0;   // grid tick k = 24 at host frame 100.5
-    g.block(512, 120.0, true, ppq0, true, true, 100);
-    REQUIRE(g.ticks.size() == 1);
-    CHECK(g.ticks[0] == 100.0);
+    // Grid phase: the schedule stays on the grid, but the note owns the grid tick it lands on
+    // (at the note-on frame or up to half a period after it): that tick is consumed, so row 0 is
+    // heard for about one period instead of being overwritten at once by row 1.
+    const double ppq0 = 1.0 - 100.5 / 22050.0;   // grid tick k = 24 at host frame 100.5, k = 25 at 1019.25, k = 26 at 1938
+    struct Case { int noteOffset; double firstTick; size_t count; };
+    // The note on the tick, and one frame before it (the engine's ordering test covers a note
+    // well after earlier ticks were consumed: this harness calls noteOn before consuming any).
+    for (const Case& k : {Case{100, 1019.0, 2}, Case{99, 1019.0, 2}})
+    {
+        CAPTURE(k.noteOffset);
+        Harness g;
+        g.clock.setSettings(TickMode::Sync, 24, TickPhase::Grid, 59.73);
+        g.block(2048, 120.0, true, ppq0, true, true, k.noteOffset);
+        REQUIRE(g.ticks.size() == k.count);
+        CHECK(g.ticks[0] == k.firstTick);
+    }
 }
 
 TEST_CASE("tick clock 8: Free runs at 59.73 Hz, ignores the transport, and restarts on a note-on")

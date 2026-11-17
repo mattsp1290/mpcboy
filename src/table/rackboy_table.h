@@ -194,6 +194,10 @@ struct TableRegState {
     // 1 when a length counter is in use (TriggerExtras.length > 0). Every NRx4
     // / NR44 write then carries bit 6 (length enable).
     uint8_t length_enable;
+    // MPCBOY LOCAL MOD: the length payloads table_trigger wrote (pulse/noise NRx1
+    // low 6 bits, wave NR31), kept so table retriggers can reload the counter.
+    uint8_t len_lo6;
+    uint8_t len_nr31;
     // MPCBOY LOCAL MOD (WP5): set by table_trigger when it received
     // TriggerExtras (the engine path). Selects mpcboy-only behaviour that
     // would change vendored expected values: `W` retriggers CH3.
@@ -228,6 +232,8 @@ inline void table_reg_state_reset(TableRegState& r) noexcept
     r.fine_cents     = 0;
     r.noise_flags    = 0;
     r.length_enable  = 0;
+    r.len_lo6        = 0x3F;  // MPCBOY LOCAL MOD
+    r.len_nr31       = 0xFF;  // MPCBOY LOCAL MOD
     r.engine_mode    = 0;
 }
 
