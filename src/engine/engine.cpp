@@ -1,6 +1,9 @@
-#include "engine.h"
-
+// Standard headers first: the vendored apu headers (via engine.h) #define internal.
+#include <cmath>
 #include <cstring>
+#include <numeric>
+
+#include "engine.h"
 
 #include "engine_consts.h"
 #include "rackboy_table.h"
@@ -17,7 +20,15 @@ namespace {
 // therefore flushes the blocker at that moment (the step it removes is the tail
 // itself, ~-47 dBFS), which gives the plan's "silent within 10 ms + resampler
 // delay" after a note-off.
-constexpr int kDcFlushDelay = 240;
+//
+// That figure is for the 44.1 kHz path. For another rate it scales with the
+// kernel width, 2 * 128 APU frames = 256 * hostRate / 48000 host frames, plus the
+// same 4 frame margin (44100 gives 236 + 4 = 240); the 48 kHz path has no kernel.
+int dcFlushDelayFor(int hostRate, bool resampled)
+{
+    if (!resampled) return 4;
+    return static_cast<int>(std::ceil(256.0 * hostRate / 48000.0)) + 4;
+}
 
 // Default wave for every slot until content is loaded: a 4-bit saw.
 void fillDefaultWave(uint8_t out[kWaveBytes])
@@ -60,6 +71,90 @@ Engine::Engine()
     reset();
 }
 
+bool Engine::hostRateSupported(int sr)
+{
+    return sr == 44100 || sr == 48000 || sr == 96000 || sr == 192000;
+}
+
+bool Engine::setHostRate(int sr)
+{
+    if (!hostRateSupported(sr)) return false;
+    hostRate_ = sr;
+    const int g = std::gcd(kApuRate, sr);
+    mapNum_ = kApuRate / g;     // 44100 -> 160 / 147, as the polyphase table
+    mapDen_ = sr / g;
+    if (sr == 44100) rateMode_ = RateMode::Poly44;
+    else if (sr == 48000) rateMode_ = RateMode::Direct48;
+    else
+    {
+        rateMode_ = RateMode::Host;
+        rackboy::resampler::host_resampler_init(&hostResampler_, static_cast<unsigned>(sr));
+    }
+    dcFlushDelay_ = sr == 44100 ? 240 : dcFlushDelayFor(sr, rateMode_ != RateMode::Direct48);
+    clock_.setSampleRate(static_cast<double>(sr));
+    return true;
+}
+
+int Engine::inputsNeeded(int outFrames) const
+{
+    switch (rateMode_)
+    {
+        case RateMode::Poly44: return resampler_.inputsNeeded(outFrames);
+        case RateMode::Direct48: return outFrames;
+        case RateMode::Host:
+        {
+            // Same arithmetic as the vendored host_resampler_required_inputs, for the last output of the chunk.
+            const long long last = hostResampler_.output_count + outFrames - 1;
+            const long long need = last * hostResampler_.M / hostResampler_.L + hostResampler_.half_taps + 1
+                                   - hostResampler_.input_count;
+            return need > 0 ? static_cast<int>(need) : 0;
+        }
+    }
+    return 0;
+}
+
+long long Engine::outputCount() const
+{
+    switch (rateMode_)
+    {
+        case RateMode::Poly44: return resampler_.outputCount();
+        case RateMode::Direct48: return directOut_;
+        case RateMode::Host: return hostResampler_.output_count;
+    }
+    return 0;
+}
+
+void Engine::resample(const float* inL, const float* inR, int inFrames, float* outL, float* outR, int outFrames)
+{
+    switch (rateMode_)
+    {
+        case RateMode::Poly44:
+            resampler_.process(inL, inR, inFrames, outL, outR, outFrames);
+            break;
+        case RateMode::Direct48:
+            std::memcpy(outL, inL, sizeof(float) * static_cast<size_t>(outFrames));
+            std::memcpy(outR, inR, sizeof(float) * static_cast<size_t>(outFrames));
+            directOut_ += outFrames;
+            break;
+        case RateMode::Host:
+        {
+            int pushed = 0;
+            for (int i = 0; i < outFrames; ++i)
+            {
+                while (pushed < inFrames && rackboy::resampler::host_resampler_required_inputs(&hostResampler_) > 0)
+                {
+                    rackboy::resampler::host_resampler_push_input(&hostResampler_, inL[pushed], inR[pushed], 0.0f, 0.0f);
+                    ++pushed;
+                }
+                rackboy::resampler::host_resampler_emit(&hostResampler_, &outL[i], &outR[i], nullptr, nullptr);
+            }
+            for (; pushed < inFrames; ++pushed)   // none in practice: inputsNeeded() is exact
+                rackboy::resampler::host_resampler_push_input(&hostResampler_, inL[pushed], inR[pushed], 0.0f, 0.0f);
+            break;
+        }
+    }
+}
+
 void Engine::attachContent(ContentStore* store)
 {
     content_ = store;
@@ -79,7 +174,16 @@ void Engine::reset()
     rackboy_apu_write_wave_ram(&apu_, bank_->waves[0].samples);   // wave RAM = slot 0
     voice_.reset();
     voice_.applySettings(settings_);
-    resampler_.reset(kResamplerPrefill);
+    switch (rateMode_)
+    {
+        case RateMode::Poly44: resampler_.reset(kResamplerPrefill); break;
+        case RateMode::Direct48: directOut_ = 0; break;
+        case RateMode::Host:
+            rackboy::resampler::host_resampler_reset_state(&hostResampler_);
+            for (int i = 0; i < kResamplerPrefill; ++i)   // same priming as the polyphase path
+                rackboy::resampler::host_resampler_push_input(&hostResampler_, 0.0f, 0.0f, 0.0f, 0.0f);
+            break;
+    }
     dc_.reset();
     clock_.reset();
     apuFrames_ = 0;
@@ -126,7 +230,7 @@ void Engine::applyMidi(const EngineMidiEvent& e)
     {
         voice_.allNotesOff();
     }
-    if (voice_.takeSilenced()) dcResetOut_ = chunkOutBase_ + curHostOffset_ + kDcFlushDelay;
+    if (voice_.takeSilenced()) dcResetOut_ = chunkOutBase_ + curHostOffset_ + dcFlushDelay_;
 }
 
 void Engine::render(const EngineBlock& block, float* left, float* right, int frames)
@@ -162,12 +266,13 @@ int Engine::clockTickIn(int c0, int n) const
 void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right)
 {
     // APU frames for this chunk: exactly what the resampler needs to emit n
-    // host frames. Host offset t maps to APU frame round(t * 160 / 147); no
+    // host frames. Host offset t maps to APU frame round(t * 48000 / hostRate)
+    // (160 / 147 at 44.1 kHz, identity at 48 kHz); no
     // lookahead (the resampler's group delay delays when a change is heard,
     // not when it is written).
-    const int nIn = resampler_.inputsNeeded(n);
+    const int nIn = inputsNeeded(n);
     const uint64_t apuBase = apuFrames_;
-    chunkOutBase_ = resampler_.outputCount();
+    chunkOutBase_ = outputCount();
     int apuPos = 0;
 
     auto runTo = [&](int target) {
@@ -199,12 +304,12 @@ void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, fl
         const bool takeMidi = (mOff >= 0) && (tOff < 0 || mOff <= tOff);
         const int evOff = takeMidi ? mOff : tOff;
         const int t = evOff - c0;
-        // Absolute mapping: APU frame round((outputsSoFar + t) * 160 / 147) minus
+        // Absolute mapping: APU frame round((outputsSoFar + t) * mapNum_ / mapDen_) minus
         // the APU frames already rendered before this chunk. Rounding once from
         // the absolute position keeps the error below half an APU frame instead
         // of letting the per-block resampler granularity (+-1 APU frame) add up.
         const long long outAbs = chunkOutBase_ + t;
-        int a = static_cast<int>((outAbs * 2 * 160 + 147) / (2 * 147) - static_cast<long long>(apuBase));
+        int a = static_cast<int>((outAbs * 2 * mapNum_ + mapDen_) / (2 * static_cast<long long>(mapDen_)) - static_cast<long long>(apuBase));
         if (a < apuPos) a = apuPos;
         runTo(a);
         curHostOffset_ = t;
@@ -218,7 +323,7 @@ void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, fl
     }
     runTo(nIn);
 
-    resampler_.process(apuL_, apuR_, nIn, left, right, n);
+    resample(apuL_, apuR_, nIn, left, right, n);
     if (dcResetOut_ >= 0 && dcResetOut_ - chunkOutBase_ < n)
     {
         const int k = dcResetOut_ > chunkOutBase_ ? static_cast<int>(dcResetOut_ - chunkOutBase_) : 0;

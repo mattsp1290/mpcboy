@@ -18,6 +18,19 @@ done
 echo "== ctest native"
 ctest --preset native
 
+if [ "$(uname -s)" = "Darwin" ]; then
+  echo "== mac VST bundle + host_sim at 44.1/48/96 kHz"
+  cmake --preset mac-vst
+  cmake --build --preset mac-vst
+  lipo -archs build/mac-vst/mpcboy.vst/Contents/MacOS/mpcboy
+  codesign -v build/mac-vst/mpcboy.vst
+  for sr in 44100 48000 96000; do
+    build/native/host_sim build/mac-vst/mpcboy.vst/Contents/MacOS/mpcboy test \
+      --sr "$sr" --seconds 3 --notes 48,60 --playing | tee build/mac-vst/host_sim_$sr.log | tail -1
+    if grep -q "^FAIL" "build/mac-vst/host_sim_$sr.log"; then echo "host_sim FAIL at $sr Hz"; exit 1; fi
+  done
+fi
+
 echo "== package (host_sim, skins, strict validator, zip)"
 python3 scripts/package_mpc.py
 

@@ -1,8 +1,15 @@
 // src/engine/engine.h - host-agnostic synth engine (WP4).
 //
-//   MIDI events + tick offsets (host frames, 44.1 kHz)
+//   MIDI events + tick offsets (host frames, at the host rate)
 //     -> MonoVoice -> 4 channels -> one SameBoy APU pass at 48 kHz (stereo)
-//     -> PolyphaseResampler48To441 -> DC blocker -> master gain.
+//     -> host-rate conversion -> DC blocker -> master gain.
+//
+// Host rates (setHostRate): 44100 uses PolyphaseResampler48To441 (the MPC path,
+// table driven, bit-identical to before rate support); 48000 passes the APU
+// output straight through (no resampling, no latency); 96000 and 192000 use the
+// vendored rate-agnostic HostResampler (a sin per tap: a desktop-only path, the
+// MPC never selects it). Any other rate is unsupported: setHostRate returns
+// false and the caller must not render.
 //
 // Everything is audio-thread only. render() allocates nothing and takes no
 // lock. No SDK headers: the plugin adapts mpc::MidiEvent / Transport to
@@ -17,6 +24,7 @@
 #include "mono_voice.h"
 #include "polyphase_resampler.h"
 #include "rackboy_apu.h"
+#include "rackboy_resampler.hpp"
 #include "rackboy_sav_types.h"
 #include "tick_clock.h"
 
@@ -69,6 +77,14 @@ public:
     // stack, voices and bend; resets the resampler (primed) and DC blocker.
     void reset();
 
+    // True for 44100, 48000, 96000 and 192000.
+    static bool hostRateSupported(int sampleRate);
+    // Selects the host rate (audio thread; allocates nothing). Returns false and
+    // changes nothing when unsupported. Takes effect fully after reset(), which
+    // the caller must call next (it re-primes the resampler and the tick clock).
+    bool setHostRate(int sampleRate);
+    int hostRate() const { return hostRate_; }
+
     void applySettings(const EngineSettings& s);
 
     // Table / wave content the voice reads. The engine starts with an empty
@@ -95,6 +111,9 @@ private:
     void renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right);
     void applyMidi(const EngineMidiEvent& e);
     int clockTickIn(int c0, int n) const;
+    int inputsNeeded(int outFrames) const;
+    long long outputCount() const;
+    void resample(const float* inL, const float* inR, int inFrames, float* outL, float* outR, int outFrames);
     void onNoteTriggered(int blockOffset);   // restarts the tick clock's note phase
 
     rackboy_apu_t apu_;
@@ -102,7 +121,15 @@ private:
     TickClock clock_;
     ContentStore* content_ = nullptr;
     bool clockOn_ = false;     // clock_.beginBlock() was called for this render()
+    enum class RateMode { Poly44, Direct48, Host };
+    RateMode rateMode_ = RateMode::Poly44;
+    int hostRate_ = 44100;
+    int mapNum_ = 160;          // APU frames per mapDen_ host frames (48000 / 44100 reduced)
+    int mapDen_ = 147;
+    int dcFlushDelay_ = 240;    // host frames, see renderChunk
+    long long directOut_ = 0;   // Direct48: output frames since reset
     PolyphaseResampler48To441 resampler_;
+    rackboy::resampler::HostResampler hostResampler_{};
     DcBlocker dc_;
     EngineSettings settings_;
     rackboy::sav::RackboyBank ownBank_;

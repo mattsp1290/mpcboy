@@ -1,6 +1,7 @@
 // src/engine/tick_clock.h - table tick clock synced to the host tempo (WP6, D7).
 //
-// All positions are host frames (44.1 kHz) relative to the start of the current
+// All positions are host frames (at the clock's sample rate, 44.1 kHz by
+// default; see setSampleRate) relative to the start of the current
 // host block. Usage per block:
 //
 //   clock.beginBlock(input);
@@ -11,8 +12,8 @@
 // Tick 0 of a note is the note-on itself (MonoVoice applies row 0 there); the
 // clock produces ticks 1, 2, ... .
 //
-//   Sync/Note  tick k at noteOnFrame + k * period, period = 44100*60/(bpm*tpb)
-//   Free/Note  same with period = 44100 / freeHz (ignores the transport)
+//   Sync/Note  tick k at noteOnFrame + k * period, period = sr*60/(bpm*tpb)
+//   Free/Note  same with period = sr / freeHz (ignores the transport)
 //   Sync/Grid  tick k at ppq = k / ticksPerBeat while `playing && ppqValid`,
 //              otherwise Note behaviour continuing from the grid phase.
 //
@@ -43,6 +44,11 @@ public:
     static constexpr double kSampleRate = 44100.0;
 
     TickClock() { reset(); }
+
+    // Host sample rate in Hz (default 44100). Call before reset(); it does not
+    // rescale a running phase.
+    void setSampleRate(double sr) { sr_ = sr > 1000.0 ? sr : kSampleRate; }
+    double sampleRate() const { return sr_; }
 
     // Forgets the note phase, the grid state and the last valid tempo (120).
     void reset();
@@ -79,13 +85,15 @@ public:
     // Ticks dropped because a block exceeded kMaxTicksPerBlock (debug counter).
     uint32_t droppedTicks() const { return dropped_; }
 
-    static double periodFor(TickMode mode, double bpm, int ticksPerBeat, double freeHz);
+    static double periodFor(TickMode mode, double bpm, int ticksPerBeat, double freeHz,
+                            double sampleRate = kSampleRate);
 
 private:
     void findNext();
     double gridDist(long long k) const;   // host frames from the block start to grid index k
     void beginGridBlock(const TickBlockInput& in);
 
+    double sr_ = kSampleRate;
     TickMode mode_ = TickMode::Sync;
     TickPhase phase_ = TickPhase::Note;
     int tpb_ = 24;

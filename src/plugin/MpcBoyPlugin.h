@@ -3,7 +3,7 @@
 // Threading (see 04-plugin-params-ui-state.md and src/engine/content_store.h):
 //   audio thread  process(), parameter writes delivered between blocks
 //   UI thread     prepare(), reset(), loadExtraState(), saveExtraState(), formatValue()
-// reset() and prepare() only set atomic flags; loadExtraState() stages content;
+// reset() and prepare() only set atomic values (prepare: the host rate, applied by process()); loadExtraState() stages content;
 // saveExtraState() reads the published snapshot.
 // "The audio thread" is the thread that last ran process() (ContentStore::
 // markAudioThread: a sticky per-store thread id, never cleared). Editor-cell and
@@ -62,7 +62,10 @@ private:
     std::unique_ptr<mpcboy::ImportWorker> importer_;   // after store_: joined first
     mpcboy::EditorSync editor_;
 
-    std::atomic<bool> silent_{false};
+    // prepare() (any thread) publishes the requested host rate; process() applies it
+    // on the audio thread (engine rate, tick clock, gain smoother, refresh interval)
+    // together with an engine reset, so nothing races or allocates.
+    std::atomic<int> requestedRate_{44100};
     std::atomic<bool> resetPending_{false};
     std::atomic<uint32_t> hostRefreshes_{0};
 
@@ -73,6 +76,9 @@ private:
     bool haveLast_ = false;
     float gain_ = 1.0f;
     bool gainInit_ = false;
+    float gainCoef_ = 0.0f;       // 10 ms one-pole at the applied host rate
+    int appliedRate_ = 44100;     // the engine starts at 44.1 kHz
+    bool silent_ = false;         // applied rate unsupported: output silence
     uint32_t seenBulkGen_ = 0;
     uint32_t seenImportVersion_ = 0;
     mpcboy::EngineMidiEvent midi_[kMaxMidiEvents + 1];

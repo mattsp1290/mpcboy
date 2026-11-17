@@ -24,8 +24,11 @@ using namespace mpcboy;
 
 namespace {
 
-// 10 ms one-pole smoother at 44.1 kHz.
-const float kGainCoef = 1.0f - std::exp(-1.0f / (0.010f * 44100.0f));
+// 10 ms one-pole smoother at the given host rate (44.1 kHz: the original constant).
+float gainCoefFor(int sampleRate)
+{
+    return 1.0f - std::exp(-1.0f / (0.010f * static_cast<float>(sampleRate)));
+}
 
 }  // namespace
 
@@ -66,6 +69,7 @@ MpcBoyPlugin::MpcBoyPlugin() : mpc::Plugin(makeInfo())
     for (int i = 0; i < kNumEngineParams; ++i) plain[i] = get(i);
     engine_->applySettings(proposedSettings(plain));
     gain_ = volumeToGain(get(P_Volume));
+    gainCoef_ = gainCoefFor(44100);
 
     probe_.start();   // probe builds only: after the programs exist
 }
@@ -77,8 +81,11 @@ MpcBoyPlugin::~MpcBoyPlugin()
 
 void MpcBoyPlugin::prepare(double sampleRate, int)
 {
-    // Never reallocates. Anything but 44.1 kHz is unsupported: stay silent.
-    silent_.store(std::fabs(sampleRate - 44100.0) > 0.5, std::memory_order_release);
+    // May run on the UI thread while process() runs: only publish the rate (0 for
+    // a nonsense value). process() applies it. Supported: 44.1, 48, 96, 192 kHz
+    // (Engine::hostRateSupported); anything else (88.2 kHz, ...) renders silence.
+    const long long r = std::llround(sampleRate);
+    requestedRate_.store(r > 0 && r < 1000000 ? static_cast<int>(r) : 0, std::memory_order_release);
 }
 
 void MpcBoyPlugin::reset() { resetPending_.store(true, std::memory_order_release); }
@@ -209,7 +216,20 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
     store_->markAudioThread();
 
     bool forceSettings = false;
-    if (resetPending_.exchange(false, std::memory_order_acq_rel))
+    bool doReset = resetPending_.exchange(false, std::memory_order_acq_rel);
+    const int rate = requestedRate_.load(std::memory_order_acquire);
+    if (rate != appliedRate_)
+    {
+        appliedRate_ = rate;
+        silent_ = !engine_->setHostRate(rate);   // unsupported: the engine keeps its old rate, we output silence
+        if (!silent_)
+        {
+            gainCoef_ = gainCoefFor(rate);
+            editor_.setSampleRate(rate);
+        }
+        doReset = true;
+    }
+    if (doReset)
     {
         engine_->reset();
         editor_.markCursorDirty();
@@ -220,7 +240,7 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
     serviceImport();
 
     if (ctx.numOutputs < 1 || ctx.outputs == nullptr || ctx.outputs[0] == nullptr) return;
-    if (silent_.load(std::memory_order_acquire) || ctx.numOutputs < 2 || ctx.outputs[1] == nullptr)
+    if (silent_ || ctx.numOutputs < 2 || ctx.outputs[1] == nullptr)
     {
         for (int c = 0; c < ctx.numOutputs; ++c)
             if (ctx.outputs[c]) std::memset(ctx.outputs[c], 0, sizeof(float) * static_cast<size_t>(ctx.numFrames));
@@ -275,7 +295,7 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
     {
         for (int i = 0; i < ctx.numFrames; ++i)
         {
-            gain_ += (target - gain_) * kGainCoef;
+            gain_ += (target - gain_) * gainCoef_;
             L[i] *= gain_;
             R[i] *= gain_;
         }

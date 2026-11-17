@@ -19,7 +19,7 @@ Behavioural changes are marked `// MPCBOY LOCAL MOD` in the source.
 | `src/table/rackboy_table.{h,cpp}` | `rackboy_table/rackboy_table.{h,cpp}` |
 | `src/table/channel_io.{h,cpp}` | (mpcboy-owned, no upstream: the table interpreter's register helpers, see local change 8) |
 | `src/sav/` | `rackboy_sav/*.{h,cpp}` (no `spike/`) |
-| `src/dsp/rackboy_resampler.{hpp,cpp}` | `src/rackboy_resampler.{hpp,cpp}` (test-only: compiled into `mpcboy_tests`, not into `gbcore`) |
+| `src/dsp/rackboy_resampler.{hpp,cpp}` | `src/rackboy_resampler.{hpp,cpp}` (compiled into `gbcore`: the engine uses `HostResampler` for 96/192 kHz hosts; the MPC's fixed 44.1 kHz path never calls it, the polyphase resampler is used) |
 | `tests/third_party/doctest/` | `tests/third_party/doctest/` |
 | `tests/rackboy/{apu,core,table,sav,resampler,audio,common,fixtures}/`, `tests/rackboy/doctest_main.cpp` | rackboy `tests/` (same layout) |
 | `tests/rackboy/support/rackboy_{bank,clock,trigger}.{h,cpp}`, `rackboy_gate.h` | `rackboy_core/rackboy_{bank,clock,gate,trigger}.*` (test-only; `rackboy_gate.h` is header-only) |
@@ -200,6 +200,11 @@ Not copied: `rackboy_core/rackboy_control.*` (VCV knob glue),
    `table_trigger`). A re-vendor now means re-applying the marked call sites;
    `channel_io.*` is not touched by it.
 
+9. **Host sample rates (desktop build):** `src/dsp/rackboy_resampler.cpp` is
+   linked into `gbcore` again (it was test-only after the stage-2 review; the
+   file itself is unchanged). `Engine::setHostRate` uses `HostResampler` for
+   96000 and 192000 Hz hosts. Nothing in the vendored files changed.
+
 ## Test count
 
 `mpcboy_tests` (run from `tests/rackboy`): **512 test cases**, 2215453
@@ -211,7 +216,7 @@ are unchanged and pass; the rest live in `tests/unit/` (`stereo_pass_test.cpp`,
 `content_store_test.cpp`, `tick_clock_test.cpp`, `engine_timing_test.cpp`,
 `plugin_test.cpp`, `plugin_codec_test.cpp`, and the .sav import tests in
 `sav_import_test.cpp`, `import_undo_test.cpp` and `import_plugin_test.cpp`).
-Later drift in this number should be explained in the commit that causes it.
+The host-rate work added 5 (`tests/unit/host_rate_test.cpp`). Later drift in this number should be explained in the commit that causes it.
 
 ## Copied files
 

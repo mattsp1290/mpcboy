@@ -48,7 +48,15 @@ run), and `TABLE` (the table editor, see `docs/EDITOR.md`).
 - **Latency:** the output is delayed by about 3 ms. The 48 kHz APU is resampled
   to 44.1 kHz through a polyphase filter that adds about 2.7 ms (117.6 frames),
   and the APU adds roughly 30 more frames (measured: a table tick is audible
-  about 146 frames later). The plugin reports a latency of 0.
+  about 146 frames later). The plugin reports a latency of 0. (On a desktop
+  host at 48 kHz there is no resampler; at 96/192 kHz the resampler adds about
+  2.7 ms.)
+- **Host sample rate:** the MPC runs at 44.1 kHz. The engine also supports 48,
+  96 and 192 kHz (desktop hosts): the tick clock, note timing, smoothers and
+  refresh rate follow the host rate. 88.2 kHz and other rates are unsupported
+  and the plugin outputs silence there. A rate change (`prepare()`) is applied
+  on the audio thread at the start of the next block together with an engine
+  reset.
 - **Programs:** `Init`, `ChipLead`, `MajArp`, `WaveBass`, `Kick`, `Hat`,
   `Stack4` (all four channels, each with a different table), `Zap`. Programs
   only set parameters; they never change table contents.
@@ -107,6 +115,46 @@ WAV peak check), generates the skin from `plugin/ui.json`, runs the SDK
 validator in `--strict` mode and zips the folder with its SHA-256.
 
 For the CPU probe used on the device, see `docs/BENCH.md`.
+
+## Mac / Ableton Live (dev build)
+
+A macOS VST2 build for fast iteration in Ableton Live 12 (Apple Silicon or
+Intel). It is a development convenience, not part of the MPC package, and does
+not touch the MPC build.
+
+```sh
+scripts/install_mac_vst.sh      # builds build/mac-vst/mpcboy.vst, installs it, prints the steps
+# or by hand:
+cmake --preset mac-vst && cmake --build --preset mac-vst   # build/mac-vst/mpcboy.vst
+```
+
+The bundle is universal (arm64 + x86_64), exports only `VSTPluginMain` and
+`main_macho`, and is ad-hoc signed (`codesign --sign -`) after every build. The
+install script copies it to `~/Library/Audio/Plug-Ins/VST/mpcboy.vst`, replacing
+any existing copy, and removes the quarantine flag.
+
+In Live: Preferences > Plug-ins > turn on **Use VST2 Plug-in System Folders**,
+click **Rescan**, then find it under Plug-ins > mpcboy and drop it on a MIDI
+track. After re-installing a new build, rescan or restart Live.
+
+Caveats:
+
+- VST2 only. Live 12 still loads VST2, but only from the system folder with the
+  setting above; there is no AU/VST3 build.
+- No custom editor: Live shows its generic parameter panel (use Configure to
+  pick parameters). The MPC skin is not used. The table editor cursor and the
+  `Imp *` parameters work as plain parameters.
+- Host rates 44.1, 48, 96 and 192 kHz work; at 88.2 kHz the plugin is silent.
+  96 kHz and above use a slow reference resampler (a `sin` per tap): about 10 %
+  of one core at 96 kHz and 35 % at 192 kHz on an M-series Mac (`host_sim`).
+  Use 44.1 or 48 kHz for normal work.
+- Files that the MPC keeps in `Content/` (the `.sav` import folder) live inside
+  the bundle: `mpcboy.vst/Contents/Resources/Content/Import`. Re-installing
+  replaces the bundle and so removes files you put there; keep your `.sav` files
+  elsewhere and copy them in after installing.
+- The ad-hoc signature is enough for a local build; the plugin is not notarized.
+  If Live refuses it, check the Plug-ins preferences for a blocked-plugin note
+  and re-run the install script.
 
 ## Verification status
 

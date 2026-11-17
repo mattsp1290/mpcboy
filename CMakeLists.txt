@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(mpcboy LANGUAGES C CXX)
 
-set(MPCBOY_TARGET "native" CACHE STRING "native | arm32 | arm64")
+set(MPCBOY_TARGET "native" CACHE STRING "native | arm32 | arm64 | mac-vst")
 option(MPCBOY_CPU_PROBE "Build the WP3 CPU spike plugin (debug only; shows mean/p99 per block in dbg_us)" OFF)
 set(SDK "${CMAKE_SOURCE_DIR}/vendor/mpc-plugin-builder-sdk")
 
@@ -29,8 +29,8 @@ add_compile_options(-ffunction-sections -fdata-sections -Wall -Wextra -Wno-unuse
 file(GLOB GBCORE_SRC CONFIGURE_DEPENDS
   src/apu/*.c src/core/*.cpp src/table/*.cpp src/sav/*.cpp src/dsp/*.cpp
   src/engine/*.cpp)
-# The vendored reference resampler is test-only (the engine uses the polyphase one).
-list(REMOVE_ITEM GBCORE_SRC "${CMAKE_SOURCE_DIR}/src/dsp/rackboy_resampler.cpp")
+# src/dsp/rackboy_resampler.cpp (HostResampler, used by the engine for 96/192 kHz hosts) is in
+# src/dsp/*.cpp above; the MPC (44.1 kHz) path uses only the polyphase resampler.
 list(APPEND GBCORE_SRC third_party/vendor/sameboy/apu.c)
 add_library(gbcore STATIC ${GBCORE_SRC})
 target_include_directories(gbcore PUBLIC
@@ -53,21 +53,25 @@ if(MPCBOY_CPU_PROBE)
   target_compile_definitions(plugincore PUBLIC MPCBOY_CPU_PROBE=1)
 endif()
 
-add_library(mpcboy_plugin MODULE src/plugin/plugin_entry.cpp)
-target_link_libraries(mpcboy_plugin PRIVATE plugincore)
-set_target_properties(mpcboy_plugin PROPERTIES PREFIX "")
-# A probe build must never be mistaken for the release artefact: it gets its own file name.
-if(MPCBOY_CPU_PROBE)
-  set(_probe_suffix "-probe")
+if(MPCBOY_TARGET STREQUAL "mac-vst")
+  include(cmake/mac_vst.cmake)   # mpcboy.vst for Ableton Live on a Mac (dev build)
 else()
-  set(_probe_suffix "")
-endif()
-if(MPCBOY_TARGET STREQUAL "native")
-  set_target_properties(mpcboy_plugin PROPERTIES OUTPUT_NAME mpcboy${_probe_suffix} SUFFIX ".dylib")
-else()
-  set_target_properties(mpcboy_plugin PROPERTIES OUTPUT_NAME mpcboy${_probe_suffix}-${MPCBOY_TARGET} SUFFIX ".so")
-  target_link_options(mpcboy_plugin PRIVATE
-    -Wl,--gc-sections -Wl,-s "-Wl,--version-script=${SDK}/tools/exports.map")
+  add_library(mpcboy_plugin MODULE src/plugin/plugin_entry.cpp)
+  target_link_libraries(mpcboy_plugin PRIVATE plugincore)
+  set_target_properties(mpcboy_plugin PROPERTIES PREFIX "")
+  # A probe build must never be mistaken for the release artefact: it gets its own file name.
+  if(MPCBOY_CPU_PROBE)
+    set(_probe_suffix "-probe")
+  else()
+    set(_probe_suffix "")
+  endif()
+  if(MPCBOY_TARGET STREQUAL "native")
+    set_target_properties(mpcboy_plugin PROPERTIES OUTPUT_NAME mpcboy${_probe_suffix} SUFFIX ".dylib")
+  else()
+    set_target_properties(mpcboy_plugin PROPERTIES OUTPUT_NAME mpcboy${_probe_suffix}-${MPCBOY_TARGET} SUFFIX ".so")
+    target_link_options(mpcboy_plugin PRIVATE
+      -Wl,--gc-sections -Wl,-s "-Wl,--version-script=${SDK}/tools/exports.map")
+  endif()
 endif()
 
 # ---- native-only: tests, bench, host simulator -----------------------------
@@ -80,7 +84,7 @@ if(MPCBOY_TARGET STREQUAL "native")
     tests/rackboy/common/*.cpp tests/rackboy/support/*.cpp)
   file(GLOB MPCBOY_TEST_SRC CONFIGURE_DEPENDS tests/unit/*.cpp)
   add_executable(mpcboy_tests tests/rackboy/doctest_main.cpp
-    ${RACKBOY_TEST_SRC} ${MPCBOY_TEST_SRC} src/dsp/rackboy_resampler.cpp)
+    ${RACKBOY_TEST_SRC} ${MPCBOY_TEST_SRC})
   target_include_directories(mpcboy_tests PRIVATE
     tests/third_party tests/rackboy tests/rackboy/support)
   target_link_libraries(mpcboy_tests PRIVATE plugincore)   # exports gbcore

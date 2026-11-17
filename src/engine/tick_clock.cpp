@@ -8,18 +8,18 @@ namespace {
 constexpr double kGridEps = 1e-6;   // in ticks: a tick at ppq0 - eps still counts as "at ppq0"
 }
 
-double TickClock::periodFor(TickMode mode, double bpm, int ticksPerBeat, double freeHz)
+double TickClock::periodFor(TickMode mode, double bpm, int ticksPerBeat, double freeHz, double sampleRate)
 {
     if (mode == TickMode::Free)
-        return kSampleRate / (freeHz > 0.01 ? freeHz : kDmgFrameHz);
-    return kSampleRate * 60.0 / (bpm * (ticksPerBeat > 0 ? ticksPerBeat : 24));
+        return sampleRate / (freeHz > 0.01 ? freeHz : kDmgFrameHz);
+    return sampleRate * 60.0 / (bpm * (ticksPerBeat > 0 ? ticksPerBeat : 24));
 }
 
 void TickClock::reset()
 {
     lastBpm_ = 120.0;
     bpmUsed_ = 120.0;
-    period_ = periodFor(mode_, bpmUsed_, tpb_, freeHz_);
+    period_ = periodFor(mode_, bpmUsed_, tpb_, freeHz_, sr_);
     lastPeriod_ = 0.0;
     active_ = false;
     nextDist_ = 0.0;
@@ -45,7 +45,7 @@ void TickClock::setSettings(TickMode mode, int ticksPerBeat, TickPhase phase, do
 void TickClock::beginGridBlock(const TickBlockInput& in)
 {
     const double ppq0 = in.ppqPos;
-    const double ppqPerFrame = bpmUsed_ / (60.0 * kSampleRate);
+    const double ppqPerFrame = bpmUsed_ / (60.0 * sr_);
     const double tickPpq = 1.0 / tpb_;
     const bool continuous = haveGridPrev_ && std::fabs(ppq0 - predictedPpq_) <= tickPpq;
     long long kFirst = static_cast<long long>(std::ceil(ppq0 * tpb_ - kGridEps));
@@ -65,7 +65,7 @@ void TickClock::beginBlock(const TickBlockInput& in)
     emitted_ = 0;
     if (in.tempoValid && in.bpm > 1.0 && in.bpm < 999.0) lastBpm_ = in.bpm;
     bpmUsed_ = lastBpm_;
-    const double newPeriod = periodFor(mode_, bpmUsed_, tpb_, freeHz_);
+    const double newPeriod = periodFor(mode_, bpmUsed_, tpb_, freeHz_, sr_);
     if (active_ && lastPeriod_ > 0.0 && newPeriod != lastPeriod_)
         nextDist_ *= newPeriod / lastPeriod_;   // keep the phase fraction
     lastPeriod_ = period_ = newPeriod;
@@ -78,7 +78,7 @@ void TickClock::beginBlock(const TickBlockInput& in)
 
 double TickClock::gridDist(long long k) const
 {
-    const double ppqPerFrame = bpmUsed_ / (60.0 * kSampleRate);
+    const double ppqPerFrame = bpmUsed_ / (60.0 * sr_);
     return (static_cast<double>(k) / tpb_ - gridPpq0_) / ppqPerFrame;
 }
 
