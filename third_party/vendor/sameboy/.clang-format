@@ -1,0 +1,18 @@
+---
+# Vendored SameBoy APU — do NOT reformat.
+#
+# `DisableFormat: true` tells clang-format to leave every file in this
+# directory tree alone. `SortIncludes: false` is redundant once
+# DisableFormat is on, but is included for defense-in-depth in case a
+# future clang-format release changes the semantics of DisableFormat.
+#
+# This directory is maintained by `SOURCE.md`'s refresh procedure —
+# byte-identity to upstream SameBoy `Core/apu.{c,h}` and `LICENSE` is
+# enforced by `diff -q`. Any local clang-format rewrite would silently
+# break that invariant and corrupt the vendor diff against upstream.
+#
+# See the co-located `SOURCE.md` and the repo-root `THIRD_PARTY.md` for
+# the vendor discipline policy this exclusion implements.
+
+DisableFormat: true
+SortIncludes: false

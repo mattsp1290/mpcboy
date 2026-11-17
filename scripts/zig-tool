@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# One wrapper for every zig tool so CMake can use zig as single-word tools.
+# zig-cc, zig-c++, zig-ar and zig-ranlib are symlinks to this file; the tool is
+# the part of the invoked name after "zig-". ZIG may be multi-word.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -z "${ZIG:-}" ]; then
+  if [ -x "$here/.tools/zigenv/bin/python" ]; then ZIG="$here/.tools/zigenv/bin/python -m ziglang"; else ZIG=zig; fi
+fi
+tool="${0##*/zig-}"
+# shellcheck disable=SC2086
+exec $ZIG "$tool" "$@"

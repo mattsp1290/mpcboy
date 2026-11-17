@@ -1,0 +1,135 @@
+{
+  "fixture_name": "rackboy_v1",
+  "fixture_path": "tests/fixtures/rackboy_v1.sav",
+  "fixture_sha256": "9e307a45e31a49d9f125557ff26c00ec86a46e16fe824c941fcca8ab2daa597c",
+  "fixture_size_bytes": 131072,
+
+  "source": {
+    "authoring_tool": "rackboy-fixture-gen",
+    "authoring_tool_repo": "https://github.com/mattsp1290/gb-lsdj-instrument-extractor",
+    "authoring_tool_path": "crates/rackboy-fixture-gen/src/main.rs",
+    "authoring_tool_base_commit": "2f4c4540475c7ad041089f624f8a5b4b5abc6ddd",
+    "authoring_tool_base_commit_notes": "The rackboy-fixture-gen binary is an additive crate landed on top of D-002's pinned extractor commit; the commit recorded here is the base the tool builds on, not the commit that contains the tool itself.",
+    "base_template": "crates/lsdj-sav::Sav::load_empty_template() (extractor's tests/fixtures/empty_template.sav)",
+    "authored_on": "2026-04-14",
+    "supersedes": "rackboy-n61 stub fixture documented in D-002; see D-006 for the populated-fixture authorship decision.",
+    "authoring_procedure_note": "Authored via lsdj-sav's Project::write_instrument API, not the extractor CLI. A fresh LSDJ 9.4.0 ROM boot produces only ~13 APU writes (one short boot tone) and cannot supply the Pulse/Wave/Noise instrument mix rackboy needs. The extractor CLI path from docs/USING_EXTRACTOR.md (extract -> plan-export -> commit-export) was tried first and produced only 2 pulse candidates with no wave or noise; the rackboy-fixture-gen binary provides a deterministic, reproducible author path that does not depend on a running LSDJ song."
+  },
+
+  "scope_note": "This fixture is a populated bank containing two Pulse instruments (slots 0 and 1), one Wave instrument (slot 2), and one Noise instrument (slot 3). It exercises the SPIKE-4 container layer, LSDJ block-chain RLE decompression (0xC0 RLE + 0xE0 0xFF terminator + 0xE0 0xF0 default-wave expansion opcodes), per-instrument type classification, and the header version-byte happy path (header byte at 0x8100 is 0x1B because the fixture-gen binary runs the real store_project recompressor). It does NOT yet exercise LSDJ table rows, kit instruments, or CH3 wave-frame indirection.",
+
+  "container": {
+    "file_size_bytes": 131072,
+    "magic_bytes_at_0x813e": "6a6b",
+    "magic_bytes_ascii": "jk",
+    "active_project_slot": 0
+  },
+
+  "header_table": {
+    "slot_0": {
+      "name_raw_bytes_hex": "5241434b424f5900",
+      "name_raw_bytes_hex_notes": "Exactly 8 bytes per LSDJ NAME_LEN (crates/lsdj-sav/src/header.rs:15). Covers offsets [0x8000, 0x8008).",
+      "name_ascii": "RACKBOY",
+      "header_version_byte_hex": "0x1B",
+      "header_version_byte_notes": "Populated fixtures that go through lsdj-sav's store_project path write the authoritative 0x1B format-version byte into both the decompressed song (at 0x7FFF) and the header quick-scan copy (at 0x8100). No load-time warning expected."
+    },
+    "occupied_slots": [0]
+  },
+
+  "block_allocation": {
+    "owner_byte_range_inclusive": "0x8141..=0x81FF",
+    "owner_byte_layout_notes": "Offsets 0x8141..=0x814B (11 bytes) hold 0x00 (slot 0). Offsets 0x814C..=0x81FF (180 bytes) hold 0xFF (unused). The same 11-block allocation as the empty-template stub — fixture-gen overwrites the existing blocks in place via lsdj-sav's store_project; it does not grow the allocation.",
+    "slot_0_block_ids_with_owner_zero": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "slot_0_block_count": 11,
+    "total_allocated_blocks": 11,
+    "unused_block_count": 180
+  },
+
+  "decompressed_song": {
+    "expected_size_bytes": 32768,
+    "expected_format_version_byte_at_0x7fff": "0x1B",
+    "format_version_notes": "The decompressed song's version byte at offset 0x7FFF MUST equal 0x1B. This is the authoritative LSDJ format version check per docs/COMPATIBILITY.md. A parser whose decoder produces a non-0x1B value here must Reject the fixture.",
+    "instrument_alloc_map_offset": "0x2040",
+    "instrument_alloc_map_length": 64,
+    "instrument_alloc_map_allocated_slots": [0, 1, 2, 3],
+    "instrument_alloc_map_notes": "Bytes in [0x2040, 0x2044) are 0x01 (allocated). Bytes in [0x2044, 0x2080) are 0x00 (unallocated). The allocated-slot byte value is the sentinel that write_instrument sets (see crates/lsdj-sav/src/project.rs::write_instrument).",
+    "table_alloc_map_offset": "0x2020",
+    "table_alloc_map_length": 32,
+    "table_alloc_map_all_zero": true,
+    "wave_frames_present": "default wave pattern filled via 0xE0 0xF0 expansion during decompression; the Wave instrument in slot 2 references wave_index 0 by default"
+  },
+
+  "instruments": {
+    "pulse_count": 2,
+    "wave_count": 1,
+    "noise_count": 1,
+    "kit_count": 0,
+    "unknown_type_count": 0,
+    "total_allocated": 4,
+
+    "pulse1_count": 1,
+    "pulse2_count": 1,
+    "pulse_split_convention_note": "LSDJ .sav does not distinguish Pulse1 vs Pulse2 at the instrument-type-byte level — both are type 0x00 (Pulse). The pulse1_count / pulse2_count split encoded here is the rackboy-fixture-gen authoring convention: slot 0 was authored for Pulse1 use (duty 10, envelope 0xF0), slot 1 was authored for Pulse2 use (duty 01, envelope 0xE0). Rackboy parsers that derive channel assignment from song-chain usage rather than the authoring convention will report pulse_count=2 and both pulseN_count fields as 0 or unset; that is an acceptable alternate interpretation.",
+
+    "per_slot": [
+      {
+        "slot": 0,
+        "type_byte_hex": "0x00",
+        "type_name": "Pulse",
+        "authoring_intent": "Pulse1",
+        "param_bytes_hex": "00f000ff000000830000000000000000"
+      },
+      {
+        "slot": 1,
+        "type_byte_hex": "0x00",
+        "type_name": "Pulse",
+        "authoring_intent": "Pulse2",
+        "param_bytes_hex": "00e0007f000000430000000000000000"
+      },
+      {
+        "slot": 2,
+        "type_byte_hex": "0x01",
+        "type_name": "Wave",
+        "authoring_intent": "Wave",
+        "param_bytes_hex": "01030000000000000000000400000000"
+      },
+      {
+        "slot": 3,
+        "type_byte_hex": "0x03",
+        "type_name": "Noise",
+        "authoring_intent": "Noise",
+        "param_bytes_hex": "03f000ff550000000000000000000000"
+      }
+    ]
+  },
+
+  "tables": {
+    "allocated_count": 0,
+    "per_slot": []
+  },
+
+  "parser_acceptance_checks": [
+    "file exists at tests/fixtures/rackboy_v1.sav",
+    "file size == 131072",
+    "sha256(file) == fixture_sha256",
+    "bytes at [0x813E, 0x8140) == { 'j' (0x6A), 'k' (0x6B) }",
+    "byte at 0x8140 (active_project_slot) == 0x00",
+    "bytes at [0x8000, 0x8008) == 'RACKBOY\\0'",
+    "byte at 0x8100 (header version byte for slot 0) == 0x1B",
+    "block allocation table has exactly 11 entries with value 0x00 (owned by slot 0)",
+    "block allocation table entries at index 11+ have value 0xFF (unused)",
+    "slot 0 block chain decompresses cleanly — decoder exits via 0xE0 0xFF terminator with no cyclic block switch",
+    "decompressor produces exactly 32768 bytes after SONG_SIZE padding",
+    "decompressor exercises the 0xE0 0xF0 default-wave expansion opcode at least once",
+    "decompressed byte at 0x7FFF == 0x1B",
+    "decompressed instrument alloc map bytes at [0x2040, 0x2044) are 0x01 (allocated)",
+    "decompressed instrument alloc map bytes at [0x2044, 0x2080) are 0x00 (unallocated)",
+    "decompressed table alloc map bytes at [0x2020, 0x2040) are all zeros",
+    "decompressed instrument slot 0 (at 0x3080) has type byte 0x00 (Pulse)",
+    "decompressed instrument slot 1 (at 0x3090) has type byte 0x00 (Pulse)",
+    "decompressed instrument slot 2 (at 0x30A0) has type byte 0x01 (Wave)",
+    "decompressed instrument slot 3 (at 0x30B0) has type byte 0x03 (Noise)"
+  ],
+
+  "load_time_warnings_expected": []
+}

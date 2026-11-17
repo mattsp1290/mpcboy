@@ -1,0 +1,18 @@
+{
+  "rackboy_commit": "0a2395f7a8005840470bb36c3c929ac1fd09c912",
+  "rackboy_binary_sha256": "74c2b9dbb6b594da67d6c6b83ef741083ec8d9a0d5d1dbffdc595d8b5377721c",
+  "rackboy_build_flags": "(tests/Makefile defaults)",
+  "compiler_identity": "Apple clang version 17.0.0 (clang-1700.6.3.2)",
+  "target_triple": "arm64-apple-darwin25.2.0",
+  "denormal_mode": "ftz_off_daz_off",
+  "rackboy_vendor_shas": {
+    "rackboy_apu/vendor/sameboy": "e67fc908cf328687d9937b8429da75194aab92d1e1bc9850b7580823056d3873"
+  },
+  "sample_rate_hz": 48000,
+  "duration_samples": 96000,
+  "sample_format": "f32le",
+  "fixture_sav_sha256": "9e307a45e31a49d9f125557ff26c00ec86a46e16fe824c941fcca8ab2daa597c",
+  "pattern_csv_sha256": "21286d4ca9b8d802e91d27b7eb8ba378a0b35753ce72936ae602a328221f9d0e",
+  "regenerated_on": "2026-04-21T16:55:59Z",
+  "regenerated_by": "mattsp1290@gmail.com"
+}

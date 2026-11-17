@@ -1,0 +1,14 @@
+---
+# Vendored doctest — do NOT reformat.
+#
+# Same policy as `rackboy_apu/vendor/sameboy/.clang-format`: this tree is
+# a byte-identical drop of upstream doctest v2.4.11 (see the co-located
+# `SOURCE.md`). A local clang-format rewrite of `doctest.h` would break
+# the `diff -q` refresh procedure and leave the vendor tree impossible
+# to diff against upstream for future updates.
+#
+# See the co-located `SOURCE.md` and the repo-root `THIRD_PARTY.md` for
+# the vendor discipline policy this exclusion implements.
+
+DisableFormat: true
+SortIncludes: false
