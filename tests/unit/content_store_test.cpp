@@ -228,3 +228,26 @@ TEST_CASE("content: an Engine with an attached store plays staged tables and wav
     REQUIRE(fw.size() >= 3);
     CHECK(fw[2].freq == rackboy::core::pitch_square_11bit(-12 + 12));   // row 1 of Octave
 }
+
+TEST_CASE("content: readLatest returns a staged load before the audio thread consumes it, then the published content")
+{
+    ContentStore store;
+    Content a, b, out;
+    fillPattern(a, 3);
+    fillPattern(b, 7);
+    store.setLive(a);
+
+    store.readLatest(out);
+    CHECK(std::memcmp(&out, &a, sizeof(Content)) == 0);
+
+    store.stage(b);   // a load with no audio block yet
+    store.readLatest(out);
+    CHECK(std::memcmp(&out, &b, sizeof(Content)) == 0);
+
+    store.markAudioThread();
+    store.beginBlock();   // consumes the staged load
+    store.readLatest(out);
+    CHECK(std::memcmp(&out, &b, sizeof(Content)) == 0);
+    store.readPublished(out);
+    CHECK(std::memcmp(&out, &b, sizeof(Content)) == 0);
+}

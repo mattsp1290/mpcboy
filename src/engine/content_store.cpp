@@ -52,15 +52,19 @@ bool ContentStore::beginBlock()
     if (stagedState_.compare_exchange_strong(expected, Reading, std::memory_order_acquire))
     {
         live_ = staged_;
-        stagedState_.store(Empty, std::memory_order_release);
         syncBank(bank_, live_);
         touchLive();
-        changed = true;
+        publish();
+        // Release the slot only after publishing, so readLatest() never sees an
+        // Empty slot while the published snapshot still holds pre-load content.
+        stagedState_.store(Empty, std::memory_order_release);
+        return true;
     }
     if (publishedGen_ != liveGen_)
     {
-        if (!changed) { syncBank(bank_, live_); changed = true; }   // edits touch live only
+        syncBank(bank_, live_);   // edits touch live only
         publish();
+        changed = true;
     }
     return changed;
 }
@@ -81,6 +85,27 @@ void ContentStore::stage(const Content& c)
     }
     staged_ = c;
     stagedState_.store(Ready, std::memory_order_release);
+}
+
+void ContentStore::readLatest(Content& out)
+{
+    for (;;)
+    {
+        int state = stagedState_.load(std::memory_order_acquire);
+        if (state == Empty)
+        {
+            readPublished(out);
+            return;
+        }
+        if (state == Ready)
+        {
+            if (!stagedState_.compare_exchange_weak(state, Reading, std::memory_order_acquire)) continue;
+            out = staged_;
+            stagedState_.store(Ready, std::memory_order_release);
+            return;
+        }
+        sched_yield();   // Writing (a load in flight) or Reading (one memcpy)
+    }
 }
 
 uint32_t ContentStore::readPublished(Content& out) const

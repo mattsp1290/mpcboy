@@ -81,6 +81,11 @@ public:
     // flight. Returns the publish count (even seqlock value / 2).
     uint32_t readPublished(Content& out) const;
 
+    // Copies the newest content: a staged load the audio thread has not
+    // consumed yet, otherwise the published snapshot. Used by state save, so a
+    // save between a load and the next audio block still returns the load.
+    void readLatest(Content& out);
+
     // Edits attempted off the audio thread (debug counter).
     uint32_t rejectedEdits() const { return rejectedEdits_.load(std::memory_order_relaxed); }
 

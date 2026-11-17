@@ -1,110 +1,138 @@
-// MpcBoyPlugin.cpp - WP1 placeholder. WP7 replaces this with the real plugin.
+// MpcBoyPlugin.cpp - the mpcboy instrument (WP7).
 //
 // SPDX-License-Identifier: MIT
 //
-// One parameter (Bend Range at index 0, per decision D9) and a quiet 440 Hz
-// sine while a note is held, so the shared library links and makes sound.
+// process(): reset -> staged content -> editor cursor resync -> settings
+// snapshot -> Engine::render -> master volume (10 ms smoother) -> host refresh.
 //
-// With -DMPCBOY_CPU_PROBE=ON (CMake option, debug only) the plugin is instead
-// the WP3 CPU spike: it holds a note on the real Engine (4 channels, 4 tables
-// ticking at 24/beat @ 120 BPM), times every process() call with
-// clock_gettime(CLOCK_MONOTONIC), and shows mean/p99 in microseconds as the
-// display text of the read-only parameter `dbg_us` (see below).
+// With -DMPCBOY_CPU_PROBE=ON (debug only) the same plugin additionally holds a
+// Stack4 note by itself, times every process() call and shows mean/p99 in
+// microseconds as the display text of the read-only parameter `dbg_us`
+// (appended last). See docs/BENCH.md.
 
-#include "mpc_plugin.h"
-
-#include <cmath>
-
-#ifdef MPCBOY_CPU_PROBE
+#include "MpcBoyPlugin.h"
 
 #include <algorithm>
-#include <atomic>
-#include <chrono>
+#include <cmath>
 #include <cstdio>
-#include <memory>
-#include <thread>
+#include <cstring>
+
+#ifdef MPCBOY_CPU_PROBE
+#include <chrono>
 #include <time.h>
-#include <vector>
+#endif
 
-#include "engine.h"
+#include "factory_content.h"
+#include "state_codec.h"
 
-class MpcBoyPlugin : public mpc::Plugin
+using namespace mpcboy;
+
+namespace {
+
+#ifdef MPCBOY_CPU_PROBE
+long long nowNs()
 {
-public:
-    static mpc::PluginInfo makeInfo()
+    timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<long long>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
+}
+#endif
+
+// 10 ms one-pole smoother at 44.1 kHz.
+const float kGainCoef = 1.0f - std::exp(-1.0f / (0.010f * 44100.0f));
+
+}  // namespace
+
+mpc::PluginInfo MpcBoyPlugin::makeInfo()
+{
+    mpc::PluginInfo i;
+    i.name = "mpcboy";
+    i.vendor = "mpcboy";
+    i.uniqueId = MPC_FOURCC('M', 'b', 'G', 'b');   // must match "uid" in plugin/plugin.json
+    i.version = 100;                               // 0.1.0.0
+    i.isInstrument = true;
+    i.numInputs = 0;
+    i.numOutputs = 2;
+    i.latencySamples = 0;                          // the ~118-frame resampler delay is documented, not reported (R7)
+    return i;
+}
+
+MpcBoyPlugin::MpcBoyPlugin() : mpc::Plugin(makeInfo())
+{
+    // All allocation happens here, never on the audio thread.
+    PolyphaseResampler48To441::ensureTable();
+    engine_ = std::make_unique<Engine>();
+    store_ = std::make_unique<ContentStore>();
     {
-        mpc::PluginInfo i;
-        i.name = "mpcboy";
-        i.vendor = "mpcboy";
-        i.uniqueId = MPC_FOURCC('M', 'b', 'G', 'b');   // must match "uid" in plugin/plugin.json
-        i.version = 100;
-        i.isInstrument = true;
-        i.numInputs = 0;
-        i.numOutputs = 2;
-        return i;
+        Content factory;
+        loadFactoryContent(factory);
+        store_->setLive(factory);   // before any other thread exists
     }
+    engine_->attachContent(store_.get());
 
-    MpcBoyPlugin() : mpc::Plugin(makeInfo())
+    for (const mpc::Param& p : buildParams()) addParam(p);
+    for (const ProgramDef& d : programDefs()) addProgram(d.name, d.values);
+
+    float plain[kNumEngineParams];
+    for (int i = 0; i < kNumEngineParams; ++i) plain[i] = get(i);
+    engine_->applySettings(proposedSettings(plain));
+    gain_ = volumeToGain(get(P_Volume));
+
+#ifdef MPCBOY_CPU_PROBE
+    setProgram(kProgramStack4);
+    for (auto& r : ring_) r.store(0, std::memory_order_relaxed);
+    worker_ = std::thread([this] { workerLoop(); });
+#endif
+}
+
+MpcBoyPlugin::~MpcBoyPlugin()
+{
+#ifdef MPCBOY_CPU_PROBE
+    stop_.store(true, std::memory_order_release);
+    if (worker_.joinable()) worker_.join();
+#endif
+}
+
+void MpcBoyPlugin::prepare(double sampleRate, int)
+{
+    // Never reallocates. Anything but 44.1 kHz is unsupported: stay silent.
+    silent_.store(std::fabs(sampleRate - 44100.0) > 0.5, std::memory_order_release);
+}
+
+void MpcBoyPlugin::reset() { resetPending_.store(true, std::memory_order_release); }
+
+void MpcBoyPlugin::parameterChanged(int index, float plainValue)
+{
+    if (index == ED_Table || index == ED_Row)
     {
-        addParam(mpc::intParam("bendrng", "Bend Range", 0, 24, 2, "st"));
-        mpc::Param dbg = mpc::floatParam("dbg_us", "CPU us", 0.0f, 100000.0f, 0.0f, "us", 1);
-        dbg.automatable = false;   // read-only: the text comes from formatValue
-        dbgIndex_ = addParam(dbg);
-
-        mpcboy::PolyphaseResampler48To441::ensureTable();   // never on the audio thread
-        engine_ = std::make_unique<mpcboy::Engine>();
-        auto& bank = engine_->ownBank();
-        for (int t = 0; t < 4; ++t)
-        {
-            bank.tables[t].occupied = true;
-            const int8_t steps[4] = {0, static_cast<int8_t>(3 + t), static_cast<int8_t>(4 - t), -7};
-            for (int r = 0; r < 4; ++r) bank.tables[t].rows[r].transpose = steps[r];
-            bank.tables[t].rows[3].cmd1 = 'H';
-            bank.tables[t].rows[3].cmd1_param = 1;
-        }
-        mpcboy::EngineSettings s;
-        for (int c = 0; c < 4; ++c) { s.ch[c].tableSlot = static_cast<int8_t>(c); s.ch[c].volume = 15; }
-        engine_->applySettings(s);
-
-        worker_ = std::thread([this] { workerLoop(); });
+        editor_.markCursorDirty();
     }
-
-    ~MpcBoyPlugin() override
+    else if (index >= ED_Vol && index <= ED_Val2)
     {
-        stop_.store(true, std::memory_order_release);
-        if (worker_.joinable()) worker_.join();
+        editor_.onCellParam(index - ED_Vol, static_cast<int>(std::lround(plainValue)),
+                            getInt(ED_Table) - 1, getInt(ED_Row), *store_);
     }
+}
 
-    void reset() override { resetPending_.store(true, std::memory_order_release); }
+void MpcBoyPlugin::saveExtraState(std::vector<uint8_t>& out)
+{
+    Content c;
+    store_->readLatest(c);
+    encodeState(c, out);
+}
 
-    void process(mpc::ProcessContext& ctx) override
+void MpcBoyPlugin::loadExtraState(const uint8_t* data, size_t size)
+{
+    Content c;
+    if (!decodeState(data, size, c)) return;   // corrupt or foreign: keep the current content
+    store_->stage(c);
+}
+
+bool MpcBoyPlugin::formatValue(int index, float plainValue, std::string& out)
+{
+#ifdef MPCBOY_CPU_PROBE
+    if (index == P_DbgUs)
     {
-        const long long t0 = nowNs();
-        if (resetPending_.exchange(false, std::memory_order_acq_rel))
-        {
-            engine_->reset();
-            noteHeld_ = false;
-        }
-        mpcboy::EngineMidiEvent on;
-        mpcboy::EngineBlock blk;
-        if (!noteHeld_)
-        {
-            on.offset = 0; on.status = 0x90; on.data1 = 60; on.data2 = 100;
-            blk.midi = &on;
-            blk.numMidi = 1;
-            noteHeld_ = true;
-        }
-        engine_->render(blk, ctx.outputs[0], ctx.numOutputs > 1 ? ctx.outputs[1] : ctx.outputs[0], ctx.numFrames);
-
-        const long long dt = nowNs() - t0;
-        const uint32_t i = head_.load(std::memory_order_relaxed);
-        ring_[i % kRing].store(static_cast<uint32_t>(dt > 0xFFFFFFFFLL ? 0xFFFFFFFFLL : dt), std::memory_order_relaxed);
-        head_.store(i + 1, std::memory_order_release);
-    }
-
-    bool formatValue(int index, float, std::string& out) override
-    {
-        if (index != dbgIndex_) return false;
         char buf[64];
         std::snprintf(buf, sizeof(buf), "m%.0f p99 %.0f",
                       static_cast<double>(meanX10_.load(std::memory_order_relaxed)) / 10.0,
@@ -112,123 +140,162 @@ public:
         out = buf;
         return true;
     }
-
-private:
-    static constexpr uint32_t kRing = 32768;          // ~95 s of 128-frame blocks
-
-    static long long nowNs()
-    {
-        timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return static_cast<long long>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
-    }
-
-    // Debug-only worker: once per second, mean/p99 over the last <= 60 s of
-    // blocks. Calls requestDisplayUpdate() from here, never from process().
-    void workerLoop()
-    {
-        std::vector<uint32_t> snap;
-        snap.reserve(kRing);
-        while (!stop_.load(std::memory_order_acquire))
-        {
-            for (int i = 0; i < 20 && !stop_.load(std::memory_order_acquire); ++i)
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            const uint32_t head = head_.load(std::memory_order_acquire);
-            const uint32_t n = std::min<uint32_t>(head, 20000);   // ~58 s at 128 frames
-            if (n < 16) continue;
-            snap.clear();
-            double sum = 0.0;
-            for (uint32_t k = 0; k < n; ++k)
-            {
-                const uint32_t v = ring_[(head - 1 - k) % kRing].load(std::memory_order_relaxed);
-                snap.push_back(v);
-                sum += v;
-            }
-            std::sort(snap.begin(), snap.end());
-            const double p99 = snap[static_cast<size_t>(0.99 * static_cast<double>(n - 1))];
-            meanX10_.store(static_cast<uint32_t>(sum / n / 100.0), std::memory_order_relaxed);   // ns -> us * 10
-            p99X10_.store(static_cast<uint32_t>(p99 / 100.0), std::memory_order_relaxed);
-            requestDisplayUpdate();
-        }
-    }
-
-    std::unique_ptr<mpcboy::Engine> engine_;
-    int dbgIndex_ = -1;
-    std::atomic<bool> resetPending_{true};
-    bool noteHeld_ = false;
-
-    std::atomic<uint32_t> ring_[kRing];
-    std::atomic<uint32_t> head_{0};
-    std::atomic<uint32_t> meanX10_{0};
-    std::atomic<uint32_t> p99X10_{0};
-    std::atomic<bool> stop_{false};
-    std::thread worker_;
-};
-
-#else   // ---------------------------------------------------------------- placeholder
-
-class MpcBoyPlugin : public mpc::Plugin
-{
-public:
-    static mpc::PluginInfo makeInfo()
-    {
-        mpc::PluginInfo i;
-        i.name = "mpcboy";
-        i.vendor = "mpcboy";
-        i.uniqueId = MPC_FOURCC('M', 'b', 'G', 'b');   // must match "uid" in plugin/plugin.json
-        i.version = 100;
-        i.isInstrument = true;
-        i.numInputs = 0;
-        i.numOutputs = 2;
-        return i;
-    }
-
-    MpcBoyPlugin() : mpc::Plugin(makeInfo())
-    {
-        addParam(mpc::intParam("bendrng", "Bend Range", 0, 24, 2, "st"));
-    }
-
-    void reset() override
-    {
-        phase_ = 0.0;
-        held_ = 0;
-    }
-
-    void process(mpc::ProcessContext& ctx) override
-    {
-        int pos = 0;
-        for (int e = 0; e < ctx.numMidiEvents; ++e)
-        {
-            const mpc::MidiEvent& ev = ctx.midi[e];
-            if (ev.sampleOffset > pos) { render(ctx, pos, ev.sampleOffset); pos = ev.sampleOffset; }
-            if (ev.isNoteOn()) { if (held_ == 0) phase_ = 0.0; ++held_; }
-            else if (ev.isNoteOff()) { if (held_ > 0) --held_; }
-            else if (ev.isAllNotesOff()) held_ = 0;
-        }
-        render(ctx, pos, ctx.numFrames);
-    }
-
-private:
-    void render(mpc::ProcessContext& ctx, int from, int to)
-    {
-        if (held_ == 0) return;
-        const double inc = 440.0 / ctx.sampleRate;
-        float* L = ctx.outputs[0];
-        float* R = ctx.numOutputs > 1 ? ctx.outputs[1] : nullptr;
-        for (int i = from; i < to; ++i)
-        {
-            const float s = 0.1f * (float)std::sin(6.283185307179586 * phase_);
-            L[i] = s;
-            if (R) R[i] = s;
-            phase_ += inc;
-            if (phase_ >= 1.0) phase_ -= 1.0;
-        }
-    }
-
-    double phase_ = 0.0;
-    int held_ = 0;
-};
-
 #endif
+    return formatParamValue(index, plainValue, out);
+}
 
-MPC_PLUGIN_ENTRY(MpcBoyPlugin)
+void MpcBoyPlugin::snapshotSettings(bool force)
+{
+    bool changed = force || !haveLast_;
+    float norm[kNumEngineParams];
+    for (int i = 0; i < kNumEngineParams; ++i)
+    {
+        norm[i] = getNormalised(i);
+        if (norm[i] != lastNorm_[i]) changed = true;
+    }
+    if (!changed) return;
+    std::memcpy(lastNorm_, norm, sizeof(norm));
+    haveLast_ = true;
+    float plain[kNumEngineParams];
+    for (int i = 0; i < kNumEngineParams; ++i) plain[i] = get(i);
+    engine_->applySettings(proposedSettings(plain));
+}
+
+void MpcBoyPlugin::resyncCursor()
+{
+    int vals[kEditorCols];
+    store_->beginBlock();   // make sure staged content is live before reading it
+    editor_.resync(store_->live(), getInt(ED_Table) - 1, getInt(ED_Row), vals);
+    // Write only columns whose value changed: rewriting an unchanged one would
+    // replace the host's normalised value with the canonical one and make a
+    // saved chunk differ after a plain round trip.
+    for (int col = 0; col < kEditorCols; ++col)
+        if (getInt(ED_Vol + col) != vals[col]) set(ED_Vol + col, static_cast<float>(vals[col]));
+    editor_.requestHostRefresh();
+}
+
+void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
+{
+#ifdef MPCBOY_CPU_PROBE
+    const long long t0 = nowNs();
+#endif
+    ContentStore::markAudioThread();
+
+    bool forceSettings = false;
+    if (resetPending_.exchange(false, std::memory_order_acq_rel))
+    {
+        engine_->reset();
+        editor_.markCursorDirty();
+        forceSettings = true;
+#ifdef MPCBOY_CPU_PROBE
+        probeNoteHeld_ = false;
+#endif
+    }
+
+    if (ctx.numOutputs < 1 || ctx.outputs == nullptr || ctx.outputs[0] == nullptr) return;
+    if (silent_.load(std::memory_order_acquire) || ctx.numOutputs < 2 || ctx.outputs[1] == nullptr)
+    {
+        for (int c = 0; c < ctx.numOutputs; ++c)
+            if (ctx.outputs[c]) std::memset(ctx.outputs[c], 0, sizeof(float) * static_cast<size_t>(ctx.numFrames));
+        return;
+    }
+
+    if (editor_.takeCursorDirty()) resyncCursor();   // also consumes staged content
+    snapshotSettings(forceSettings);
+
+    // MIDI and transport -> EngineBlock.
+    int n = 0;
+#ifdef MPCBOY_CPU_PROBE
+    if (!probeNoteHeld_)
+    {
+        midi_[n].offset = 0; midi_[n].status = 0x90; midi_[n].data1 = 60; midi_[n].data2 = 100;
+        ++n;
+        probeNoteHeld_ = true;
+    }
+#endif
+    for (int i = 0; i < ctx.numMidiEvents && n < kMaxMidiEvents; ++i)
+    {
+        const mpc::MidiEvent& e = ctx.midi[i];
+        midi_[n].offset = e.sampleOffset;
+        midi_[n].status = e.data[0];
+        midi_[n].data1 = e.data[1];
+        midi_[n].data2 = e.data[2];
+        ++n;
+    }
+    EngineBlock blk;
+    blk.midi = n > 0 ? midi_ : nullptr;
+    blk.numMidi = n;
+    blk.bpm = ctx.transport.bpm;
+    blk.tempoValid = ctx.transport.tempoValid;
+    blk.ppqPos = ctx.transport.ppqPos;
+    blk.ppqValid = ctx.transport.ppqValid;
+    blk.playing = ctx.transport.playing;
+    engine_->render(blk, ctx.outputs[0], ctx.outputs[1], ctx.numFrames);
+
+    // Master volume with a 10 ms smoother.
+    const float target = volumeToGain(get(P_Volume));
+    if (!gainInit_) { gain_ = target; gainInit_ = true; }
+    float* L = ctx.outputs[0];
+    float* R = ctx.outputs[1];
+    if (std::fabs(target - gain_) < 1e-6f)
+    {
+        gain_ = target;
+        for (int i = 0; i < ctx.numFrames; ++i) { L[i] *= gain_; R[i] *= gain_; }
+    }
+    else
+    {
+        for (int i = 0; i < ctx.numFrames; ++i)
+        {
+            gain_ += (target - gain_) * kGainCoef;
+            L[i] *= gain_;
+            R[i] *= gain_;
+        }
+    }
+
+    // Tell the host the cell controls moved: at most 10 Hz, from the audio thread
+    // (the device wrapper sends host reports from processReplacing).
+    if (editor_.refreshDue(ctx.numFrames))
+    {
+        for (int i = ED_Vol; i <= ED_Val2; ++i) notifyHostParameterChanged(i);
+        requestDisplayUpdate();
+        hostRefreshes_.fetch_add(1, std::memory_order_relaxed);
+    }
+
+#ifdef MPCBOY_CPU_PROBE
+    const long long dt = nowNs() - t0;
+    const uint32_t h = head_.load(std::memory_order_relaxed);
+    ring_[h % kRing].store(static_cast<uint32_t>(dt > 0xFFFFFFFFLL ? 0xFFFFFFFFLL : dt), std::memory_order_relaxed);
+    head_.store(h + 1, std::memory_order_release);
+#endif
+}
+
+#ifdef MPCBOY_CPU_PROBE
+// Debug-only worker: once per second, mean/p99 over the last <= 20,000 blocks
+// (~58 s at 128 frames). Calls requestDisplayUpdate() from here, never from process().
+void MpcBoyPlugin::workerLoop()
+{
+    std::vector<uint32_t> snap;
+    snap.reserve(kRing);
+    while (!stop_.load(std::memory_order_acquire))
+    {
+        for (int i = 0; i < 20 && !stop_.load(std::memory_order_acquire); ++i)
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        const uint32_t head = head_.load(std::memory_order_acquire);
+        const uint32_t n = std::min<uint32_t>(head, 20000);
+        if (n < 16) continue;
+        snap.clear();
+        double sum = 0.0;
+        for (uint32_t k = 0; k < n; ++k)
+        {
+            const uint32_t v = ring_[(head - 1 - k) % kRing].load(std::memory_order_relaxed);
+            snap.push_back(v);
+            sum += v;
+        }
+        std::sort(snap.begin(), snap.end());
+        const double p99 = snap[static_cast<size_t>(0.99 * static_cast<double>(n - 1))];
+        meanX10_.store(static_cast<uint32_t>(sum / n / 100.0), std::memory_order_relaxed);   // ns -> us * 10
+        p99X10_.store(static_cast<uint32_t>(p99 / 100.0), std::memory_order_relaxed);
+        requestDisplayUpdate();
+    }
+}
+#endif

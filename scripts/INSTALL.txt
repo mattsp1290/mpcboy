@@ -1,0 +1,35 @@
+mpcboy - Game Boy mono synth for the Akai MPC
+=============================================
+
+Requirements
+  * MPC Live III (or another MPC that runs MPC OS 3.10.1 or later).
+    Only the Live III (64-bit) build has been designed for; the 32-bit build
+    is included but has not been tested on a device.
+
+1. On the MPC: Preferences -> Enhancements (Beta). Switch on
+   "Enable Enhancements" and "External Plugin Support".
+   (Third-party plugins are hidden while these are off.)
+
+2. Unzip this archive. Copy the whole folder
+
+       mpcboy - VST - mpcboy
+
+   into a folder named exactly "VST2 Plugins" at the root of a USB drive,
+   an SD card or the MPC's internal drive:
+
+       <drive>/VST2 Plugins/mpcboy - VST - mpcboy/
+
+   Only direct children of "VST2 Plugins" are looked at.
+
+3. Put the drive in the MPC (or let it rescan). Add a track, choose a
+   plugin program, and pick "mpcboy" under External Plugins.
+
+Notes
+  * Six pages along the bottom: MAIN, PULSE1, PULSE2, WAVE, NOISE, TABLE.
+  * It is monophonic: one note at a time drives all enabled channels.
+  * Eight built-in programs: Init, ChipLead, MajArp, WaveBass, Kick, Hat,
+    Stack4, Zap.
+  * Tables and waves are saved with the project.
+  * Output is delayed by about 3 ms (resampler and APU).
+
+License: MIT. See the project repository for sources.

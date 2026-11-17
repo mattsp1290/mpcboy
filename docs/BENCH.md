@@ -114,8 +114,9 @@ budget on this Mac is about 10x; the device itself is unmeasured (below).
    `host_sim ... test` with no failures.)
 2. Copy `build/minfolder-probe/mpcboy - VST - mpcboy` into `<drive>/VST2 Plugins/`
    on the MPC, insert "mpcboy" on a track, set the buffer to 128 frames.
-3. The probe holds a note by itself (4 channels, 4 tables at 24 ticks/beat,
-   120 BPM). Every `process()` call is timed with
+3. Since WP7 the probe is the real plugin with two additions: it selects the
+   `Stack4` program (4 channels, 4 tables, 24 ticks/beat, project tempo) and
+   holds a note by itself, and the parameter `dbg_us` is appended last. Every `process()` call is timed with
    `clock_gettime(CLOCK_MONOTONIC)` into a 32,768-entry ring; a worker thread
    computes mean and p99 over the last <= 20,000 blocks (about 58 s) once per
    second, stores them for `formatValue`, and calls `requestDisplayUpdate()`

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local quality gate: configure + build all presets, run native tests.
-# WP9 extends this with host_sim and package_mpc.py.
+# Ends with package_mpc.py: host_sim, skins, strict SDK validator, zip.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -18,7 +18,7 @@ done
 echo "== ctest native"
 ctest --preset native
 
-echo "== minimal folder + SDK validator"
-scripts/make_min_folder.sh
+echo "== package (host_sim, skins, strict validator, zip)"
+python3 scripts/package_mpc.py
 
 echo "check.sh: OK"

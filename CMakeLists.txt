@@ -37,14 +37,22 @@ target_include_directories(gbcore PUBLIC
   src/apu src/core src/table src/sav src/dsp src/engine "${_sb_inc}")
 
 # ---- plugin ----------------------------------------------------------------
-file(GLOB PLUGIN_SRC CONFIGURE_DEPENDS src/plugin/*.cpp)
-add_library(mpcboy_plugin MODULE ${PLUGIN_SRC})
-target_include_directories(mpcboy_plugin PRIVATE "${SDK}/framework" src/plugin)
-target_link_libraries(mpcboy_plugin PRIVATE gbcore)
-set_target_properties(mpcboy_plugin PROPERTIES PREFIX "")
-if(MPCBOY_CPU_PROBE)
-  target_compile_definitions(mpcboy_plugin PRIVATE MPCBOY_CPU_PROBE=1)
+# plugincore holds everything except the VSTPluginMain entry point so the native
+# tests can drive MpcBoyPlugin directly.
+file(GLOB PLUGINCORE_SRC CONFIGURE_DEPENDS src/plugin/*.cpp)
+list(REMOVE_ITEM PLUGINCORE_SRC "${CMAKE_SOURCE_DIR}/src/plugin/plugin_entry.cpp")
+add_library(plugincore STATIC ${PLUGINCORE_SRC})
+target_include_directories(plugincore PUBLIC "${SDK}/framework" src/plugin)
+target_link_libraries(plugincore PUBLIC gbcore)
+if(MPCBOY_CPU_PROBE)   # the probe's stats worker is the only std::thread user
+  find_package(Threads REQUIRED)
+  target_link_libraries(plugincore PUBLIC Threads::Threads)
+  target_compile_definitions(plugincore PUBLIC MPCBOY_CPU_PROBE=1)
 endif()
+
+add_library(mpcboy_plugin MODULE src/plugin/plugin_entry.cpp)
+target_link_libraries(mpcboy_plugin PRIVATE plugincore)
+set_target_properties(mpcboy_plugin PROPERTIES PREFIX "")
 if(MPCBOY_TARGET STREQUAL "native")
   set_target_properties(mpcboy_plugin PROPERTIES OUTPUT_NAME mpcboy SUFFIX ".dylib")
 else()
@@ -66,7 +74,7 @@ if(MPCBOY_TARGET STREQUAL "native")
     ${RACKBOY_TEST_SRC} ${MPCBOY_TEST_SRC})
   target_include_directories(mpcboy_tests PRIVATE
     tests/third_party tests/rackboy tests/rackboy/support)
-  target_link_libraries(mpcboy_tests PRIVATE gbcore)
+  target_link_libraries(mpcboy_tests PRIVATE gbcore plugincore)
   # Copied rackboy suites find fixtures/ and audio/ relative to the cwd.
   add_test(NAME rackboy_suites COMMAND mpcboy_tests
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/rackboy")
@@ -82,4 +90,8 @@ if(MPCBOY_TARGET STREQUAL "native")
     target_link_libraries(host_sim PRIVATE ${CMAKE_DL_LIBS})
   endif()
   set_target_properties(host_sim PROPERTIES POSITION_INDEPENDENT_CODE OFF)
+  # WP7 test 10: the SDK host simulator against the native plugin (exit 0 = no FAIL).
+  add_test(NAME host_sim COMMAND host_sim "$<TARGET_FILE:mpcboy_plugin>" test
+           --seconds 4 --notes 48,60 --playing)
+  set_tests_properties(host_sim PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL  |WARN  [^\n]*clip")
 endif()
