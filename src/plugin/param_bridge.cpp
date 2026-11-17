@@ -128,6 +128,14 @@ std::vector<mpc::Param> buildParams()
     add(mpc::intParam("ed_val1", "Row Val1", 0, 255, 0));
     add(mpc::choiceParam("ed_cmd2", "Row Cmd2", cmdLabels(), 0));
     add(mpc::intParam("ed_val2", "Row Val2", 0, 255, 0));
+
+    // .sav import (59..62). The file index counts into the last scan of
+    // Content/Import (at most 64 files); its text is the file name (the plugin
+    // formats it). The three triggers reset to Off after they act.
+    add(mpc::intParam("imp_file", "Imp File", 1, 64, 1));
+    add(mpc::boolParam("imp_go", "Imp Go", false));
+    add(mpc::boolParam("imp_undo", "Imp Undo", false));
+    add(mpc::boolParam("imp_rescan", "Imp Rescan", false));
     for (int i = kFirstEditorParam; i < kNumParams; ++i) p[static_cast<size_t>(i)].automatable = false;
 
 #ifdef MPCBOY_CPU_PROBE

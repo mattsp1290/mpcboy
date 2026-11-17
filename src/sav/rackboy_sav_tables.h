@@ -152,6 +152,9 @@ constexpr std::size_t kTotalTableSlots = kTableAllocMapLen;
 // Per-column on-disk offsets. Each column is a parallel 32×16
 // byte array; index with `column_offset + table*16 + row`.
 // Source: docs/COMPATIBILITY.md §"Decompressed song layout".
+// MPCBOY LOCAL MOD: the table envelope (volume) column, 32 tables x 16 rows.
+// Same offset as the extractor's TABLE_ENVELOPE_OFFSET (lsdj-sav project.rs).
+constexpr std::size_t kTableEnvelopeOffset  = 0x1690;
 constexpr std::size_t kTableTransposeOffset = 0x3480;
 constexpr std::size_t kTableCmd1Offset      = 0x3680;
 constexpr std::size_t kTableCmd1ValOffset   = 0x3880;
@@ -183,6 +186,9 @@ static_assert(kTableAllocMapOffset + kTableAllocMapLen
               <= kDecompressedSongSizeBytes,
               "Table alloc map must fit inside the decompressed "
               "song blob.");
+static_assert(kTableEnvelopeOffset  + kTableColumnBytes
+              <= kDecompressedSongSizeBytes,
+              "envelope column must lie inside the decompressed song.");
 static_assert(kTableTransposeOffset + kTableColumnBytes
               <= kDecompressedSongSizeBytes,
               "Table transpose column must fit inside the "

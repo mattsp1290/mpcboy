@@ -229,7 +229,9 @@ struct RackboyTableRow {
     std::uint8_t cmd2;
     std::uint8_t cmd2_param;
     // MPCBOY LOCAL MOD: LSDJ table volume column. Valid only when has_vol is
-    // set; the .sav parser leaves both zeroed (it does not read the column).
+    // set. WP11: parse_tables reads the envelope column at 0x1690 into vol and
+    // sets has_vol = (vol != 0x00); a literal 0x00 volume cannot be told from an
+    // empty cell in LSDJ data and imports as no volume.
     std::uint8_t vol;
     bool         has_vol;
 };

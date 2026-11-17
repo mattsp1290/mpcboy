@@ -117,7 +117,12 @@
         { "param": "Row Cmd1", "widget": "slider", "overlay": "menu" },
         { "param": "Row Val1", "widget": "knob", "polarity": "unipolar" },
         { "param": "Row Cmd2", "widget": "slider", "overlay": "menu" },
-        { "param": "Row Val2", "widget": "knob", "polarity": "unipolar" }
+        { "param": "Row Val2", "widget": "knob", "polarity": "unipolar" },
+
+        { "param": "Imp File",   "widget": "knob", "polarity": "unipolar" },
+        { "param": "Imp Go",     "widget": "switch" },
+        { "param": "Imp Undo",   "widget": "switch" },
+        { "param": "Imp Rescan", "widget": "switch" }
       ]
     }
   ]

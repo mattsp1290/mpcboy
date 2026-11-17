@@ -127,6 +127,13 @@ TablesError parse_tables(const std::uint8_t* song,
             row_out.transpose =
                 static_cast<std::int8_t>(raw_transpose);
 
+            // MPCBOY LOCAL MOD: LSDJ stores "no volume" as 0x00 in the
+            // envelope column, so a literal 0x00 volume is indistinguishable
+            // from an empty cell and imports as no volume.
+            row_out.vol =
+                column_byte(song, kTableEnvelopeOffset, t, r);
+            row_out.has_vol = (row_out.vol != 0x00);
+
             row_out.cmd1 =
                 column_byte(song, kTableCmd1Offset,    t, r);
             row_out.cmd1_param =

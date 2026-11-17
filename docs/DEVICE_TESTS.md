@@ -12,6 +12,17 @@ the release (see the plan's definition of done).
 | G-CPU (WP3 test 7) | pending (needs user's MPC Live III) | Build the CPU probe plugin (`-DMPCBOY_CPU_PROBE=ON`, see `docs/BENCH.md` for the exact commands), install the folder, insert it on a track. Since WP7 the probe is the real plugin with the `Stack4` program, a note it holds by itself, and the read-only parameter `CPU us` showing `m<mean> p99 <p99>` in microseconds per process() call (refreshed once per second). Hold at a 128-frame buffer for 60 s. Pass: mean <= 145 us and p99 <= 290 us. Not run: no device result is claimed. If it is still pending at WP10 it is a release blocker (WP10 row 9). |
 | G-EDIT (WP8) | pending (needs user's MPC Live III) | The nine checks are listed in `docs/EDITOR.md`. |
 
+## WP11 (LSDJ `.sav` import) device test
+
+Status of the code: implemented and verified natively (`tests/unit/import_test.cpp`).
+Everything below needs the user's MPC Live III and is **pending**; no device
+result is recorded or claimed. It is a release blocker like the WP10 rows.
+
+| # | Check | Pass condition | Status | Result |
+|---|---|---|---|---|
+| 9 | Import on the device | Copy `tests/rackboy/fixtures/rackboy_v1.sav` into `Content/Import/` on the MPC, load the plugin, `TABLE` page: `Imp File` shows `rackboy_` (the file name cut at 8 characters). Tap `Imp Go` once: exactly one import runs (the three buttons go back to Off by themselves). Set `P1 Table = 1` and play: the table now holds the fixture's content (the fixture has no allocated tables, so its tables are empty and the table does nothing; to hear table content use a save that has tables). Undo with `Imp Undo` restores the factory tables (`MajArp` audible again with `P1 Table = 1`). Also check: `Imp Rescan` after adding a second file lists it; a text file renamed to `bad.sav` shows `ERR 2` and changes nothing; the file name is selected again after saving and reloading the project. | pending | |
+| 9b | Re-run WP10 rows 1, 7, 8 and 10 on the WP11 build | Same pass conditions as the WP10 table below, on the build that contains the import (63 parameters, `TABLE` page with the fourth row of import controls). Row 8 now also covers the `Imp File` / `Imp Go` / `Imp Undo` / `Imp Rescan` Q-Link group. | pending | |
+
 ## WP10 checklist (MPC Live III, MPC OS 3.10.1 or later)
 
 Build under test: `dist/mpcboy-0.1.0.zip` (record its SHA-256 here when a run

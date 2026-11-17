@@ -158,7 +158,10 @@ def main():
     imp = os.path.join(out_dir, "Content", "Import")
     os.makedirs(imp)
     with open(os.path.join(imp, "README.txt"), "w", encoding="utf-8", newline="\n") as f:
-        f.write("Put LSDJ .sav files here (used by the .sav import, not available in 0.1.0).\n")
+        f.write("Put LSDJ 9.4.0 .sav files here (up to 64, directly in this folder, no sub-folders).\n"
+                "On the TABLE page pick one with Imp File, then tap Imp Go. It replaces all 16 tables\n"
+                "and 16 waves (the first 16 tables in the file, waves 0-15). Imp Undo restores the\n"
+                "previous content; Imp Rescan re-reads this folder after you add files.\n")
     with open(os.path.join(out_dir, "version.xml"), "w", encoding="utf-8", newline="\n") as f:
         f.write('<?xml version="1.0" encoding="utf-8"?>\n'
                 '<plugincontent version="1.0">\n'

@@ -140,10 +140,24 @@ Not copied: `rackboy_core/rackboy_control.*` (VCV knob glue),
    - The `VoiceState` size bound in `rackboy_voice.h` is the other allowed
      expected-value change (16 -> 24; no vendored test file carries it).
 
+7. **WP11 local changes** (all marked `// MPCBOY LOCAL MOD`):
+   - `src/sav/rackboy_sav_tables.{h,cpp}`: `parse_tables` also reads the table
+     envelope (volume) column at `0x1690` (new constant `kTableEnvelopeOffset`,
+     32 tables x 16 rows, same offset as `TABLE_ENVELOPE_OFFSET` in the
+     extractor's `crates/lsdj-sav/src/project.rs`) into `RackboyTableRow::vol`
+     and sets `has_vol = (vol != 0x00)`. The extractor writes `0x00` for an empty
+     envelope cell (`table_io.rs` `empty_table`, `convert.rs` `table_to_sav`).
+     **Recorded loss:** a literal `0x00` volume cannot be told from "empty" in
+     LSDJ data, so it imports as no volume. The comment on `RackboyTableRow` in
+     `rackboy_sav_types.h` was updated (the parser no longer leaves the two
+     fields zero). `load_rackboy_sav` and the vendored tests are unchanged.
+
 ## Test count
 
-`mpcboy_tests` (run from `tests/rackboy`): **473 test cases**, 160155
-assertions, 0 skipped, including the golden `audio regression` case. The 426
+`mpcboy_tests` (run from `tests/rackboy`): **506 test cases**, 2215243
+assertions, 0 skipped, including the golden `audio regression` case (the
+count at WP6 was 473 test cases, 160155 assertions; WP7-WP9 and WP11 added the
+rest, WP11 alone 14 cases in `tests/unit/{import_test,plugin_codec_test}.cpp`). The 426
 copied rackboy cases are unchanged and pass; the 47 added by WP3-WP6 live in
 `tests/unit/` (`stereo_pass_test.cpp` 4, `polyphase_test.cpp` 3,
 `engine_test.cpp` 17, `table_ext_test.cpp` 4, `content_store_test.cpp` 5,

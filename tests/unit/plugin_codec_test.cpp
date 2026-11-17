@@ -37,17 +37,18 @@ Content randomContent(std::mt19937& rng)
     return c;
 }
 
-std::vector<uint8_t> encoded(const Content& c)
+std::vector<uint8_t> encoded(const Content& c, const std::string& name = std::string())
 {
     std::vector<uint8_t> v;
-    encodeState(c, v);
+    encodeState(c, v, name);
     return v;
 }
 
 void fixCrc(std::vector<uint8_t>& b)
 {
-    const uint32_t crc = crc32Ieee(b.data(), kStateSize - 4);
-    for (int i = 0; i < 4; ++i) b[kStateSize - 4 + static_cast<size_t>(i)] = static_cast<uint8_t>(crc >> (8 * i));
+    const size_t n = b.size();
+    const uint32_t crc = crc32Ieee(b.data(), n - 4);
+    for (int i = 0; i < 4; ++i) b[n - 4 + static_cast<size_t>(i)] = static_cast<uint8_t>(crc >> (8 * i));
 }
 
 }  // namespace
@@ -65,9 +66,10 @@ TEST_CASE("plugin 1: state_codec round-trips random content byte-exact and has t
     {
         const Content c = randomContent(rng);
         const std::vector<uint8_t> blob = encoded(c);
-        REQUIRE(blob.size() == 2057);
+        REQUIRE(blob.size() == 2058);   // v2: 2057 + the 1-byte name length (empty name)
         CHECK(std::memcmp(blob.data(), "MBST", 4) == 0);
-        CHECK(blob[4] == 1);
+        CHECK(blob[4] == 2);
+        CHECK(blob[2053] == 0);
         Content d;
         REQUIRE(decodeState(blob.data(), blob.size(), d));
         CHECK(encoded(d) == blob);
@@ -91,14 +93,17 @@ TEST_CASE("plugin 1: state_codec rejects each corruption and leaves the output u
     std::vector<uint8_t> b = good;
     b[0] ^= 0x01;                              // magic
     CHECK(rejects(b));
-    b = good; b[4] = 2;                        // version
+    b = good; b[4] = 3;                        // version
     fixCrc(b);                                 // CRC valid, version unknown
+    CHECK(rejects(b));
+    b = good; b[4] = 1;                        // version 1 is no longer accepted (WP11)
+    fixCrc(b);
     CHECK(rejects(b));
     b = good; b.pop_back();                    // truncated by 1 byte
     CHECK(rejects(b));
     b = good; b.push_back(0);                  // one byte too long
     CHECK(rejects(b));
-    b = good; b[kStateSize - 1] ^= 0x80;       // flipped CRC
+    b = good; b[b.size() - 1] ^= 0x80;         // flipped CRC
     CHECK(rejects(b));
     b = good; b[100] ^= 0x01;                  // flipped payload bit, stale CRC
     CHECK(rejects(b));
@@ -106,6 +111,66 @@ TEST_CASE("plugin 1: state_codec rejects each corruption and leaves the output u
     Content out;
     CHECK_FALSE(decodeState(nullptr, kStateSize, out));
     CHECK(decodeState(good.data(), good.size(), out));
+}
+
+TEST_CASE("plugin 1: a v1 blob (2057 bytes, no name field, valid CRC) is rejected")
+{
+    std::mt19937 rng(11);
+    const Content c = randomContent(rng);
+    std::vector<uint8_t> v2 = encoded(c);
+    // Rebuild the v1 layout: version 1, no length byte, CRC over bytes 0..2052.
+    std::vector<uint8_t> v1(v2.begin(), v2.begin() + 2053);
+    v1[4] = 1;
+    v1.resize(2057);
+    const uint32_t crc = crc32Ieee(v1.data(), 2053);
+    for (int i = 0; i < 4; ++i) v1[2053 + static_cast<size_t>(i)] = static_cast<uint8_t>(crc >> (8 * i));
+    Content out;
+    CHECK_FALSE(decodeState(v1.data(), v1.size(), out));
+    CHECK_FALSE(decodeState(v1.data(), v1.size(), out, nullptr));
+}
+
+TEST_CASE("plugin 8: state v2 round-trips the imported file name (empty, short, UTF-8, 255 bytes) with the content")
+{
+    std::mt19937 rng(99);
+    const std::string names[] = {"", "song.sav", "caf\xC3\xA9 \xE2\x99\xAA.sav", std::string(255, 'x')};
+    for (const std::string& name : names)
+    {
+        CAPTURE(name.size());
+        const Content c = randomContent(rng);
+        const std::vector<uint8_t> blob = encoded(c, name);
+        REQUIRE(blob.size() == kStateSize + name.size());
+        CHECK(blob[2053] == name.size());
+        Content d;
+        std::string got = "sentinel";
+        REQUIRE(decodeState(blob.data(), blob.size(), d, &got));
+        CHECK(got == name);
+        CHECK(encoded(d, got) == blob);
+        CHECK(std::memcmp(d.waves.waves, c.waves.waves, sizeof(c.waves.waves)) == 0);
+
+        // Each corruption of a name blob is rejected and leaves both outputs alone.
+        std::string keep = "keep";
+        Content untouched = randomContent(rng);
+        const std::vector<uint8_t> before = encoded(untouched);
+        std::vector<uint8_t> b = blob;
+        b.pop_back();
+        CHECK_FALSE(decodeState(b.data(), b.size(), untouched, &keep));
+        b = blob; b.push_back(0);
+        CHECK_FALSE(decodeState(b.data(), b.size(), untouched, &keep));
+        b = blob; b[2053] = static_cast<uint8_t>(b[2053] + 1); fixCrc(b);   // length byte disagrees with the size
+        CHECK_FALSE(decodeState(b.data(), b.size(), untouched, &keep));
+        if (!name.empty())
+        {
+            b = blob; b[2054] ^= 0x01;   // a name byte flipped, stale CRC
+            CHECK_FALSE(decodeState(b.data(), b.size(), untouched, &keep));
+        }
+        CHECK(keep == "keep");
+        CHECK(encoded(untouched) == before);
+    }
+    // A name longer than 255 bytes is cut at 255.
+    const Content c = randomContent(rng);
+    const std::vector<uint8_t> blob = encoded(c, std::string(300, 'y'));
+    CHECK(blob.size() == kStateSize + 255);
+    CHECK(blob.size() <= kStateMaxSize);
 }
 
 TEST_CASE("plugin 1: 10,000 random blobs never crash (no ASan on this host: UBSan build covers UB)")
@@ -138,7 +203,15 @@ TEST_CASE("plugin 2: parameter table shape, names, ids and flags")
 {
     const std::vector<mpc::Param> p = buildParams();
     REQUIRE(static_cast<int>(p.size()) == kTotalParams);
-    CHECK(kNumParams == 59);
+    CHECK(kNumParams == 63);
+    CHECK(Imp_File == 59);
+    CHECK(Imp_Rescan == 62);
+    CHECK(p[Imp_File].id == "imp_file");
+    CHECK(p[Imp_Go].id == "imp_go");
+    CHECK(p[Imp_Undo].id == "imp_undo");
+    CHECK(p[Imp_Rescan].id == "imp_rescan");
+    CHECK(p[Imp_File].min == 1.0f);
+    CHECK(p[Imp_File].max == 64.0f);
     CHECK(p[0].id == "bendrng");
     CHECK(p[P_Volume].name == "Volume");
     std::set<std::string> ids, names;

@@ -44,9 +44,10 @@ list(REMOVE_ITEM PLUGINCORE_SRC "${CMAKE_SOURCE_DIR}/src/plugin/plugin_entry.cpp
 add_library(plugincore STATIC ${PLUGINCORE_SRC})
 target_include_directories(plugincore PUBLIC "${SDK}/framework" src/plugin)
 target_link_libraries(plugincore PUBLIC gbcore)
-if(MPCBOY_CPU_PROBE)   # the probe's stats worker is the only std::thread user
-  find_package(Threads REQUIRED)
-  target_link_libraries(plugincore PUBLIC Threads::Threads)
+# The .sav import worker (WP11) and, in probe builds, the stats worker use std::thread.
+find_package(Threads REQUIRED)
+target_link_libraries(plugincore PUBLIC Threads::Threads)
+if(MPCBOY_CPU_PROBE)
   target_compile_definitions(plugincore PUBLIC MPCBOY_CPU_PROBE=1)
 endif()
 

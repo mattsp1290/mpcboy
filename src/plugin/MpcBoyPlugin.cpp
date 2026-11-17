@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <chrono>
 #include <cstring>
 
 #ifdef MPCBOY_CPU_PROBE
@@ -23,6 +24,7 @@
 #endif
 
 #include "factory_content.h"
+#include "mpc_resources.h"
 #include "state_codec.h"
 
 using namespace mpcboy;
@@ -37,6 +39,13 @@ long long nowNs()
     return static_cast<long long>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
 }
 #endif
+
+constexpr long long kTriggerDebounceNs = 250LL * 1000 * 1000;
+
+long long steadyNs()
+{
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 // 10 ms one-pole smoother at 44.1 kHz.
 const float kGainCoef = 1.0f - std::exp(-1.0f / (0.010f * 44100.0f));
@@ -59,6 +68,12 @@ mpc::PluginInfo MpcBoyPlugin::makeInfo()
 
 MpcBoyPlugin::MpcBoyPlugin() : mpc::Plugin(makeInfo())
 {
+    for (int k = 0; k < kNumImportTriggers; ++k)
+    {
+        trigHigh_[k].store(false, std::memory_order_relaxed);
+        trigReset_[k].store(false, std::memory_order_relaxed);
+        trigLastNs_[k].store(0, std::memory_order_relaxed);
+    }
     // All allocation happens here, never on the audio thread.
     PolyphaseResampler48To441::ensureTable();
     engine_ = std::make_unique<Engine>();
@@ -69,6 +84,9 @@ MpcBoyPlugin::MpcBoyPlugin() : mpc::Plugin(makeInfo())
         store_->setLive(factory);   // before any other thread exists
     }
     engine_->attachContent(store_.get());
+    // The import worker scans Content/Import and imports on request; started
+    // last, joined first (members are destroyed in reverse order).
+    importer_ = std::make_unique<ImportWorker>(mpc::contentPath("Import"), *store_);
 
     for (const mpc::Param& p : buildParams()) addParam(p);
     for (const ProgramDef& d : programDefs()) addProgram(d.name, d.values);
@@ -87,6 +105,7 @@ MpcBoyPlugin::MpcBoyPlugin() : mpc::Plugin(makeInfo())
 
 MpcBoyPlugin::~MpcBoyPlugin()
 {
+    importer_.reset();   // joins the worker before the content store goes away
 #ifdef MPCBOY_CPU_PROBE
     stop_.store(true, std::memory_order_release);
     if (worker_.joinable()) worker_.join();
@@ -112,19 +131,83 @@ void MpcBoyPlugin::parameterChanged(int index, float plainValue)
         editor_.onCellParam(index - ED_Vol, static_cast<int>(std::lround(plainValue)),
                             getInt(ED_Table) - 1, getInt(ED_Row), *store_);
     }
+    else if (index >= Imp_Go && index <= Imp_Rescan)
+    {
+        onImportTrigger(index, plainValue);
+    }
+}
+
+// Any thread. A 0 -> 1 edge acts once; a second edge within 250 ms is ignored
+// (one tap can arrive as two presses on the device). The value is always set
+// back to 0 later, from process().
+void MpcBoyPlugin::onImportTrigger(int index, float plainValue)
+{
+    const int k = index - Imp_Go;
+    if (plainValue < 0.5f)
+    {
+        trigHigh_[k].store(false, std::memory_order_release);
+        return;
+    }
+    if (trigHigh_[k].exchange(true, std::memory_order_acq_rel)) return;   // already high: not an edge
+    trigReset_[k].store(true, std::memory_order_release);
+    // Like editor cells (WP5 rule 4): screen taps arrive on the audio thread, while
+    // project and preset loads run on the UI thread. A trigger restored as 1 by a
+    // load must not start an import or undo; it is only reset to 0.
+    if (!ContentStore::onAudioThread()) return;
+
+    const long long now = steadyNs();
+    const long long last = trigLastNs_[k].load(std::memory_order_acquire);
+    if (last != 0 && now - last < kTriggerDebounceNs) return;
+    trigLastNs_[k].store(now, std::memory_order_release);
+    if (!importer_) return;
+
+    switch (index)
+    {
+        case Imp_Go: importer_->requestImport(getInt(Imp_File) - 1); break;   // ignored while one is running
+        case Imp_Undo: store_->requestUndo(); break;
+        case Imp_Rescan: importer_->requestScan(); break;
+        default: break;
+    }
+}
+
+// Audio thread: write the triggers back to 0, follow the worker's list and its
+// suggested selection, and ask for a host refresh (the existing <= 10 Hz path).
+void MpcBoyPlugin::serviceImport()
+{
+    for (int k = 0; k < kNumImportTriggers; ++k)
+        if (trigReset_[k].exchange(false, std::memory_order_acq_rel))
+        {
+            set(Imp_Go + k, 0.0f);
+            editor_.requestHostRefresh();
+        }
+    const uint32_t v = importer_->version();
+    if (v != seenImportVersion_)
+    {
+        seenImportVersion_ = v;
+        editor_.requestHostRefresh();
+    }
+    const int s = importer_->takeSuggestedIndex();
+    if (s >= 0)
+    {
+        set(Imp_File, static_cast<float>(s + 1));
+        editor_.requestHostRefresh();
+    }
 }
 
 void MpcBoyPlugin::saveExtraState(std::vector<uint8_t>& out)
 {
     Content c;
     store_->readLatest(c);
-    encodeState(c, out);
+    encodeState(c, out, importer_->lastImportedName());
 }
 
 void MpcBoyPlugin::loadExtraState(const uint8_t* data, size_t size)
 {
     Content c;
-    if (!decodeState(data, size, c)) return;   // corrupt or foreign: keep the current content
+    std::string name;
+    if (!decodeState(data, size, c, &name)) return;   // corrupt or foreign: keep the current content
+    importer_->setLastImportedName(name);
+    importer_->setPreferredName(name);   // the worker selects it in Imp File once it is in the list
     store_->stage(c);
 }
 
@@ -141,6 +224,11 @@ bool MpcBoyPlugin::formatValue(int index, float plainValue, std::string& out)
         return true;
     }
 #endif
+    if (index == Imp_File)
+    {
+        out = importer_->displayText(static_cast<int>(std::lround(plainValue)) - 1);
+        return true;
+    }
     return formatParamValue(index, plainValue, out);
 }
 
@@ -192,6 +280,8 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
 #endif
     }
 
+    serviceImport();
+
     if (ctx.numOutputs < 1 || ctx.outputs == nullptr || ctx.outputs[0] == nullptr) return;
     if (silent_.load(std::memory_order_acquire) || ctx.numOutputs < 2 || ctx.outputs[1] == nullptr)
     {
@@ -200,6 +290,13 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
         return;
     }
 
+    // Consume a staged load / import / undo now, so a changed table bank resyncs the cursor.
+    store_->beginBlock();
+    if (store_->bulkGeneration() != seenBulkGen_)
+    {
+        seenBulkGen_ = store_->bulkGeneration();
+        editor_.markCursorDirty();
+    }
     if (editor_.takeCursorDirty()) resyncCursor();   // also consumes staged content
     snapshotSettings(forceSettings);
 
@@ -256,7 +353,7 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
     // (the device wrapper sends host reports from processReplacing).
     if (editor_.refreshDue(ctx.numFrames))
     {
-        for (int i = ED_Vol; i <= ED_Val2; ++i) notifyHostParameterChanged(i);
+        for (int i = ED_Vol; i <= Imp_Rescan; ++i) notifyHostParameterChanged(i);
         requestDisplayUpdate();
         hostRefreshes_.fetch_add(1, std::memory_order_relaxed);
     }

@@ -8,8 +8,9 @@ namespace {
 constexpr size_t kTablesOffset = 5;
 constexpr size_t kRowBytes = 7;
 constexpr size_t kWavesOffset = kTablesOffset + kNumTables * 16 * kRowBytes;   // 1797
-constexpr size_t kCrcOffset = kWavesOffset + kNumWaves * kWaveBytes;           // 2053
-static_assert(kWavesOffset == 1797 && kCrcOffset == 2053 && kCrcOffset + 4 == kStateSize, "state layout");
+constexpr size_t kNameLenOffset = kWavesOffset + kNumWaves * kWaveBytes;       // 2053
+constexpr size_t kNameOffset = kNameLenOffset + 1;                             // 2054
+static_assert(kWavesOffset == 1797 && kNameLenOffset == 2053 && kNameOffset + 4 == kStateSize, "state layout");
 }  // namespace
 
 uint32_t crc32Ieee(const uint8_t* data, size_t size)
@@ -23,10 +24,11 @@ uint32_t crc32Ieee(const uint8_t* data, size_t size)
     return ~crc;
 }
 
-void encodeState(const Content& c, std::vector<uint8_t>& out)
+void encodeState(const Content& c, std::vector<uint8_t>& out, const std::string& importName)
 {
+    const size_t nameLen = importName.size() > kStateMaxName ? kStateMaxName : importName.size();
     const size_t base = out.size();
-    out.resize(base + kStateSize);
+    out.resize(base + kStateSize + nameLen);
     uint8_t* p = out.data() + base;
     std::memcpy(p, "MBST", 4);
     p[4] = kStateVersion;
@@ -45,17 +47,23 @@ void encodeState(const Content& c, std::vector<uint8_t>& out)
             q += kRowBytes;
         }
     std::memcpy(p + kWavesOffset, c.waves.waves, sizeof(c.waves.waves));
-    const uint32_t crc = crc32Ieee(p, kCrcOffset);
-    for (int i = 0; i < 4; ++i) p[kCrcOffset + static_cast<size_t>(i)] = static_cast<uint8_t>(crc >> (8 * i));
+    p[kNameLenOffset] = static_cast<uint8_t>(nameLen);
+    if (nameLen > 0) std::memcpy(p + kNameOffset, importName.data(), nameLen);
+    const size_t crcOffset = kNameOffset + nameLen;
+    const uint32_t crc = crc32Ieee(p, crcOffset);
+    for (int i = 0; i < 4; ++i) p[crcOffset + static_cast<size_t>(i)] = static_cast<uint8_t>(crc >> (8 * i));
 }
 
-bool decodeState(const uint8_t* data, size_t size, Content& out)
+bool decodeState(const uint8_t* data, size_t size, Content& out, std::string* importName)
 {
-    if (data == nullptr || size != kStateSize) return false;
+    if (data == nullptr || size < kStateSize || size > kStateMaxSize) return false;
     if (std::memcmp(data, "MBST", 4) != 0 || data[4] != kStateVersion) return false;
+    const size_t nameLen = data[kNameLenOffset];
+    if (size != kStateSize + nameLen) return false;
+    const size_t crcOffset = kNameOffset + nameLen;
     uint32_t stored = 0;
-    for (int i = 0; i < 4; ++i) stored |= static_cast<uint32_t>(data[kCrcOffset + static_cast<size_t>(i)]) << (8 * i);
-    if (stored != crc32Ieee(data, kCrcOffset)) return false;
+    for (int i = 0; i < 4; ++i) stored |= static_cast<uint32_t>(data[crcOffset + static_cast<size_t>(i)]) << (8 * i);
+    if (stored != crc32Ieee(data, crcOffset)) return false;
 
     Content c;
     clearContent(c);
@@ -78,6 +86,7 @@ bool decodeState(const uint8_t* data, size_t size, Content& out)
     }
     std::memcpy(c.waves.waves, data + kWavesOffset, sizeof(c.waves.waves));
     out = c;
+    if (importName) importName->assign(reinterpret_cast<const char*>(data + kNameOffset), nameLen);
     return true;
 }
 

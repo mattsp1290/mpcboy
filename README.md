@@ -56,6 +56,38 @@ run), and `TABLE` (the table editor, see `docs/EDITOR.md`).
   Fade, Rise, Hat. **Factory waves** (slots 1-8): Saw, Square, Triangle, Sine,
   Pulse25, Pulse12, HalfSine, Organ. Slots 9-16 start empty.
 
+## Importing tables and waves from an LSDJ save
+
+Put LSDJ **9.4.0** `.sav` files (128 KiB, version byte `0x1B`, project slot 0)
+into `Content/Import/` inside the plugin folder (`<drive>/VST2 Plugins/mpcboy -
+VST - mpcboy/Content/Import/`): up to 64 files, directly in that folder (no
+sub-folders; symbolic links and names starting with `.` are skipped). On the
+`TABLE` page:
+
+- `Imp File` picks a file (the text is its name without `.sav`, cut at 8
+  characters, `-` when the folder is empty or the index is past the list, and
+  `ERR <code>` after a failed import until the next scan). The list is read when
+  the plugin loads and again with `Imp Rescan`; the file you imported last is
+  remembered by name in the project and selected again after a scan.
+- `Imp Go` imports it: the first 16 allocated tables become tables 1-16 (in the
+  order LSDJ allocated them; missing ones are cleared) and waves 0-15 become
+  waves 1-16, replacing all 16 tables and all 16 waves at once. Instruments,
+  chains, phrases and songs are ignored. `Imp Go`, `Imp Undo` and `Imp Rescan` are
+  buttons: they act on the 0 to 1 edge, ignore a second press within 250 ms and
+  switch themselves back off.
+- `Imp Undo` brings back the content from just before the last import (one
+  level; pressing it again re-applies the import, it is a swap). The undo copy
+  is not saved with the project.
+
+Notes and limits: a volume of `00` in an LSDJ table cannot be told from an empty
+cell, so it imports as no volume. Commands outside `D E H K L N P R S V W`
+(for example `A`, `C`, `T`) and `W` commands that point at a wave above 16 do
+nothing; a command the editor cannot show appears as `-` on the `TABLE` page.
+Files from other LSDJ versions, files with a damaged block chain and anything
+that is not a 128 KiB save are refused and change nothing. The file is read on a
+background thread, never on the audio thread; the import is not re-run when a
+project loads (the imported tables are already in the saved project).
+
 ## Build and test
 
 Requires CMake 3.25+, Ninja, Python 3.9+, and the zig toolchain (installed into
@@ -83,14 +115,18 @@ host simulator, the strict SDK validator on the packaged folder, arm32 and
 arm64 builds. **Pending on the user's MPC Live III** (every one is a release
 blocker, see `docs/DEVICE_TESTS.md`): G-CPU (CPU use of one instance), G-EDIT
 (the table editor's cursor behaviour, `docs/EDITOR.md`), and the WP10
-checklist of 11 device checks. WP11 (LSDJ `.sav` import) is not implemented.
+checklist of 11 device checks, plus WP11's device test 9 (the `.sav` import on
+the device) and a re-run of WP10 rows 1, 7, 8 and 10 on the WP11 build. The
+`.sav` import itself is implemented and tested natively (import, undo, debounce,
+state v2) but not yet run on a device.
 
 ## Layout
 
 - `src/apu`, `src/core`, `src/table`, `src/sav`, `src/dsp`: vendored rackboy
   and SameBoy code; every local change is listed in `src/VENDORED.md`.
-- `src/engine`: mono voice, tick clock, content store, factory tables.
-- `src/plugin`: the MPC plugin (parameters, state, editor cursor).
+- `src/engine`: mono voice, tick clock, content store, factory tables, `.sav`
+  import (`sav_import`).
+- `src/plugin`: the MPC plugin (parameters, state, editor cursor, import worker).
 - `plugin/`: `plugin.json` and `ui.json` for the skin.
 - `vendor/mpc-plugin-builder-sdk`: Akai's MIT plugin SDK (submodule).
 

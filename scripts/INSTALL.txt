@@ -30,6 +30,11 @@ Notes
   * Eight built-in programs: Init, ChipLead, MajArp, WaveBass, Kick, Hat,
     Stack4, Zap.
   * Tables and waves are saved with the project.
+  * To bring in tables and waves from LSDJ 9.4.0: copy .sav files into
+    "mpcboy - VST - mpcboy/Content/Import/" (up to 64, no sub-folders), then on
+    the TABLE page pick a file with "Imp File" and tap "Imp Go". "Imp Undo"
+    restores the previous content, "Imp Rescan" re-reads the folder after you
+    add files. It replaces all 16 tables and 16 waves.
   * Output is delayed by about 3 ms (resampler and APU).
 
 License: MIT. See the project repository for sources.

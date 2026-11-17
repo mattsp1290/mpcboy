@@ -9,7 +9,14 @@
 //              (saveExtraState, formatValue). Written by the audio thread only.
 //
 // Audio thread API:   markAudioThread, beginBlock, editLive, live, bank
-// Other threads:      stage, readPublished
+// Other threads:      stage, stageImport, requestUndo, readPublished
+//
+// WP11 undo: content staged with stageImport() is tagged as an import. When the
+// audio thread consumes it, it first copies `live` into a preallocated `undo`
+// Content (about 2 KB memcpy) and marks it valid; requestUndo() makes the audio
+// thread swap `undo` and `live` at the next beginBlock() (so a second undo
+// re-applies the import). All undo work stays on the audio thread. The undo
+// buffer is never saved.
 // WP7 wiring: loadExtraState -> stage(); saveExtraState / formatValue ->
 // readPublished(); the plugin's reset() only sets resetPending_ and process()
 // runs Engine::reset() then Engine::render(), whose first step is beginBlock().
@@ -61,6 +68,11 @@ public:
         return true;
     }
 
+    // Incremented on the audio thread whenever bulk content replaced live (a
+    // consumed staged load or import, or an undo): the plugin resyncs the
+    // editor cursor when it changes.
+    uint32_t bulkGeneration() const { return bulkGen_; }
+
     const Content& live() const { return live_; }
     // Table / wave view for table_tick; valid for the lifetime of the store.
     const rackboy::sav::RackboyBank& bank() const { return bank_; }
@@ -76,6 +88,15 @@ public:
     // except for the one-memcpy Reading window; a newer call replaces a Ready
     // slot the audio thread has not consumed yet.
     void stage(const Content& c);
+
+    // Like stage(), but tagged as a .sav import: the audio thread keeps a copy
+    // of the previous live content for one level of undo.
+    void stageImport(const Content& c) { stageImpl(c, true); }
+
+    // Asks the audio thread to swap the undo copy and live at the next
+    // beginBlock(). Ignored there when no undo copy is valid.
+    void requestUndo() { undoRequested_.store(true, std::memory_order_release); }
+    bool undoAvailable() const { return undoValid_.load(std::memory_order_acquire); }
 
     // Copies the published snapshot into `out`, retrying while a publish is in
     // flight. Returns the publish count (even seqlock value / 2).
@@ -95,6 +116,7 @@ private:
 
     void touchLive();
     void publish();
+    void stageImpl(const Content& c, bool isImport);
 
     Content live_;
     rackboy::sav::RackboyBank bank_;
@@ -102,7 +124,13 @@ private:
     uint32_t publishedGen_ = ~0u;
 
     Content staged_;
+    bool stagedIsImport_ = false;   // written in Writing, read in Reading
     std::atomic<int> stagedState_{Empty};
+
+    Content undo_;                  // audio thread only
+    std::atomic<bool> undoValid_{false};
+    std::atomic<bool> undoRequested_{false};
+    uint32_t bulkGen_ = 0;
 
     std::atomic<uint32_t> seq_{0};
     std::atomic<uint32_t> words_[kWords];

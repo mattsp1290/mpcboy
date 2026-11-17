@@ -1,6 +1,7 @@
 #include "content_store.h"
 
 #include <cstring>
+#include <utility>
 #include <sched.h>
 
 #include "bank_adapter.h"
@@ -15,6 +16,7 @@ ContentStore::ContentStore()
 {
     clearContent(live_);
     clearContent(staged_);
+    clearContent(undo_);
     for (auto& w : words_) w.store(0, std::memory_order_relaxed);
     initBank(bank_, live_);
     publish();
@@ -51,15 +53,31 @@ bool ContentStore::beginBlock()
     int expected = Ready;
     if (stagedState_.compare_exchange_strong(expected, Reading, std::memory_order_acquire))
     {
+        if (stagedIsImport_)
+        {
+            undo_ = live_;   // one level of undo: the content just before this import
+            undoValid_.store(true, std::memory_order_release);
+        }
         live_ = staged_;
         syncBank(bank_, live_);
         touchLive();
+        ++bulkGen_;
         publish();
         // Release the slot only after publishing, so readLatest() never sees an
         // Empty slot while the published snapshot still holds pre-load content.
         stagedState_.store(Empty, std::memory_order_release);
-        return true;
+        changed = true;
     }
+    if (undoRequested_.exchange(false, std::memory_order_acq_rel) && undoValid_.load(std::memory_order_acquire))
+    {
+        std::swap(live_, undo_);   // a second undo re-applies the import
+        syncBank(bank_, live_);
+        touchLive();
+        ++bulkGen_;
+        publish();
+        changed = true;
+    }
+    if (changed) return true;
     if (publishedGen_ != liveGen_)
     {
         syncBank(bank_, live_);   // edits touch live only
@@ -69,7 +87,9 @@ bool ContentStore::beginBlock()
     return changed;
 }
 
-void ContentStore::stage(const Content& c)
+void ContentStore::stage(const Content& c) { stageImpl(c, false); }
+
+void ContentStore::stageImpl(const Content& c, bool isImport)
 {
     for (;;)
     {
@@ -84,6 +104,7 @@ void ContentStore::stage(const Content& c)
         sched_yield();   // Writing (another writer) or Reading (one memcpy)
     }
     staged_ = c;
+    stagedIsImport_ = isImport;
     stagedState_.store(Ready, std::memory_order_release);
 }
 

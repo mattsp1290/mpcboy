@@ -37,6 +37,9 @@ enum Params : int
     NZ_On, NZ_Vol, NZ_EnvDir, NZ_EnvSpd, NZ_Width, NZ_PitchMode, NZ_Shape, NZ_Tsp, NZ_Pan, NZ_Len, NZ_Tbl,
     // Editor cursor and cell (51..58): UI plumbing, not automatable, never in a program.
     ED_Table, ED_Row, ED_Vol, ED_Tsp, ED_Cmd1, ED_Val1, ED_Cmd2, ED_Val2,
+    // .sav import (59..62, WP11): UI plumbing too. Imp_Go / Imp_Undo / Imp_Rescan
+    // are triggers (a 0->1 edge acts; the plugin sets them back to 0).
+    Imp_File, Imp_Go, Imp_Undo, Imp_Rescan,
     kNumParams,
     // Debug CPU probe parameter, appended last, only in -DMPCBOY_CPU_PROBE=ON builds.
     P_DbgUs = kNumParams
@@ -45,6 +48,7 @@ enum Params : int
 constexpr int kNumEngineParams = ED_Table;   // 51: programs list values for 0..50 only
 constexpr int kFirstEditorParam = ED_Table;
 constexpr int kNumEditorCells = 6;           // ED_Vol .. ED_Val2
+constexpr int kNumImportTriggers = 3;        // Imp_Go .. Imp_Rescan
 
 #ifdef MPCBOY_CPU_PROBE
 constexpr int kTotalParams = kNumParams + 1;
