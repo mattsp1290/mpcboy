@@ -25,7 +25,6 @@ ContentStore::ContentStore()
     clearContent(live_);
     clearContent(staged_);
     clearContent(undo_);
-    for (auto& w : words_) w.store(0, std::memory_order_relaxed);
     initBank(bank_, live_);
     publish();
 }
@@ -62,14 +61,19 @@ void ContentStore::setLive(const Content& c)
 
 void ContentStore::publish()
 {
-    uint32_t buf[kWords] = {};
-    std::memcpy(buf, &live_, sizeof(Content));
-    const uint32_t s = seq_.load(std::memory_order_relaxed);
-    seq_.store(s + 1, std::memory_order_relaxed);               // odd: write in progress
-    std::atomic_thread_fence(std::memory_order_release);
-    for (int i = 0; i < kWords; ++i) words_[i].store(buf[i], std::memory_order_relaxed);
-    seq_.store(s + 2, std::memory_order_release);               // even: stable
+    Published p;
+    p.c = live_;
+    p.src = liveSrc_;
+    published_.write(&p, sizeof(p));
     publishedGen_ = liveGen_;
+}
+
+void ContentStore::adoptLive()
+{
+    syncBank(bank_, live_);
+    touchLive();
+    ++bulkGen_;
+    publish();
 }
 
 bool ContentStore::beginBlock()
@@ -78,11 +82,10 @@ bool ContentStore::beginBlock()
     int expected = Ready;
     if (stagedState_.compare_exchange_strong(expected, Reading, std::memory_order_acquire))
     {
-        if (stagedTicket_ != 0)
+        if (stagedImport_)
         {
             undo_ = live_;   // one level of undo: the content just before this import
-            undoTicket_ = curTicket_.load(std::memory_order_relaxed);
-            curTicket_.store(stagedTicket_, std::memory_order_release);
+            undoSrc_ = liveSrc_;
             undoValid_.store(true, std::memory_order_release);
         }
         else
@@ -91,14 +94,10 @@ bool ContentStore::beginBlock()
             // earlier import must not bring another project's tables back.
             undoValid_.store(false, std::memory_order_release);
             undoRequested_.store(false, std::memory_order_relaxed);
-            undoTicket_ = 0;
-            curTicket_.store(0, std::memory_order_release);
         }
         live_ = staged_;
-        syncBank(bank_, live_);
-        touchLive();
-        ++bulkGen_;
-        publish();
+        liveSrc_ = stagedSrc_;
+        adoptLive();
         // Release the slot only after publishing, so readLatest() never sees an
         // Empty slot while the published snapshot still holds pre-load content.
         stagedState_.store(Empty, std::memory_order_release);
@@ -107,13 +106,8 @@ bool ContentStore::beginBlock()
     if (undoRequested_.exchange(false, std::memory_order_acq_rel) && undoValid_.load(std::memory_order_acquire))
     {
         std::swap(live_, undo_);   // a second undo re-applies the import
-        const uint32_t was = curTicket_.load(std::memory_order_relaxed);
-        curTicket_.store(undoTicket_, std::memory_order_release);
-        undoTicket_ = was;
-        syncBank(bank_, live_);
-        touchLive();
-        ++bulkGen_;
-        publish();
+        std::swap(liveSrc_, undoSrc_);
+        adoptLive();
         changed = true;
     }
     if (changed) return true;
@@ -126,9 +120,11 @@ bool ContentStore::beginBlock()
     return changed;
 }
 
-void ContentStore::stage(const Content& c) { stageImpl(c, 0); }
+void ContentStore::stage(const Content& c, const char* sourceName) { stageImpl(c, sourceName, false); }
 
-void ContentStore::stageImpl(const Content& c, uint32_t importTicket)
+void ContentStore::stageImport(const Content& c, const char* sourceName) { stageImpl(c, sourceName, true); }
+
+void ContentStore::stageImpl(const Content& c, const char* sourceName, bool isImport)
 {
     for (;;)
     {
@@ -143,41 +139,26 @@ void ContentStore::stageImpl(const Content& c, uint32_t importTicket)
         sched_yield();   // Writing (another writer) or Reading (one memcpy)
     }
     staged_ = c;
-    stagedTicket_ = importTicket;
+    stagedSrc_.set(sourceName);
+    stagedImport_ = isImport;
     stagedState_.store(Ready, std::memory_order_release);
 }
 
-uint32_t ContentStore::importTicket()
-{
-    for (;;)
-    {
-        int state = stagedState_.load(std::memory_order_acquire);
-        if (state == Empty) return curTicket_.load(std::memory_order_acquire);
-        if (state == Ready)
-        {
-            if (!stagedState_.compare_exchange_weak(state, Reading, std::memory_order_acquire)) continue;
-            const uint32_t t = stagedTicket_;
-            stagedState_.store(Ready, std::memory_order_release);
-            return t;
-        }
-        sched_yield();   // Writing or Reading
-    }
-}
-
-void ContentStore::readLatest(Content& out)
+void ContentStore::readLatest(Content& out, ContentSource* src)
 {
     for (;;)
     {
         int state = stagedState_.load(std::memory_order_acquire);
         if (state == Empty)
         {
-            readPublished(out);
+            readPublished(out, src);
             return;
         }
         if (state == Ready)
         {
             if (!stagedState_.compare_exchange_weak(state, Reading, std::memory_order_acquire)) continue;
             out = staged_;
+            if (src) *src = stagedSrc_;
             stagedState_.store(Ready, std::memory_order_release);
             return;
         }
@@ -185,21 +166,13 @@ void ContentStore::readLatest(Content& out)
     }
 }
 
-uint32_t ContentStore::readPublished(Content& out) const
+uint32_t ContentStore::readPublished(Content& out, ContentSource* src) const
 {
-    uint32_t buf[kWords];
-    for (;;)
-    {
-        const uint32_t s1 = seq_.load(std::memory_order_acquire);
-        if (s1 & 1u) { sched_yield(); continue; }
-        for (int i = 0; i < kWords; ++i) buf[i] = words_[i].load(std::memory_order_relaxed);
-        std::atomic_thread_fence(std::memory_order_acquire);
-        if (seq_.load(std::memory_order_relaxed) == s1)
-        {
-            std::memcpy(&out, buf, sizeof(Content));
-            return s1 / 2;
-        }
-    }
+    Published p;
+    const uint32_t count = published_.read(&p, sizeof(p));
+    out = p.c;
+    if (src) *src = p.src;
+    return count;
 }
 
 }  // namespace mpcboy

@@ -1,5 +1,8 @@
 #include "mono_voice.h"
 
+#include <algorithm>
+
+#include "channel_io.h"
 #include "engine_consts.h"
 #include "instrument_encoder.h"
 #include "rackboy_apu.h"
@@ -15,14 +18,11 @@ namespace {
 constexpr VoiceChannel kChannels[4] = {VoiceChannel::Pulse1, VoiceChannel::Pulse2,
                                        VoiceChannel::Wave, VoiceChannel::Noise};
 
-int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
-
 }  // namespace
 
-void MonoVoice::init(rackboy_apu_t* apu, const uint8_t (*waves)[kWaveBytes])
+void MonoVoice::init(rackboy_apu_t* apu)
 {
     apu_ = apu;
-    waves_ = waves;
     s_ = EngineSettings();
     reset();
 }
@@ -46,14 +46,7 @@ void MonoVoice::reset()
 
 void MonoVoice::dacOff(int ch)
 {
-    switch (ch)
-    {
-        case 0: rackboy_apu_write_reg(apu_, tbl::kNR12, 0x00); break;
-        case 1: rackboy_apu_write_reg(apu_, tbl::kNR22, 0x00); break;
-        case 2: rackboy_apu_write_reg(apu_, tbl::kNR30, 0x00); break;
-        default: rackboy_apu_write_reg(apu_, tbl::kNR42, 0x00); break;
-    }
-    voices_[ch].triggered = false;
+    tbl::kill_channel(voices_[ch], regs_[ch], kChannels[ch], apu_);
 }
 
 void MonoVoice::silence()
@@ -120,24 +113,22 @@ void MonoVoice::trigger(int note, int velocity, const rackboy::sav::RackboyBank&
         }
         if (s_.velToVol)
         {
-            const int vel = clampi(velocity, 1, 127);
+            const int vel = std::clamp<int>(velocity, 1, 127);
             if (ch == VoiceChannel::Wave)
             {
                 // Four discrete levels: quantise level * vel / 127.
-                const int pct = cs.waveLevel == WaveLevel::P100 ? 100 : cs.waveLevel == WaveLevel::P50 ? 50
-                                : cs.waveLevel == WaveLevel::P25 ? 25 : 0;
-                const int scaled = pct * vel / 127;
+                const int pct = waveLevelPercent(cs.waveLevel);
                 if (pct > 0)
-                    cs.waveLevel = scaled >= 75 ? WaveLevel::P100 : (scaled >= 38 ? WaveLevel::P50 : WaveLevel::P25);
+                    cs.waveLevel = waveLevelFromPercent(pct * vel / 127);
             }
             else if (cs.volume > 0)
             {
                 const int v = (static_cast<int>(cs.volume) * vel + 63) / 127;   // rounded
-                cs.volume = static_cast<uint8_t>(clampi(v, 1, 15));
+                cs.volume = static_cast<uint8_t>(std::clamp<int>(v, 1, 15));
             }
         }
-        if (ch == VoiceChannel::Wave && waves_)
-            rackboy_apu_write_wave_ram(apu_, waves_[clampi(cs.waveSlot, 0, kNumWaves - 1)]);
+        if (ch == VoiceChannel::Wave)
+            rackboy_apu_write_wave_ram(apu_, bank.waves[std::clamp<int>(cs.waveSlot, 0, kNumWaves - 1)].samples);
 
         const rackboy::sav::RackboyInstrument inst = encode_instrument(ch, cs);
         const tbl::TriggerExtras extras = encode_trigger_extras(ch, cs, bendCents_);
@@ -205,7 +196,7 @@ void MonoVoice::allNotesOff()
 
 void MonoVoice::pitchBend(int bend14)
 {
-    bendRaw_ = clampi(bend14, -8192, 8191);
+    bendRaw_ = std::clamp<int>(bend14, -8192, 8191);
     updateBendCents();
     rewriteAllPitch();
 }

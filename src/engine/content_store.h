@@ -19,7 +19,12 @@
 // docs/DEVICE_TESTS.md confirms it). The mark is per store (per plugin
 // instance) and uses no thread_local storage: dynamic TLS in a dlopen'd module
 // can allocate or take a loader lock on first access.
-// Other threads:      stage, stageImport, importTicket, requestUndo, readPublished
+// Other threads:      stage, stageImport, requestUndo, readPublished, readLatest
+//
+// Every content slot (live, staged, undo, published) carries the name of the
+// file it came from (ContentSource: the .sav import's file name, or the name
+// stored in a loaded project; "" = none), so the name follows the content
+// through staging, undo and publishing with no separate bookkeeping.
 //
 // WP11 undo: content staged with stageImport() is tagged as an import. When the
 // audio thread consumes it, it first copies `live` into a preallocated `undo`
@@ -29,21 +34,37 @@
 // buffer is never saved.
 // WP7 wiring: loadExtraState -> stage(); saveExtraState / formatValue ->
 // readPublished() (the plugin's formatValue does not read the store; the import
-// file list has its own seqlock table in ImportWorker); the plugin's reset() only sets resetPending_ and process()
-// runs Engine::reset() then Engine::render(), whose first step is beginBlock().
+// file list has its own seqlock table in ImportWorker); the plugin's reset() only
+// sets resetPending_ and process() calls beginBlock() once (it is the single
+// owner), then Engine::reset() and Engine::render().
 //
-// The published words are std::atomic<uint32_t> accessed relaxed inside the
-// seqlock protocol, so the structure is data-race-free by the C++ model (and
-// quiet under ThreadSanitizer) without relying on fences TSan cannot see.
+// The published snapshot sits behind SeqlockWords (seqlock_words.h).
 #pragma once
 
 #include <atomic>
 #include <cstdint>
 
 #include "rackboy_sav_types.h"
+#include "seqlock_words.h"
 #include "table_bank.h"
 
 namespace mpcboy {
+
+// Where a content snapshot came from: a file name, NUL-terminated, "" = none.
+// kMaxSourceName equals the state format's name limit (kStateMaxName).
+constexpr size_t kMaxSourceName = 255;
+struct ContentSource
+{
+    char name[kMaxSourceName + 1] = {};
+
+    void set(const char* n)
+    {
+        size_t i = 0;
+        if (n)
+            for (; n[i] != '\0' && i < kMaxSourceName; ++i) name[i] = n[i];
+        name[i] = '\0';
+    }
+};
 
 class ContentStore
 {
@@ -99,75 +120,67 @@ public:
     // Hands bulk content to the audio thread. Never waits for the audio thread
     // except for the one-memcpy Reading window; a newer call replaces a Ready
     // slot the audio thread has not consumed yet.
-    void stage(const Content& c);
+    // `sourceName` (copied; nullptr = none) is the name of the file the content
+    // came from (the name stored in a loaded project).
+    void stage(const Content& c, const char* sourceName = nullptr);
 
     // Like stage(), but tagged as a .sav import: the audio thread keeps a copy
-    // of the previous live content for one level of undo.
-    // Returns the import's ticket (never 0), which importTicket() reports while
-    // that content is the newest (staged or live).
-    uint32_t stageImport(const Content& c)
-    {
-        const uint32_t t = nextImportTicket();
-        stageImpl(c, t);
-        return t;
-    }
-    // Two-step form for a caller that must record the ticket before the content
-    // becomes visible (ImportWorker registers the file name under it).
-    uint32_t nextImportTicket() { return nextTicket_.fetch_add(1, std::memory_order_relaxed); }
-    void stageImportWithTicket(const Content& c, uint32_t ticket) { stageImpl(c, ticket); }
+    // of the previous live content (and its source) for one level of undo.
+    void stageImport(const Content& c, const char* sourceName = nullptr);
 
-    // Ticket of the import the newest content came from: the staged slot's ticket
-    // if one is waiting, otherwise the live content's. 0 = the content did not come
-    // from an import (a project load, or the start). An undo swaps the live ticket
-    // with the undo copy's, so the answer follows what is actually live. Any thread
-    // (never waits for the audio thread beyond the one-memcpy Reading window).
-    uint32_t importTicket();
     // Asks the audio thread to swap the undo copy and live at the next
     // beginBlock(). Ignored there when no undo copy is valid.
     void requestUndo() { undoRequested_.store(true, std::memory_order_release); }
     bool undoAvailable() const { return undoValid_.load(std::memory_order_acquire); }
 
-    // Copies the published snapshot into `out`, retrying while a publish is in
-    // flight. Returns the publish count (even seqlock value / 2).
-    uint32_t readPublished(Content& out) const;
+    // Copies the published snapshot (and optionally its source) into `out`,
+    // retrying while a publish is in flight. Returns the publish count.
+    uint32_t readPublished(Content& out, ContentSource* src = nullptr) const;
 
     // Copies the newest content: a staged load the audio thread has not
     // consumed yet, otherwise the published snapshot. Used by state save, so a
-    // save between a load and the next audio block still returns the load.
-    void readLatest(Content& out);
+    // save between a load and the next audio block still returns the load (with
+    // the name that belongs to it).
+    void readLatest(Content& out, ContentSource* src = nullptr);
 
     // Edits attempted off the audio thread (debug counter).
     uint32_t rejectedEdits() const { return rejectedEdits_.load(std::memory_order_relaxed); }
 
 private:
     enum StagedState : int { Empty = 0, Writing = 1, Ready = 2, Reading = 3 };
-    static constexpr int kWords = static_cast<int>((sizeof(Content) + 3) / 4);
+    struct Published
+    {
+        Content c;
+        ContentSource src;
+    };
 
     void touchLive();
     void publish();
-    void stageImpl(const Content& c, uint32_t importTicket);
+    void stageImpl(const Content& c, const char* sourceName, bool isImport);
+    // Shared tail of a consumed staged load / undo: rebuild the bank view and
+    // republish.
+    void adoptLive();
 
     Content live_;
+    ContentSource liveSrc_;
     rackboy::sav::RackboyBank bank_;
     uint32_t liveGen_ = 0;
     uint32_t publishedGen_ = ~0u;
 
     Content staged_;
-    uint32_t stagedTicket_ = 0;     // 0 = plain load, else the import's ticket (written in Writing, read in Reading)
+    ContentSource stagedSrc_;
+    bool stagedImport_ = false;     // written in Writing, read in Reading
     std::atomic<int> stagedState_{Empty};
 
     std::atomic<uintptr_t> audioThread_{0};   // thread id of the marked audio thread, 0 = none
 
     Content undo_;                  // audio thread only
-    std::atomic<uint32_t> nextTicket_{1};
-    std::atomic<uint32_t> curTicket_{0};   // import ticket of live (audio thread writes)
-    uint32_t undoTicket_ = 0;               // ticket of the undo copy (audio thread only)
+    ContentSource undoSrc_;         // audio thread only
     std::atomic<bool> undoValid_{false};
     std::atomic<bool> undoRequested_{false};
     uint32_t bulkGen_ = 0;
 
-    std::atomic<uint32_t> seq_{0};
-    std::atomic<uint32_t> words_[kWords];
+    SeqlockWords<sizeof(Published)> published_;
 
     std::atomic<uint32_t> rejectedEdits_{0};
 };

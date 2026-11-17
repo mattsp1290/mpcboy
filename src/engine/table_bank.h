@@ -17,6 +17,18 @@ constexpr int kNumTables = 16;
 constexpr int kNumWaves = 16;
 constexpr int kWaveBytes = 16;   // 32 packed 4-bit samples, rackboy_apu_write_wave_ram format
 
+// LSDJ table commands the interpreter implements, in editor order (index 0 =
+// none). The single definition: the editor parameters and the .sav import
+// report both derive from it.
+constexpr int kNumCmdChoices = 12;
+constexpr char kCmdLetters[kNumCmdChoices] = {0, 'D', 'E', 'H', 'K', 'L', 'N', 'P', 'R', 'S', 'V', 'W'};
+constexpr bool isSupportedCommand(uint8_t c)
+{
+    for (int i = 1; i < kNumCmdChoices; ++i)
+        if (static_cast<uint8_t>(kCmdLetters[i]) == c) return true;
+    return false;
+}
+
 struct TableBank
 {
     rackboy::sav::RackboyTable tables[kNumTables];

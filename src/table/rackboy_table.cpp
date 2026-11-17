@@ -12,6 +12,8 @@
 
 #include "rackboy_table.h"
 
+#include "channel_io.h"          // MPCBOY LOCAL MOD: mpcboy-owned register helpers
+
 #include <cstdio>                 // std::snprintf for format_chord_reference
 
 // Include the full APU header here (not in the .h) to avoid pulling the
@@ -30,56 +32,9 @@ namespace table {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-// write_freq_no_trigger — update NRx3/NRx4 without setting the trigger bit
-//
-// Used by table_tick() for pitch-glide and table-driven frequency updates.
-// Deliberately omits bit 7 of NRx4 so the volume envelope is NOT reset on
-// every table row advance — only table_trigger() sets the trigger bit.
-//
-// For CH1/CH2/CH3 the `freq` parameter is the 11-bit register value:
-//   NRx3 ← freq & 0xFF           (low 8 bits)
-//   NRx4 ← (freq >> 8) & 0x07   (high 3 bits, no trigger bit 7)
-//
-// For CH4 the `freq` parameter is the NR43 byte and `addr_lo` / `addr_hi`
-// are NR43 / 0 (we only write one register, the second write is suppressed
-// by passing addr_hi == 0).
-//
-// MPCBOY LOCAL MOD: `length_enable` ORs NRx4 bit 6 into the high write so a
-// running length counter keeps running across table ticks (write_channel_pitch
-// is the only caller).
-static void write_freq_no_trigger(
-    rackboy_apu_t* apu,
-    uint16_t freq,
-    uint16_t addr_lo,
-    uint16_t addr_hi,
-    uint8_t length_enable = 0) noexcept
-{
-    rackboy_apu_write_reg(apu, addr_lo, static_cast<uint8_t>(freq & 0xFF));
-    if (addr_hi != 0) {
-        rackboy_apu_write_reg(
-            apu, addr_hi,
-            static_cast<uint8_t>(((freq >> 8) & kFreqHiMask) |
-                                 (length_enable ? kLengthEnableBit : 0)));
-    }
-}
-
-// trigger_nrx4_byte — pack the NRx4 retrigger write with preserved freq hi
-//
-// Returns the byte to write into NRx4 (x = 1, 2, or 3) to retrigger the
-// channel while preserving its current 11-bit frequency: bit 7 set
-// (kTriggerBit) | bits 2-0 = freq_11bit >> 8 & kFreqHiMask. Callers
-// for CH4 use kTriggerBit directly since NR44 has no freq bits.
-//
-// Shared by the `E` command and the eventual `R` retrigger command.
-//
-// MPCBOY LOCAL MOD: `length_enable` ORs NRx4 bit 6 (see write_freq_no_trigger).
-static inline uint8_t trigger_nrx4_byte(uint16_t freq_11bit,
-                                        uint8_t length_enable = 0) noexcept
-{
-    return static_cast<uint8_t>(
-        kTriggerBit | ((freq_11bit >> 8) & kFreqHiMask) |
-        (length_enable ? kLengthEnableBit : 0));
-}
+// MPCBOY LOCAL MOD: write_freq_no_trigger and trigger_nrx4_byte (upstream
+// helpers for the frequency write and the NRx4 retrigger byte) moved to the
+// mpcboy-owned channel_io.{h,cpp}, together with the other register helpers.
 
 // vibrato_triangle — signed triangle-wave shaper for the `V` command
 //
@@ -140,217 +95,6 @@ static inline int16_t vibrato_offset(uint8_t phase, uint8_t depth) noexcept
     if (depth == 0) return 0;
     const int32_t tri = vibrato_triangle(phase);
     return static_cast<int16_t>((tri * static_cast<int32_t>(depth)) / 128);
-}
-
-// ---------------------------------------------------------------------------
-// MPCBOY LOCAL MOD: write_channel_pitch — the single pitch path
-// ---------------------------------------------------------------------------
-//
-// Every pitch computation of the interpreter goes through here (the 8 former
-// call sites of pitch_square_11bit / pitch_wave_11bit / pitch_noise_nr43: 4 in
-// table_trigger, 4 in table_tick; see src/VENDORED.md).
-//
-// Composition, in cents:
-//   total = (pitch_offset + vibrato) * 100
-//         + pbend_accum * 100 / 16      (WP5 `P` command, 1/16 semitone units)
-//         + fine_cents + bend_cents
-// pitch_offset already holds the accumulated transposes and the `L` slide. With
-// fine = bend = 0 the cents are a multiple of 100 and the register values are
-// bit-identical to the old semitone functions.
-//
-// `trigger` writes the trigger bit with the frequency (table_trigger); without
-// it only pitch bits are written. `engine_mode` (table_trigger called with
-// TriggerExtras) selects the new noise rule; nullptr extras keep the legacy
-// "semitones == 0 uses raw[4]" rule so the vendored tests are unaffected.
-
-static inline int16_t cents_to_nearest_semitone(int32_t cents) noexcept
-{
-    const int32_t c = cents + 50;
-    int32_t semis = (c >= 0) ? (c / 100) : -((-c + 99) / 100);
-    if (semis > 32767) semis = 32767;
-    if (semis < -32768) semis = -32768;
-    return static_cast<int16_t>(semis);
-}
-
-static inline uint8_t noise_width_bit(const TableRegState& regs) noexcept
-{
-    return (regs.noise_flags & kNoiseWidth7) ? 0x08u
-                                              : static_cast<uint8_t>(regs.nr43_shape & 0x08u);
-}
-
-static void write_channel_pitch(
-    rackboy_apu_t* apu,
-    rackboy::core::VoiceChannel ch,
-    TableRegState& regs,
-    int16_t vibrato_semis,
-    int16_t pbend_accum,
-    bool trigger,
-    bool engine_mode) noexcept
-{
-    const int32_t cents =
-        (static_cast<int32_t>(regs.pitch_offset) + vibrato_semis) * 100 +
-        static_cast<int32_t>(pbend_accum) * 100 / 16 +
-        static_cast<int32_t>(regs.fine_cents) +
-        static_cast<int32_t>(regs.bend_cents);
-    const uint8_t le = regs.length_enable;
-
-    switch (ch) {
-    case rackboy::core::VoiceChannel::Pulse1:
-        regs.freq_11bit = rackboy::core::pitch_square_11bit_cents(cents);
-        if (trigger) {
-            rackboy_apu_write_reg(apu, kNR13, static_cast<uint8_t>(regs.freq_11bit & 0xFF));
-            rackboy_apu_write_reg(apu, kNR14, trigger_nrx4_byte(regs.freq_11bit, le));
-        } else {
-            write_freq_no_trigger(apu, regs.freq_11bit, kNR13, kNR14, le);
-        }
-        break;
-    case rackboy::core::VoiceChannel::Pulse2:
-        regs.freq_11bit = rackboy::core::pitch_square_11bit_cents(cents);
-        if (trigger) {
-            rackboy_apu_write_reg(apu, kNR23, static_cast<uint8_t>(regs.freq_11bit & 0xFF));
-            rackboy_apu_write_reg(apu, kNR24, trigger_nrx4_byte(regs.freq_11bit, le));
-        } else {
-            write_freq_no_trigger(apu, regs.freq_11bit, kNR23, kNR24, le);
-        }
-        break;
-    case rackboy::core::VoiceChannel::Wave:
-        regs.freq_11bit = rackboy::core::pitch_wave_11bit_cents(cents);
-        if (trigger) {
-            rackboy_apu_write_reg(apu, kNR33, static_cast<uint8_t>(regs.freq_11bit & 0xFF));
-            rackboy_apu_write_reg(apu, kNR34, trigger_nrx4_byte(regs.freq_11bit, le));
-        } else {
-            write_freq_no_trigger(apu, regs.freq_11bit, kNR33, kNR34, le);
-        }
-        break;
-    case rackboy::core::VoiceChannel::Noise:
-    {
-        const bool fixed = (regs.noise_flags & kNoiseFixed) != 0;
-        uint8_t nr43;
-        if (fixed) {
-            // Fixed noise: only table_trigger and `N` write NR43.
-            if (!trigger) break;
-            nr43 = static_cast<uint8_t>(regs.nr43_shape |
-                                        ((regs.noise_flags & kNoiseWidth7) ? 0x08u : 0u));
-        } else {
-            const int16_t semis = cents_to_nearest_semitone(cents);
-            if (trigger && !engine_mode) {
-                // Legacy trigger rule (vendored behaviour): the instrument's
-                // raw[4] is authoritative at zero offset.
-                nr43 = (semis == 0) ? regs.nr43_shape
-                                    : rackboy::core::pitch_noise_nr43(semis);
-            } else {
-                // Track mode: always derived from the pitch; width merged in.
-                nr43 = static_cast<uint8_t>(
-                    (rackboy::core::pitch_noise_nr43(semis) & ~0x08u) |
-                    noise_width_bit(regs));
-            }
-        }
-        rackboy_apu_write_reg(apu, kNR43, nr43);
-        if (trigger) {
-            rackboy_apu_write_reg(
-                apu, kNR44,
-                static_cast<uint8_t>(kTriggerBit | (le ? kLengthEnableBit : 0)));
-        }
-        break;
-    }
-    }
-}
-
-// MPCBOY LOCAL MOD: kill_channel — the `K` effect (also the delayed `K` firing).
-static void kill_channel(
-    rackboy::core::VoiceState& voice,
-    TableRegState& regs,
-    rackboy::core::VoiceChannel ch,
-    rackboy_apu_t* apu) noexcept
-{
-    switch (ch) {
-    case rackboy::core::VoiceChannel::Pulse1:
-        regs.envelope = 0;
-        rackboy_apu_write_reg(apu, kNR12, 0x00);
-        break;
-    case rackboy::core::VoiceChannel::Pulse2:
-        regs.envelope = 0;
-        rackboy_apu_write_reg(apu, kNR22, 0x00);
-        break;
-    case rackboy::core::VoiceChannel::Wave:
-        regs.wave_volume = 0;
-        // CH3: turn off the DAC by clearing NR30 bit 7.
-        rackboy_apu_write_reg(apu, kNR30, 0x00);
-        break;
-    case rackboy::core::VoiceChannel::Noise:
-        regs.envelope = 0;
-        rackboy_apu_write_reg(apu, kNR42, 0x00);
-        break;
-    }
-    voice.triggered = false;
-    voice.kill_ticks_remaining = 0;
-}
-
-// MPCBOY LOCAL MOD: before a table retrigger (`E`, `R`, `W`, volume column)
-// reload the configured length. On hardware a trigger reloads the length
-// counter to its maximum only when it has run out, so without this a retrigger
-// after the note's Length expired would sound for 64/256 s (pulse, noise) or
-// 1 s (wave) instead of Length. Rewriting NRx1 / NR31 restarts the counter at
-// the configured value; the pulse duty bits are kept.
-static void reload_length(const TableRegState& regs,
-                          rackboy::core::VoiceChannel ch,
-                          rackboy_apu_t* apu) noexcept
-{
-    if (!regs.length_enable) return;
-    switch (ch) {
-    case rackboy::core::VoiceChannel::Pulse1:
-        rackboy_apu_write_reg(apu, kNR11, static_cast<uint8_t>(regs.duty | regs.len_lo6));
-        break;
-    case rackboy::core::VoiceChannel::Pulse2:
-        rackboy_apu_write_reg(apu, kNR21, static_cast<uint8_t>(regs.duty | regs.len_lo6));
-        break;
-    case rackboy::core::VoiceChannel::Wave:
-        rackboy_apu_write_reg(apu, kNR31, regs.len_nr31);
-        break;
-    case rackboy::core::VoiceChannel::Noise:
-        rackboy_apu_write_reg(apu, kNR41, regs.len_lo6);
-        break;
-    }
-}
-
-// MPCBOY LOCAL MOD: write an envelope byte and retrigger with the running
-// frequency. This is the `E` command's effect and the table volume column's
-// (Pulse/Noise: NRx2 = value; Wave: NR32 = value & 0x60, which restarts the
-// wave position).
-static void write_envelope_retrigger(
-    uint8_t value,
-    TableRegState& regs,
-    rackboy::core::VoiceChannel ch,
-    rackboy_apu_t* apu) noexcept
-{
-    reload_length(regs, ch, apu);
-    switch (ch) {
-    case rackboy::core::VoiceChannel::Pulse1:
-        regs.envelope = value;
-        rackboy_apu_write_reg(apu, kNR12, value);
-        rackboy_apu_write_reg(apu, kNR14,
-                              trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
-        break;
-    case rackboy::core::VoiceChannel::Pulse2:
-        regs.envelope = value;
-        rackboy_apu_write_reg(apu, kNR22, value);
-        rackboy_apu_write_reg(apu, kNR24,
-                              trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
-        break;
-    case rackboy::core::VoiceChannel::Wave:
-        regs.wave_volume = value;
-        rackboy_apu_write_reg(apu, kNR32,
-                              static_cast<uint8_t>(value & kNR32OutputLevelMask));
-        rackboy_apu_write_reg(apu, kNR34,
-                              trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
-        break;
-    case rackboy::core::VoiceChannel::Noise:
-        regs.envelope = value;
-        rackboy_apu_write_reg(apu, kNR42, value);
-        rackboy_apu_write_reg(apu, kNR44,
-                              static_cast<uint8_t>(kTriggerBit | (regs.length_enable ? kLengthEnableBit : 0)));
-        break;
-    }
 }
 
 // dispatch_command — stub for LSDJ table command letters
@@ -503,8 +247,7 @@ static void dispatch_command(
             regs.nr43_shape = param;
             // MPCBOY LOCAL MOD: width flag is OR'd into every NR43 write.
             rackboy_apu_write_reg(
-                apu, kNR43,
-                static_cast<uint8_t>(param | ((regs.noise_flags & kNoiseWidth7) ? 0x08u : 0u)));
+                apu, kNR43, static_cast<uint8_t>(param | noise_width_bits(regs)));
         }
         // else: wrong channel, no-op
         break;
@@ -535,9 +278,7 @@ static void dispatch_command(
             // engine path (table_trigger got TriggerExtras): the vendored
             // wave_set_test asserts the legacy no-retrigger behaviour.
             if (regs.engine_mode) {
-                reload_length(regs, ch, apu);
-                rackboy_apu_write_reg(apu, kNR34,
-                                      trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
+                retrigger(regs, ch, apu);
             }
         }
         // else: wrong channel, no bank, out-of-range, or unoccupied slot
@@ -791,7 +532,7 @@ void table_trigger(
         // NR12: initial volume envelope.
         rackboy_apu_write_reg(apu, kNR12, regs.envelope);
         // NR13 / NR14: frequency + trigger bit (bit 7) (+ length enable, bit 6).
-        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true, engine_mode);
+        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true);
         break;
     }
 
@@ -818,7 +559,7 @@ void table_trigger(
         // NR22: initial volume envelope.
         rackboy_apu_write_reg(apu, kNR22, regs.envelope);
         // NR23 / NR24: frequency + trigger bit (+ length enable).
-        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true, engine_mode);
+        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true);
         break;
     }
 
@@ -853,7 +594,7 @@ void table_trigger(
         rackboy_apu_write_reg(apu, kNR32,
                               static_cast<uint8_t>(regs.wave_volume & kNR32OutputLevelMask));
         // NR33 / NR34: frequency + trigger bit (+ length enable).
-        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true, engine_mode);
+        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true);
         break;
     }
 
@@ -890,7 +631,7 @@ void table_trigger(
         // NR43 + NR44 (trigger bit, + length enable): write_channel_pitch.
         // Legacy rule (extras == nullptr): semitones_from_base == 0 uses the
         // instrument's raw[4] byte, otherwise pitch_noise_nr43().
-        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true, engine_mode);
+        write_channel_pitch(apu, ch, regs, 0, voice.pbend_accum, true);
         break;
     }
     }  // switch (ch)
@@ -1070,13 +811,13 @@ void table_tick(
         if (acc < -32000) acc = -32000;
         voice.pbend_accum = static_cast<int16_t>(acc);
     }
-    write_channel_pitch(apu, ch, regs, vibrato_offset_semi, voice.pbend_accum, false, true);
+    write_channel_pitch(apu, ch, regs, vibrato_offset_semi, voice.pbend_accum, false);
 
     // Step 5: Recurring `R` retrigger check (bead rackboy-bgu).
     // When retrigger_period_ticks > 0, an R command is active. Decrement
     // the running counter; when it reaches zero, fire NRx4 bit 7 and reset
     // the counter back to the period. The fire preserves the current
-    // freq_11bit high bits (via trigger_nrx4_byte) so the channel keeps
+    // freq_11bit high bits (via retrigger) so the channel keeps
     // its running pitch — R only re-arms the trigger, it does not change
     // pitch or envelope (see comment in dispatch_command's 'R' case).
     //
@@ -1099,26 +840,7 @@ void table_tick(
         --voice.retrigger_counter_ticks;
         if (voice.retrigger_counter_ticks == 0) {
             voice.retrigger_counter_ticks = voice.retrigger_period_ticks;
-            reload_length(regs, ch, apu);   // MPCBOY LOCAL MOD
-            switch (ch) {
-            case rackboy::core::VoiceChannel::Pulse1:
-                rackboy_apu_write_reg(apu, kNR14,
-                                      trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
-                break;
-            case rackboy::core::VoiceChannel::Pulse2:
-                rackboy_apu_write_reg(apu, kNR24,
-                                      trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
-                break;
-            case rackboy::core::VoiceChannel::Wave:
-                rackboy_apu_write_reg(apu, kNR34,
-                                      trigger_nrx4_byte(regs.freq_11bit, regs.length_enable));
-                break;
-            case rackboy::core::VoiceChannel::Noise:
-                // NR44 has no frequency bits — only the trigger bit.
-                rackboy_apu_write_reg(apu, kNR44,
-                                      static_cast<uint8_t>(kTriggerBit | (regs.length_enable ? kLengthEnableBit : 0)));
-                break;
-            }
+            retrigger(regs, ch, apu);   // MPCBOY LOCAL MOD
         }
     }
 
@@ -1156,7 +878,7 @@ void table_write_pitch(
     const int16_t vib = (voice.vibrato_speed != 0)
         ? vibrato_offset(voice.vibrato_phase, voice.vibrato_depth)
         : static_cast<int16_t>(0);
-    write_channel_pitch(apu, ch, regs, vib, voice.pbend_accum, false, true);
+    write_channel_pitch(apu, ch, regs, vib, voice.pbend_accum, false);
 }
 
 // ---------------------------------------------------------------------------

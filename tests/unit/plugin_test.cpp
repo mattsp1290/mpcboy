@@ -13,79 +13,13 @@
 #include "MpcBoyPlugin.h"
 #include "engine_test_support.h"
 #include "factory_content.h"
+#include "plugin_test_support.h"
 #include "state_codec.h"
 
 using namespace mpcboy;
+using namespace mpcboy_test;
 
 namespace {
-
-// The thread that calls process() is "the audio thread" of that plugin's store
-// (the mark is per instance, so it dies with the rig).
-struct PluginRig
-{
-    std::unique_ptr<MpcBoyPlugin> p;
-    std::vector<float> L, R;
-    long long pos = 0;
-    double bpm = 120.0;
-    bool tempoValid = true, playing = false, ppqValid = false;
-    double ppqStart = 0.0;
-
-    PluginRig()
-    {
-        p = std::make_unique<MpcBoyPlugin>();
-        p->prepare(44100.0, 512);
-    }
-
-    // One process() call with `block` frames and the given block-relative events.
-    void block(int n, const std::vector<mpc::MidiEvent>& midi = {})
-    {
-        const size_t old = L.size();
-        L.resize(old + static_cast<size_t>(n));
-        R.resize(old + static_cast<size_t>(n));
-        float* outs[2] = {L.data() + old, R.data() + old};
-        mpc::ProcessContext ctx;
-        ctx.outputs = outs;
-        ctx.numOutputs = 2;
-        ctx.numFrames = n;
-        ctx.midi = midi.empty() ? nullptr : midi.data();
-        ctx.numMidiEvents = static_cast<int>(midi.size());
-        ctx.sampleRate = 44100.0;
-        ctx.transport.valid = true;
-        ctx.transport.bpm = bpm;
-        ctx.transport.tempoValid = tempoValid;
-        ctx.transport.playing = playing;
-        ctx.transport.ppqValid = ppqValid;
-        ctx.transport.ppqPos = ppqStart + static_cast<double>(pos) / 44100.0 * bpm / 60.0;
-        p->process(ctx);
-        pos += n;
-    }
-
-    // Run to absolute frame `end` in blocks of `blk`, with absolute-frame MIDI events.
-    void run(long long end, std::vector<mpc::MidiEvent> evs, int blk)
-    {
-        size_t ei = 0;
-        std::vector<mpc::MidiEvent> m;
-        while (pos < end)
-        {
-            const int n = static_cast<int>(std::min<long long>(blk, end - pos));
-            m.clear();
-            while (ei < evs.size() && evs[ei].sampleOffset < pos + n)
-            {
-                mpc::MidiEvent e = evs[ei++];
-                e.sampleOffset = static_cast<int>(e.sampleOffset - pos);
-                m.push_back(e);
-            }
-            block(n, m);
-        }
-    }
-
-    std::vector<uint8_t> blob() const
-    {
-        std::vector<uint8_t> v;
-        p->saveExtraState(v);
-        return v;
-    }
-};
 
 mpc::MidiEvent on(long long f, int note, int vel = 100) { return mpc::MidiEvent::noteOn(0, note, vel, static_cast<int>(f)); }
 

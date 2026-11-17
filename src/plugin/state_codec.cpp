@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "content_store.h"
 #include "rackboy_sav_tables.h"
 
 namespace mpcboy {
@@ -13,6 +14,7 @@ constexpr size_t kRowBytes = 7;
 constexpr size_t kWavesOffset = kTablesOffset + kNumTables * kRows * kRowBytes;   // 1797
 constexpr size_t kNameLenOffset = kWavesOffset + kNumWaves * kWaveBytes;       // 2053
 constexpr size_t kNameOffset = kNameLenOffset + 1;                             // 2054
+static_assert(kMaxSourceName == kStateMaxName, "the content source name and the state name share one limit");
 static_assert(kWavesOffset == 1797 && kNameLenOffset == 2053 && kNameOffset + 4 == kStateSize, "state layout");
 }  // namespace
 

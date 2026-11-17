@@ -1,10 +1,15 @@
 #include "param_bridge.h"
 
+#include "cpu_probe.h"
+#include "editor_sync.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 
 namespace mpcboy {
+
+static_assert(kEditorCols == ED_Val2 - ED_Vol + 1, "editor columns are ED_Vol .. ED_Val2");
 
 namespace {
 
@@ -34,7 +39,38 @@ std::vector<std::string> cmdLabels()
     return v;
 }
 
-int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
+// Ranges shared by buildParams (the parameter bounds) and proposedSettings (the
+// clamps), so each is stated once.
+constexpr int kVolMax = 15, kEnvSpdMax = 7, kDutyMax = 3, kTspRange = 24, kFineRange = 50, kLenMax = 64;
+constexpr int kNone = -1;
+
+// Parameter index of each per-channel field (kNone = the channel has no such
+// parameter; the ChannelSettings default stays).
+struct ChannelParamIds
+{
+    int on, vol, envDir, envSpd, duty, tsp, fine, pan, len, tbl;
+};
+constexpr ChannelParamIds kChannelParams[4] = {
+    {P1_On, P1_Vol, P1_EnvDir, P1_EnvSpd, P1_Duty, P1_Tsp, P1_Fine, P1_Pan, P1_Len, P1_Tbl},
+    {P2_On, P2_Vol, P2_EnvDir, P2_EnvSpd, P2_Duty, P2_Tsp, P2_Fine, P2_Pan, P2_Len, P2_Tbl},
+    {WV_On, kNone, kNone, kNone, kNone, WV_Tsp, WV_Fine, WV_Pan, WV_Len, WV_Tbl},
+    {NZ_On, NZ_Vol, NZ_EnvDir, NZ_EnvSpd, kNone, NZ_Tsp, kNone, NZ_Pan, NZ_Len, NZ_Tbl}};
+
+// The fields every channel shares.
+void readChannel(const ChannelParamIds& id, const float* v, ChannelSettings& c)
+{
+    auto I = [&](int i) { return static_cast<int>(std::lround(v[i])); };
+    c.enabled = I(id.on) != 0;
+    if (id.vol != kNone) c.volume = static_cast<uint8_t>(std::clamp<int>(I(id.vol), 0, kVolMax));
+    if (id.envDir != kNone) c.envUp = I(id.envDir) == 1;
+    if (id.envSpd != kNone) c.envPeriod = static_cast<uint8_t>(std::clamp<int>(I(id.envSpd), 0, kEnvSpdMax));
+    if (id.duty != kNone) c.duty = static_cast<uint8_t>(std::clamp<int>(I(id.duty), 0, kDutyMax));
+    c.transpose = static_cast<int8_t>(std::clamp<int>(I(id.tsp), -kTspRange, kTspRange));
+    if (id.fine != kNone) c.fineCents = static_cast<int8_t>(std::clamp<int>(I(id.fine), -kFineRange, kFineRange));
+    c.pan = static_cast<Pan>(std::clamp<int>(I(id.pan), 0, 3));
+    c.length = static_cast<uint8_t>(std::clamp<int>(I(id.len), 0, kLenMax));
+    c.tableSlot = static_cast<int8_t>(std::clamp<int>(I(id.tbl), 0, 16) - 1);
+}
 
 }  // namespace
 
@@ -47,7 +83,7 @@ int cmdIndexFromByte(uint8_t b)
 
 uint8_t cmdByteFromIndex(int index)
 {
-    return static_cast<uint8_t>(kCmdLetters[clampi(index, 0, kNumCmdChoices - 1)]);
+    return static_cast<uint8_t>(kCmdLetters[std::clamp<int>(index, 0, kNumCmdChoices - 1)]);
 }
 
 float volumeToGain(float db) { return std::pow(10.0f, db / 20.0f); }
@@ -78,14 +114,14 @@ std::vector<mpc::Param> buildParams()
         const std::string id = c == 0 ? "p1_" : "p2_";
         const std::string nm = c == 0 ? "P1 " : "P2 ";
         add(mpc::boolParam((id + "on").c_str(), (nm + "On").c_str(), c == 0));
-        add(mpc::intParam((id + "vol").c_str(), (nm + "Volume").c_str(), 0, 15, 15));
+        add(mpc::intParam((id + "vol").c_str(), (nm + "Volume").c_str(), 0, kVolMax, 15));
         add(mpc::choiceParam((id + "envdir").c_str(), (nm + "Env Dir").c_str(), kEnvDirLabels, 0));
-        add(mpc::intParam((id + "envspd").c_str(), (nm + "Env Spd").c_str(), 0, 7, 3));
+        add(mpc::intParam((id + "envspd").c_str(), (nm + "Env Spd").c_str(), 0, kEnvSpdMax, 3));
         add(mpc::choiceParam((id + "duty").c_str(), (nm + "Duty").c_str(), kDutyLabels, c == 0 ? 2 : 1));
-        add(mpc::intParam((id + "tsp").c_str(), (nm + "Transp").c_str(), -24, 24, 0, "st"));
-        add(mpc::intParam((id + "fine").c_str(), (nm + "Fine").c_str(), -50, 50, 0, "ct"));
+        add(mpc::intParam((id + "tsp").c_str(), (nm + "Transp").c_str(), -kTspRange, kTspRange, 0, "st"));
+        add(mpc::intParam((id + "fine").c_str(), (nm + "Fine").c_str(), -kFineRange, kFineRange, 0, "ct"));
         add(mpc::choiceParam((id + "pan").c_str(), (nm + "Pan").c_str(), kPanLabels, 2));
-        add(mpc::intParam((id + "len").c_str(), (nm + "Length").c_str(), 0, 64, 0));
+        add(mpc::intParam((id + "len").c_str(), (nm + "Length").c_str(), 0, kLenMax, 0));
         if (c == 0)
         {
             add(mpc::intParam("p1_swtime", "P1 SwpTime", 0, 7, 0));
@@ -99,23 +135,23 @@ std::vector<mpc::Param> buildParams()
     add(mpc::boolParam("wv_on", "WV On", false));
     add(mpc::choiceParam("wv_level", "WV Level", kWaveLevelLabels, 3));
     add(mpc::choiceParam("wv_wave", "WV Wave", waveLabels(), 0));
-    add(mpc::intParam("wv_tsp", "WV Transp", -24, 24, -12, "st"));
-    add(mpc::intParam("wv_fine", "WV Fine", -50, 50, 0, "ct"));
+    add(mpc::intParam("wv_tsp", "WV Transp", -kTspRange, kTspRange, -12, "st"));
+    add(mpc::intParam("wv_fine", "WV Fine", -kFineRange, kFineRange, 0, "ct"));
     add(mpc::choiceParam("wv_pan", "WV Pan", kPanLabels, 2));
-    add(mpc::intParam("wv_len", "WV Length", 0, 64, 0));
+    add(mpc::intParam("wv_len", "WV Length", 0, kLenMax, 0));
     add(mpc::choiceParam("wv_tbl", "WV Table", tableLabels(), 0));
 
     // Noise
     add(mpc::boolParam("nz_on", "NZ On", false));
-    add(mpc::intParam("nz_vol", "NZ Volume", 0, 15, 15));
+    add(mpc::intParam("nz_vol", "NZ Volume", 0, kVolMax, 15));
     add(mpc::choiceParam("nz_envdir", "NZ Env Dir", kEnvDirLabels, 0));
-    add(mpc::intParam("nz_envspd", "NZ Env Spd", 0, 7, 2));
+    add(mpc::intParam("nz_envspd", "NZ Env Spd", 0, kEnvSpdMax, 2));
     add(mpc::choiceParam("nz_width", "NZ Width", {"15-bit", "7-bit"}, 0));
     add(mpc::choiceParam("nz_pmode", "NZ PitchMd", {"Track", "Fixed"}, 0));
     add(mpc::intParam("nz_shape", "NZ Shape", 0, 111, 40));
-    add(mpc::intParam("nz_tsp", "NZ Transp", -24, 24, 0, "st"));
+    add(mpc::intParam("nz_tsp", "NZ Transp", -kTspRange, kTspRange, 0, "st"));
     add(mpc::choiceParam("nz_pan", "NZ Pan", kPanLabels, 2));
-    add(mpc::intParam("nz_len", "NZ Length", 0, 64, 0));
+    add(mpc::intParam("nz_len", "NZ Length", 0, kLenMax, 0));
     add(mpc::choiceParam("nz_tbl", "NZ Table", tableLabels(), 0));
 
     // Editor (51..58). Non-automatable. Defaults are placeholders: the plugin
@@ -138,13 +174,7 @@ std::vector<mpc::Param> buildParams()
     add(mpc::boolParam("imp_rescan", "Imp Rescan", false));
     for (int i = kFirstEditorParam; i < kNumParams; ++i) p[static_cast<size_t>(i)].automatable = false;
 
-#ifdef MPCBOY_CPU_PROBE
-    {
-        mpc::Param dbg = mpc::floatParam("dbg_us", "CPU us", 0.0f, 100000.0f, 0.0f, "us", 1);
-        dbg.automatable = false;   // read-only: the text comes from formatValue
-        add(dbg);
-    }
-#endif
+    CpuProbe::appendParam(p);   // probe builds only
     return p;
 }
 
@@ -162,12 +192,12 @@ bool formatParamValue(int index, float plain, std::string& out)
         {
             const int v = static_cast<int>(std::lround(plain));
             if (v < 0) { out = "--"; return true; }
-            std::snprintf(buf, sizeof(buf), "%02X", clampi(v, 0, 255));
+            std::snprintf(buf, sizeof(buf), "%02X", std::clamp<int>(v, 0, 255));
             out = buf;
             return true;
         }
         case ED_Val1: case ED_Val2:
-            std::snprintf(buf, sizeof(buf), "%02X", clampi(static_cast<int>(std::lround(plain)), 0, 255));
+            std::snprintf(buf, sizeof(buf), "%02X", std::clamp<int>(static_cast<int>(std::lround(plain)), 0, 255));
             out = buf;
             return true;
         default:
@@ -179,76 +209,35 @@ EngineSettings proposedSettings(const float* v)
 {
     auto I = [&](int i) { return static_cast<int>(std::lround(v[i])); };
     EngineSettings s;
-    s.bendRange = static_cast<uint8_t>(clampi(I(P_BendRange), 0, 24));
+    s.bendRange = static_cast<uint8_t>(std::clamp<int>(I(P_BendRange), 0, 24));
     s.retrigger = I(P_Retrigger) == 1 ? RetriggerMode::Legato : RetriggerMode::Always;
     s.noteOff = I(P_NoteOff) == 1 ? NoteOffMode::Ring : NoteOffMode::Cut;
     s.velToVol = I(P_VelVol) != 0;
     s.tick.enabled = true;
     s.tick.mode = I(P_TblClock) == 1 ? TickMode::Free : TickMode::Sync;
-    s.tick.ticksPerBeat = static_cast<uint16_t>(kTicksPerBeatChoices[clampi(I(P_TblRate), 0, kNumTickChoices - 1)]);
+    s.tick.ticksPerBeat = static_cast<uint16_t>(kTicksPerBeatChoices[std::clamp<int>(I(P_TblRate), 0, kNumTickChoices - 1)]);
     s.tick.phase = I(P_TblPhase) == 1 ? TickPhase::Grid : TickPhase::Note;
     s.tick.freeHz = v[P_FreeHz];
 
-    auto pan = [&](int i) { return static_cast<Pan>(clampi(I(i), 0, 3)); };
-    auto tbl = [&](int i) { return static_cast<int8_t>(clampi(I(i), 0, 16) - 1); };
+    for (int c = 0; c < 4; ++c) readChannel(kChannelParams[c], v, s.ch[c]);
 
-    // Pulse 1
+    // Channel-specific fields.
     {
-        ChannelSettings& c = s.ch[0];
-        c.enabled = I(P1_On) != 0;
-        c.volume = static_cast<uint8_t>(clampi(I(P1_Vol), 0, 15));
-        c.envUp = I(P1_EnvDir) == 1;
-        c.envPeriod = static_cast<uint8_t>(clampi(I(P1_EnvSpd), 0, 7));
-        c.duty = static_cast<uint8_t>(clampi(I(P1_Duty), 0, 3));
-        c.transpose = static_cast<int8_t>(clampi(I(P1_Tsp), -24, 24));
-        c.fineCents = static_cast<int8_t>(clampi(I(P1_Fine), -50, 50));
-        c.pan = pan(P1_Pan);
-        c.length = static_cast<uint8_t>(clampi(I(P1_Len), 0, 64));
-        c.sweepTime = static_cast<uint8_t>(clampi(I(P1_SwTime), 0, 7));
+        ChannelSettings& c = s.ch[0];   // Pulse 1 sweep
+        c.sweepTime = static_cast<uint8_t>(std::clamp<int>(I(P1_SwTime), 0, 7));
         c.sweepDown = I(P1_SwDir) == 1;
-        c.sweepShift = static_cast<uint8_t>(clampi(I(P1_SwShift), 0, 7));
-        c.tableSlot = tbl(P1_Tbl);
+        c.sweepShift = static_cast<uint8_t>(std::clamp<int>(I(P1_SwShift), 0, 7));
     }
-    // Pulse 2
     {
-        ChannelSettings& c = s.ch[1];
-        c.enabled = I(P2_On) != 0;
-        c.volume = static_cast<uint8_t>(clampi(I(P2_Vol), 0, 15));
-        c.envUp = I(P2_EnvDir) == 1;
-        c.envPeriod = static_cast<uint8_t>(clampi(I(P2_EnvSpd), 0, 7));
-        c.duty = static_cast<uint8_t>(clampi(I(P2_Duty), 0, 3));
-        c.transpose = static_cast<int8_t>(clampi(I(P2_Tsp), -24, 24));
-        c.fineCents = static_cast<int8_t>(clampi(I(P2_Fine), -50, 50));
-        c.pan = pan(P2_Pan);
-        c.length = static_cast<uint8_t>(clampi(I(P2_Len), 0, 64));
-        c.tableSlot = tbl(P2_Tbl);
+        ChannelSettings& c = s.ch[2];   // Wave
+        c.waveLevel = static_cast<WaveLevel>(std::clamp<int>(I(WV_Level), 0, 3));
+        c.waveSlot = static_cast<uint8_t>(std::clamp<int>(I(WV_Wave), 0, 15));
     }
-    // Wave
     {
-        ChannelSettings& c = s.ch[2];
-        c.enabled = I(WV_On) != 0;
-        c.waveLevel = static_cast<WaveLevel>(clampi(I(WV_Level), 0, 3));
-        c.waveSlot = static_cast<uint8_t>(clampi(I(WV_Wave), 0, 15));
-        c.transpose = static_cast<int8_t>(clampi(I(WV_Tsp), -24, 24));
-        c.fineCents = static_cast<int8_t>(clampi(I(WV_Fine), -50, 50));
-        c.pan = pan(WV_Pan);
-        c.length = static_cast<uint8_t>(clampi(I(WV_Len), 0, 64));
-        c.tableSlot = tbl(WV_Tbl);
-    }
-    // Noise
-    {
-        ChannelSettings& c = s.ch[3];
-        c.enabled = I(NZ_On) != 0;
-        c.volume = static_cast<uint8_t>(clampi(I(NZ_Vol), 0, 15));
-        c.envUp = I(NZ_EnvDir) == 1;
-        c.envPeriod = static_cast<uint8_t>(clampi(I(NZ_EnvSpd), 0, 7));
+        ChannelSettings& c = s.ch[3];   // Noise
         c.noiseWidth7 = I(NZ_Width) == 1;
         c.noisePitchMode = I(NZ_PitchMode) == 1 ? NoisePitchMode::Fixed : NoisePitchMode::Track;
-        c.noiseFixedShape = static_cast<uint8_t>(clampi(I(NZ_Shape), 0, 111));
-        c.transpose = static_cast<int8_t>(clampi(I(NZ_Tsp), -24, 24));
-        c.pan = pan(NZ_Pan);
-        c.length = static_cast<uint8_t>(clampi(I(NZ_Len), 0, 64));
-        c.tableSlot = tbl(NZ_Tbl);
+        c.noiseFixedShape = static_cast<uint8_t>(std::clamp<int>(I(NZ_Shape), 0, 111));
     }
     return s;
 }

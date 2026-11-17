@@ -22,6 +22,11 @@ rackboy::sav::RackboyInstrument encode_instrument(rackboy::core::VoiceChannel ch
 // NR32 level code for a wave level (0 mute, 1 = 100 %, 2 = 50 %, 3 = 25 %).
 uint8_t wave_level_code(WaveLevel l);
 
+// Wave level as a percentage (100 / 50 / 25 / 0) and back: the nearest level
+// (>= 75 gives 100 %, >= 38 gives 50 %, otherwise 25 %).
+int waveLevelPercent(WaveLevel l);
+WaveLevel waveLevelFromPercent(int pct);
+
 // The companion data for table_trigger.
 rackboy::table::TriggerExtras encode_trigger_extras(rackboy::core::VoiceChannel ch,
                                                     const ChannelSettings& s,

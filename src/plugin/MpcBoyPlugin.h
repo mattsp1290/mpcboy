@@ -17,13 +17,11 @@
 #include <string>
 #include <vector>
 
-#ifdef MPCBOY_CPU_PROBE
-#include <thread>
-#endif
-
 #include "content_store.h"
+#include "cpu_probe.h"
 #include "editor_sync.h"
 #include "engine.h"
+#include "import_triggers.h"
 #include "import_worker.h"
 #include "mpc_plugin.h"
 #include "param_bridge.h"
@@ -51,11 +49,10 @@ public:
     mpcboy::Engine& engine() { return *engine_; }   // tests only (register-write spy)
     // Time source of the import-trigger debounce (steady_clock nanoseconds by
     // default). Tests inject a fake clock; pass nullptr to restore the default.
-    using NowFn = long long (*)();
+    using NowFn = mpcboy::ImportTriggers::NowFn;
     void setClockForTest(NowFn fn);
 
 private:
-    void onImportTrigger(int index, float plainValue);
     void serviceImport();   // audio thread: trigger resets, list changes
     void snapshotSettings(bool force);
     void resyncCursor();
@@ -69,17 +66,7 @@ private:
     std::atomic<bool> resetPending_{false};
     std::atomic<uint32_t> hostRefreshes_{0};
 
-    // Import triggers (WP11). trigHigh_: the parameter is currently on (edge
-    // detection); trigReset_: process() must write it back to 0; trigLastNs_:
-    // time of the last accepted edge (250 ms debounce).
-    std::atomic<bool> trigHigh_[mpcboy::kNumImportTriggers];
-    std::atomic<bool> trigReset_[mpcboy::kNumImportTriggers];
-    std::atomic<long long> trigLastNs_[mpcboy::kNumImportTriggers];
-    // An accepted edge waits here until process() acts on it, and loadExtraState()
-    // discards it: the SDK writes the parameters of a chunk before it calls
-    // loadExtraState(), so a trigger restored as 1 is cancelled before it acts.
-    std::atomic<bool> trigPending_[mpcboy::kNumImportTriggers];
-    std::atomic<NowFn> now_;
+    mpcboy::ImportTriggers triggers_;   // WP11 import trigger parameters
 
     // Audio thread only.
     float lastNorm_[mpcboy::kNumEngineParams];
@@ -90,15 +77,6 @@ private:
     uint32_t seenImportVersion_ = 0;
     mpcboy::EngineMidiEvent midi_[kMaxMidiEvents + 1];
 
-#ifdef MPCBOY_CPU_PROBE
-    void workerLoop();
-    static constexpr uint32_t kRing = 32768;   // ~95 s of 128-frame blocks
-    std::atomic<uint32_t> ring_[kRing];
-    std::atomic<uint32_t> head_{0};
-    std::atomic<uint32_t> meanX10_{0};
-    std::atomic<uint32_t> p99X10_{0};
-    std::atomic<bool> stop_{false};
-    std::thread worker_;
-    bool probeNoteHeld_ = false;
-#endif
+    // Declared last: destroyed first (joins the probe thread in probe builds).
+    mpcboy::CpuProbe probe_{*this};
 };

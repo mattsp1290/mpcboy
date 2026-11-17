@@ -1,8 +1,1 @@
-#!/usr/bin/env bash
-# Wrapper so CMake can use zig as a single-word compiler. ZIG may be multi-word.
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [ -z "${ZIG:-}" ]; then
-  if [ -x "$here/.tools/zigenv/bin/python" ]; then ZIG="$here/.tools/zigenv/bin/python -m ziglang"; else ZIG=zig; fi
-fi
-# shellcheck disable=SC2086
-exec $ZIG ar "$@"
+zig-tool

@@ -12,6 +12,7 @@
 
 #include "channel_settings.h"
 #include "mpc_plugin.h"
+#include "table_bank.h"
 
 namespace mpcboy {
 
@@ -47,8 +48,7 @@ enum Params : int
 
 constexpr int kNumEngineParams = ED_Table;   // 51: programs list values for 0..50 only
 constexpr int kFirstEditorParam = ED_Table;
-constexpr int kNumEditorCells = 6;           // ED_Vol .. ED_Val2
-constexpr int kNumImportTriggers = 3;        // Imp_Go .. Imp_Rescan
+constexpr int kNumImportTriggers = Imp_Rescan - Imp_Go + 1;   // Imp_Go .. Imp_Rescan
 
 #ifdef MPCBOY_CPU_PROBE
 constexpr int kTotalParams = kNumParams + 1;
@@ -56,9 +56,7 @@ constexpr int kTotalParams = kNumParams + 1;
 constexpr int kTotalParams = kNumParams;
 #endif
 
-// LSDJ table commands offered by Row Cmd1/Cmd2 (index 0 = no command).
-constexpr int kNumCmdChoices = 12;
-constexpr char kCmdLetters[kNumCmdChoices] = {0, 'D', 'E', 'H', 'K', 'L', 'N', 'P', 'R', 'S', 'V', 'W'};
+// LSDJ table commands offered by Row Cmd1/Cmd2: kCmdLetters in table_bank.h.
 // Unknown bytes (possible after a .sav import) map to index 0.
 int cmdIndexFromByte(uint8_t b);
 uint8_t cmdByteFromIndex(int index);

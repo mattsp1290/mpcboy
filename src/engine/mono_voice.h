@@ -18,10 +18,9 @@ namespace mpcboy {
 class MonoVoice
 {
 public:
-    // `apu` must outlive the voice. `waves` points at 16 wave slots of 16
-    // bytes (32 packed 4-bit samples), or is nullptr (then no wave RAM write
-    // happens before a Wave trigger).
-    void init(rackboy_apu_t* apu, const uint8_t (*waves)[kWaveBytes]);
+    // `apu` must outlive the voice. Wave data is read from the bank passed to
+    // trigger() (RackboyBank::waves[].samples).
+    void init(rackboy_apu_t* apu);
 
     // Clear note stack, voice/table state and bend. Does not touch the APU.
     void reset();
@@ -61,7 +60,6 @@ private:
     void rewriteAllPitch();
 
     rackboy_apu_t* apu_ = nullptr;
-    const uint8_t (*waves_)[kWaveBytes] = nullptr;
     EngineSettings s_;
     NoteStack stack_;
     rackboy::core::VoiceState voices_[4];

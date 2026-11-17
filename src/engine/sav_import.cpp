@@ -11,24 +11,9 @@
 #include "rackboy_sav_tables.h"
 #include "rackboy_sav_types.h"
 #include "rackboy_sav_waves.h"
+#include "table_bank.h"
 
 namespace mpcboy {
-
-namespace {
-
-bool isSupportedCommand(uint8_t c)
-{
-    switch (c)
-    {
-        case 'D': case 'E': case 'H': case 'K': case 'L': case 'N':
-        case 'P': case 'R': case 'S': case 'V': case 'W':
-            return true;
-        default:
-            return false;
-    }
-}
-
-}  // namespace
 
 const char* importResultName(ImportResult r)
 {

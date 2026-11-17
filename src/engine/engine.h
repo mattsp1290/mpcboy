@@ -37,9 +37,10 @@ struct EngineBlock
     int numMidi = 0;
 
     // External table tick positions in host frames from the start of the
-    // block, ascending (tests, the legacy CPU probe). They are merged with the
-    // ticks of the engine's own TickClock (EngineSettings::tick). At equal
-    // offsets MIDI is applied before the tick.
+    // block, ascending (tests, the legacy CPU probe). Read only when the
+    // engine's own TickClock is off (EngineSettings::tick.enabled == false);
+    // with the clock on, the clock is the only tick source. At equal offsets
+    // MIDI is applied before the tick.
     const int* tickOffsets = nullptr;
     int numTicks = 0;
 
@@ -72,14 +73,12 @@ public:
 
     // Table / wave content the voice reads. The engine starts with an empty
     // bank of its own (no tables) and 16 default wave slots.
-    void setBank(const rackboy::sav::RackboyBank* bank) { bank_ = bank ? bank : &ownBank_; }
     rackboy::sav::RackboyBank& ownBank() { return ownBank_; }
-    void setWave(int slot, const uint8_t bytes[kWaveBytes]);
 
     // Use a ContentStore (WP5) as the source of tables and waves instead of the
-    // engine's own bank: render() begins every block with store->beginBlock()
-    // (consuming staged content) and keeps the wave slots in sync. The store
-    // must outlive the engine; nullptr detaches.
+    // engine's own bank. The owner calls store->beginBlock() before render()
+    // (it consumes staged content and refreshes the bank the engine reads). The
+    // store must outlive the engine; nullptr detaches.
     void attachContent(ContentStore* store);
     ContentStore* content() const { return content_; }
 
@@ -95,21 +94,19 @@ public:
 private:
     void renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right);
     void applyMidi(const EngineMidiEvent& e);
+    int clockTickIn(int c0, int n) const;
     void onNoteTriggered(int blockOffset);   // restarts the tick clock's note phase
-    void syncWaves();
 
     rackboy_apu_t apu_;
     MonoVoice voice_;
     TickClock clock_;
     ContentStore* content_ = nullptr;
-    uint32_t syncedGen_ = ~0u;
     bool clockOn_ = false;     // clock_.beginBlock() was called for this render()
     PolyphaseResampler48To441 resampler_;
     DcBlocker dc_;
     EngineSettings settings_;
     rackboy::sav::RackboyBank ownBank_;
     const rackboy::sav::RackboyBank* bank_;
-    uint8_t waves_[kNumWaves][kWaveBytes];
     uint64_t apuFrames_ = 0;
     int curHostOffset_ = 0;     // chunk-relative offset of the event being applied
     int curBlockOffset_ = 0;    // block-relative (chunk base + curHostOffset_)

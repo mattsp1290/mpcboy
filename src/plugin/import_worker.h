@@ -27,6 +27,7 @@
 
 #include "content_store.h"
 #include "sav_import.h"
+#include "seqlock_words.h"
 
 namespace mpcboy {
 
@@ -48,15 +49,10 @@ public:
     bool requestImport(int index);
 
     // ---- state shared with the plugin (UI / any non-audio thread; short mutex) -
-    // The file name of the import behind the newest content (saved in the
-    // project): follows what the audio thread actually made live, so a project
-    // load that replaces a pending import, or an Imp Undo, does not leave a name
-    // for content that is not live (see ContentStore::importTicket). Without an
-    // import in the newest content it is the name set by setLastImportedName (the
-    // one stored in the loaded project). A name a plugin
-    // would like selected after the next scan (set after a state load).
-    std::string lastImportedName() const;
-    void setLastImportedName(const std::string& name);
+    // (The name of the file behind the newest content travels with the content:
+    // ContentStore::readLatest(c, &src).)
+    // A name the plugin would like selected after the next scan (set after a
+    // state load).
     void setPreferredName(const std::string& name);
 
     int fileCount() const;
@@ -112,20 +108,19 @@ private:
     // Worker-thread private.
     std::vector<std::string> files_;
 
-    // Published display names: kDispWords 32-bit words per entry (8 characters
-    // plus NUL, zero padded), one writer (the worker, in scan()), any number of
-    // readers. Words are relaxed atomics inside the seqlock protocol, which
-    // keeps it free of data races for TSan.
-    static constexpr int kDispWords = 3;
+    // Published display names: up to kMaxImportFiles entries of 12 bytes (8
+    // characters plus NUL, zero padded), one writer (the worker, in scan()), any
+    // number of readers, behind a seqlock.
+    struct DisplayTable
+    {
+        uint32_t count;
+        char names[kMaxImportFiles][12];
+    };
     void publishDisplay(const std::vector<std::string>& names);
-    std::atomic<uint32_t> dispSeq_{0};
-    std::atomic<uint32_t> dispCount_{0};
-    std::atomic<uint32_t> dispWords_[kMaxImportFiles * kDispWords];
+    SeqlockWords<sizeof(DisplayTable)> display_;
 
     mutable std::mutex mu_;   // guards the members below
     std::vector<std::string> shared_;
-    std::string lastImported_;                              // from the loaded project
-    std::vector<std::pair<uint32_t, std::string>> imports_by_ticket_;   // recent imports, oldest first
     std::string preferred_;
     ImportReport report_;
 

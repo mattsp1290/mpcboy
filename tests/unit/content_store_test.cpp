@@ -215,6 +215,7 @@ TEST_CASE("content: an Engine with an attached store plays staged tables and wav
     r.s.ch[0].tableSlot = 3;
     r.apply();
     // empty content: the table slot has no rows, so the pitch stays on the note
+    store->beginBlock();
     r.run(1000, {noteOn(0, 60), tickAt(500)});
     auto fw = freqWrites(r.log, 0xFF13, 0xFF14);
     for (const auto& w : fw) CHECK(w.freq == rackboy::core::pitch_square_11bit(-12));
@@ -224,7 +225,8 @@ TEST_CASE("content: an Engine with an attached store plays staged tables and wav
     c.tables.tables[3] = c.tables.tables[2];   // Octave in slot 3
     store->stage(c);
     const size_t mark = r.log.size();
-    r.run(2000, {noteOn(0, 60), tickAt(500)});   // new block: staged content is consumed first
+    store->beginBlock();                         // the owner consumes staged content first
+    r.run(2000, {noteOn(0, 60), tickAt(500)});
     fw = freqWrites(r.log, 0xFF13, 0xFF14, mark);
     REQUIRE(fw.size() >= 3);
     CHECK(fw[2].freq == rackboy::core::pitch_square_11bit(-12 + 12));   // row 1 of Octave

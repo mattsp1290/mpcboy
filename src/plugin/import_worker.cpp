@@ -54,7 +54,6 @@ std::string displayStem(std::string n)
 
 ImportWorker::ImportWorker(std::string dir, ContentStore& store) : dir_(std::move(dir)), store_(store)
 {
-    for (auto& w : dispWords_) w.store(0, std::memory_order_relaxed);
     scanRequested_.store(true, std::memory_order_relaxed);   // the initial scan
     thread_ = std::thread([this] { run(); });
 }
@@ -70,22 +69,6 @@ bool ImportWorker::requestImport(int index)
     if (index < 0) return false;
     int expected = -1;
     return importIdx_.compare_exchange_strong(expected, index, std::memory_order_acq_rel);
-}
-
-std::string ImportWorker::lastImportedName() const
-{
-    const uint32_t t = store_.importTicket();   // before the mutex: it may wait one memcpy
-    std::lock_guard<std::mutex> g(mu_);
-    if (t != 0)
-        for (const auto& e : imports_by_ticket_)
-            if (e.first == t) return e.second;
-    return lastImported_;
-}
-
-void ImportWorker::setLastImportedName(const std::string& name)
-{
-    std::lock_guard<std::mutex> g(mu_);
-    lastImported_ = name.size() > kStateMaxName ? name.substr(0, kStateMaxName) : name;
 }
 
 void ImportWorker::setPreferredName(const std::string& name)
@@ -133,47 +116,28 @@ size_t ImportWorker::displayTextInto(int index, char* buf) const
         return put(t);
     }
     if (index < 0) return put("-");
-    char name[kDispWords * 4 + 1];
+    DisplayTable t;
     bool ok = false;
-    for (int attempt = 0; attempt < 64 && !ok; ++attempt)
-    {
-        const uint32_t s1 = dispSeq_.load(std::memory_order_acquire);
-        if (s1 & 1u) continue;   // a scan is publishing: retry (bounded, never blocks)
-        if (index >= static_cast<int>(dispCount_.load(std::memory_order_relaxed)))
-        {
-            std::atomic_thread_fence(std::memory_order_acquire);
-            if (dispSeq_.load(std::memory_order_relaxed) == s1) return put("-");
-            continue;
-        }
-        uint32_t w[kDispWords];
-        for (int i = 0; i < kDispWords; ++i) w[i] = dispWords_[index * kDispWords + i].load(std::memory_order_relaxed);
-        std::atomic_thread_fence(std::memory_order_acquire);
-        if (dispSeq_.load(std::memory_order_relaxed) != s1) continue;
-        std::memcpy(name, w, sizeof(w));
-        name[sizeof(w)] = '\0';
-        ok = true;
-    }
-    if (!ok || name[0] == '\0') return put("-");
+    for (int attempt = 0; attempt < 64 && !ok; ++attempt)   // bounded, never blocks
+        ok = display_.tryRead(&t, sizeof(t));
+    if (!ok) return put("-");
+    if (index >= static_cast<int>(t.count)) return put("-");
+    const char* name = t.names[index];
+    if (name[0] == '\0') return put("-");
     return put(name);
 }
 
 void ImportWorker::publishDisplay(const std::vector<std::string>& names)
 {
-    uint32_t buf[kMaxImportFiles * kDispWords] = {};
+    DisplayTable t = {};
     const size_t n = names.size() < static_cast<size_t>(kMaxImportFiles) ? names.size() : static_cast<size_t>(kMaxImportFiles);
     for (size_t i = 0; i < n; ++i)
     {
         const std::string stem = displayStem(names[i]);
-        char e[kDispWords * 4] = {};
-        std::memcpy(e, stem.data(), stem.size() < 8 ? stem.size() : 8);
-        std::memcpy(&buf[i * kDispWords], e, sizeof(e));
+        std::memcpy(t.names[i], stem.data(), stem.size() < 8 ? stem.size() : 8);
     }
-    const uint32_t s = dispSeq_.load(std::memory_order_relaxed);
-    dispSeq_.store(s + 1, std::memory_order_relaxed);   // odd: write in progress
-    std::atomic_thread_fence(std::memory_order_release);
-    for (size_t i = 0; i < n * kDispWords; ++i) dispWords_[i].store(buf[i], std::memory_order_relaxed);
-    dispCount_.store(static_cast<uint32_t>(n), std::memory_order_relaxed);
-    dispSeq_.store(s + 2, std::memory_order_release);   // even: stable
+    t.count = static_cast<uint32_t>(n);
+    display_.write(&t, sizeof(t));
 }
 
 ImportReport ImportWorker::lastReport() const
@@ -270,16 +234,11 @@ void ImportWorker::importFile(int index)
     if (r == ImportResult::Ok)
     {
         errCode_.store(0, std::memory_order_release);
-        // Register the name under the ticket before staging, so a save that sees
-        // the staged slot can already resolve it.
-        const uint32_t ticket = store_.nextImportTicket();
         {
             std::lock_guard<std::mutex> g(mu_);
-            imports_by_ticket_.emplace_back(ticket, name);
-            if (imports_by_ticket_.size() > 8) imports_by_ticket_.erase(imports_by_ticket_.begin());
             report_ = rep;
         }
-        store_.stageImportWithTicket(c, ticket);
+        store_.stageImport(c, name.c_str());   // the name travels with the content
         imports_.fetch_add(1, std::memory_order_release);
     }
     else

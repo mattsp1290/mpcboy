@@ -29,6 +29,8 @@ add_compile_options(-ffunction-sections -fdata-sections -Wall -Wextra -Wno-unuse
 file(GLOB GBCORE_SRC CONFIGURE_DEPENDS
   src/apu/*.c src/core/*.cpp src/table/*.cpp src/sav/*.cpp src/dsp/*.cpp
   src/engine/*.cpp)
+# The vendored reference resampler is test-only (the engine uses the polyphase one).
+list(REMOVE_ITEM GBCORE_SRC "${CMAKE_SOURCE_DIR}/src/dsp/rackboy_resampler.cpp")
 list(APPEND GBCORE_SRC third_party/vendor/sameboy/apu.c)
 add_library(gbcore STATIC ${GBCORE_SRC})
 target_include_directories(gbcore PUBLIC
@@ -78,7 +80,7 @@ if(MPCBOY_TARGET STREQUAL "native")
     tests/rackboy/common/*.cpp tests/rackboy/support/*.cpp)
   file(GLOB MPCBOY_TEST_SRC CONFIGURE_DEPENDS tests/unit/*.cpp)
   add_executable(mpcboy_tests tests/rackboy/doctest_main.cpp
-    ${RACKBOY_TEST_SRC} ${MPCBOY_TEST_SRC})
+    ${RACKBOY_TEST_SRC} ${MPCBOY_TEST_SRC} src/dsp/rackboy_resampler.cpp)
   target_include_directories(mpcboy_tests PRIVATE
     tests/third_party tests/rackboy tests/rackboy/support)
   target_link_libraries(mpcboy_tests PRIVATE plugincore)   # exports gbcore

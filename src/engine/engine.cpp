@@ -30,6 +30,22 @@ void fillDefaultWave(uint8_t out[kWaveBytes])
     }
 }
 
+// Next event offset inside [c0, c0 + n) of an ascending list, or -1. Offsets
+// are clamped to [0, frames - 1]; entries of earlier chunks are skipped by
+// advancing `i`. `offsetOf` maps an element to its raw offset.
+template <typename T, typename F>
+int nextOffset(const T* list, int count, int& i, int frames, int c0, int n, F offsetOf)
+{
+    while (i < count)
+    {
+        int o = offsetOf(list[i]);
+        o = o < 0 ? 0 : (o > frames - 1 ? frames - 1 : o);
+        if (o < c0) { ++i; continue; }
+        return o < c0 + n ? o : -1;
+    }
+    return -1;
+}
+
 }  // namespace
 
 Engine::Engine()
@@ -37,38 +53,17 @@ Engine::Engine()
     std::memset(&apu_, 0, sizeof(apu_));   // reset() below reads the (test-only) write spy before the first init
     rackboy::sav::bank_reset(ownBank_);
     bank_ = &ownBank_;
-    for (int i = 0; i < kNumWaves; ++i) fillDefaultWave(waves_[i]);
-    voice_.init(&apu_, waves_);
+    // Default saw in every wave slot until content is attached. The slots stay
+    // unoccupied, so the table `W` command ignores them.
+    for (int i = 0; i < kNumWaves; ++i) fillDefaultWave(ownBank_.waves[i].samples);
+    voice_.init(&apu_);
     reset();
-}
-
-void Engine::setWave(int slot, const uint8_t bytes[kWaveBytes])
-{
-    if (slot < 0 || slot >= kNumWaves) return;
-    std::memcpy(waves_[slot], bytes, kWaveBytes);
 }
 
 void Engine::attachContent(ContentStore* store)
 {
     content_ = store;
-    syncedGen_ = ~0u;
-    if (store)
-    {
-        bank_ = &store->bank();
-        syncWaves();
-    }
-    else
-    {
-        bank_ = &ownBank_;
-    }
-}
-
-void Engine::syncWaves()
-{
-    if (!content_ || syncedGen_ == content_->liveGeneration()) return;
-    const Content& c = content_->live();
-    for (int i = 0; i < kNumWaves; ++i) std::memcpy(waves_[i], c.waves.waves[i], kWaveBytes);
-    syncedGen_ = content_->liveGeneration();
+    bank_ = store ? &store->bank() : &ownBank_;
 }
 
 void Engine::reset()
@@ -81,7 +76,7 @@ void Engine::reset()
     rackboy_apu_set_frame_sequencer(&apu_, 1);         // length / envelope / sweep clocks (MPCBOY LOCAL MOD)
     rackboy_apu_write_reg(&apu_, kNR50, 0x77);    // NR50: both sides at maximum (NR52 = 0x80 was written by init)
     rackboy_apu_write_reg(&apu_, kNR51, 0x00);    // NR51: silent until a note
-    rackboy_apu_write_wave_ram(&apu_, waves_[0]);      // wave RAM = slot 0
+    rackboy_apu_write_wave_ram(&apu_, bank_->waves[0].samples);   // wave RAM = slot 0
     voice_.reset();
     voice_.applySettings(settings_);
     resampler_.reset(kResamplerPrefill);
@@ -136,11 +131,6 @@ void Engine::applyMidi(const EngineMidiEvent& e)
 
 void Engine::render(const EngineBlock& block, float* left, float* right, int frames)
 {
-    if (content_)
-    {
-        content_->beginBlock();   // consume staged content, republish
-        syncWaves();
-    }
     clockOn_ = settings_.tick.enabled;
     if (clockOn_)
     {
@@ -160,6 +150,13 @@ void Engine::render(const EngineBlock& block, float* left, float* right, int fra
     }
     if (clockOn_) clock_.endBlock();
     clockOn_ = false;
+}
+
+// The engine clock's next tick inside [c0, c0 + n), or -1.
+int Engine::clockTickIn(int c0, int n) const
+{
+    const int p = clock_.peek();
+    return (p >= c0 && p < c0 + n) ? p : -1;
 }
 
 void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right)
@@ -187,42 +184,20 @@ void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, fl
     int mi = 0, ti = 0;
     // Offsets are relative to the whole host block; out-of-range ones clamp to
     // [0, frames - 1] (the SDK does the same). Events of earlier chunks are
-    // skipped by the index scans below.
+    // skipped by the index scans in nextOffset.
     while (true)
     {
-        // Find the next event inside this chunk: MIDI before tick at equal offsets.
-        int mOff = -1, tOff = -1;
-        while (mi < block.numMidi)
-        {
-            int o = block.midi[mi].offset;
-            o = o < 0 ? 0 : (o > frames - 1 ? frames - 1 : o);
-            if (o < c0) { ++mi; continue; }
-            if (o >= c0 + n) { mOff = -1; break; }
-            mOff = o;
-            break;
-        }
-        while (ti < block.numTicks)
-        {
-            int o = block.tickOffsets[ti];
-            o = o < 0 ? 0 : (o > frames - 1 ? frames - 1 : o);
-            if (o < c0) { ++ti; continue; }
-            if (o >= c0 + n) { tOff = -1; break; }
-            tOff = o;
-            break;
-        }
-        // The engine's own clock: its next tick inside this chunk, if any.
-        int cOff = -1;
-        if (clockOn_)
-        {
-            const int p = clock_.peek();
-            if (p >= c0 && p < c0 + n) cOff = p;
-        }
-        if (mOff < 0 && tOff < 0 && cOff < 0) break;
+        // Two streams: MIDI, and ticks from exactly one source (the clock, or
+        // EngineBlock::tickOffsets when the clock is off). MIDI wins ties.
+        const int mOff = nextOffset(block.midi, block.numMidi, mi, frames, c0, n,
+                                    [](const EngineMidiEvent& e) { return e.offset; });
+        const int tOff = clockOn_ ? clockTickIn(c0, n)
+                                  : nextOffset(block.tickOffsets, block.numTicks, ti, frames, c0, n,
+                                               [](int o) { return o; });
+        if (mOff < 0 && tOff < 0) break;
 
-        // MIDI before ticks at equal offsets; external ticks before clock ticks.
-        const int tickMin = (tOff >= 0 && (cOff < 0 || tOff <= cOff)) ? tOff : cOff;
-        const bool takeMidi = (mOff >= 0) && (tickMin < 0 || mOff <= tickMin);
-        const int evOff = takeMidi ? mOff : tickMin;
+        const bool takeMidi = (mOff >= 0) && (tOff < 0 || mOff <= tOff);
+        const int evOff = takeMidi ? mOff : tOff;
         const int t = evOff - c0;
         // Absolute mapping: APU frame round((outputsSoFar + t) * 160 / 147) minus
         // the APU frames already rendered before this chunk. Rounding once from
@@ -235,8 +210,11 @@ void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, fl
         curHostOffset_ = t;
         curBlockOffset_ = evOff;
         if (takeMidi) { applyMidi(block.midi[mi]); ++mi; }
-        else if (tOff >= 0 && tOff == tickMin) { voice_.tick(*bank_); ++ti; }
-        else { voice_.tick(*bank_); clock_.pop(); }
+        else
+        {
+            voice_.tick(*bank_);
+            if (clockOn_) clock_.pop(); else ++ti;
+        }
     }
     runTo(nIn);
 
