@@ -43,6 +43,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
   cmake --build --preset mac-vst
   lipo -archs build/mac-vst/mpcboy.vst/Contents/MacOS/mpcboy
   codesign -v build/mac-vst/mpcboy.vst
+  echo "== editor offscreen render (build/editor-preview)"
+  build/mac-vst/render_editor ui/art build/editor-preview 2 >/dev/null
   for sr in 44100 48000 96000 192000; do
     build/native/host_sim build/mac-vst/mpcboy.vst/Contents/MacOS/mpcboy test \
       --sr "$sr" --seconds 3 --notes 48,60 --playing | tee build/mac-vst/host_sim_$sr.log | tail -1

@@ -193,10 +193,15 @@ Caveats:
 
 - VST2 only. Live 12 still loads VST2, but only from the system folder with the
   setting above; there is no AU/VST3 build.
-- No custom editor yet: Live shows its generic parameter panel (use Configure to
-  pick parameters). The bundle already carries the shared UI art in
-  `Contents/Resources/ui/` for the coming editor. The table editor cursor and the
-  `Imp *` parameters work as plain parameters.
+- The plugin has its own Game Boy editor window (1280 x 704 points): the same
+  pages, art and layout as the MPC skin, plus a tab bar to switch pages. Knobs
+  drag vertically (Shift for fine, double-click resets), faders follow the mouse,
+  segments and toggles are clicked, menu sliders step on click (Shift steps back)
+  or drag. Edits of parameters 0-50 are recorded as automation; the table cursor,
+  cells and `Imp *` buttons are not automatable. The TABLE page shows the edit
+  table as a live LSDJ-style grid (it updates while Live processes audio). Art is
+  read from `Contents/Resources/ui/`. `build/mac-vst/render_editor ui/art
+  build/editor-preview 2` renders every page to PNG without a DAW.
 - Host rates 44.1, 48, 96 and 192 kHz work; at 88.2 kHz the plugin is silent.
   96 and 192 kHz use a table-driven polyphase resampler (L = 2 / 4 phases,
   same kernel as the vendored reference resampler, matching it to better than

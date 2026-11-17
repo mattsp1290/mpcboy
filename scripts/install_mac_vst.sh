@@ -59,7 +59,7 @@ Ableton Live 12:
   1. Preferences > Plug-ins > turn ON "Use VST2 Plug-in System Folders".
   2. Click "Rescan" (hold Option while clicking for a full rescan if mpcboy does not show up).
   3. Browser > Plug-ins > mpcboy (VST2 instrument). Drop it on a MIDI track.
-  4. Live shows its generic parameter panel (Configure to pick parameters); there is no custom editor.
+  4. Open the device's plugin window for the Game Boy editor (tabs at the bottom switch pages).
   Live runs at 44.1 or 48 kHz (also 96 / 192 kHz). 88.2 kHz is unsupported and the plugin is silent there.
   To re-install after a code change, run this script again (Live must rescan or restart).
   LSDJ .sav files go in: $DEST/Contents/Resources/Content/Import

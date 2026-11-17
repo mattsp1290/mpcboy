@@ -48,6 +48,14 @@ bool EditorSync::onCellParam(int col, int value, int table, int row, ContentStor
     return applied;
 }
 
+bool EditorSync::applyCell(int col, int value, int table, int row, ContentStore& store)
+{
+    if (col < 0 || col >= kEditorCols) return false;
+    const int t = std::clamp<int>(table, 0, kNumTables - 1);
+    const int r = std::clamp<int>(row, 0, static_cast<int>(rackboy::sav::kTableRowsPerTable) - 1);
+    return store.editLive([&](Content& c) { setCellValue(c.tables.tables[t].rows[r], col, value); });
+}
+
 void EditorSync::resync(const Content& live, int table, int row, int out[kEditorCols])
 {
     const auto& cell = live.tables.tables[std::clamp<int>(table, 0, kNumTables - 1)].rows[std::clamp<int>(row, 0, static_cast<int>(rackboy::sav::kTableRowsPerTable) - 1)];

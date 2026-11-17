@@ -35,6 +35,12 @@ public:
     // Any thread. `k` = 0 .. kNumImportTriggers - 1 (Imp_Go + k).
     void onValue(int k, float plain, bool onAudioThread);
 
+    // Audio thread: an edge from the Mac editor (drained by process(), so it is on the audio
+    // thread). Accepted like an audio-thread edge (the 250 ms debounce applies) but without
+    // edge detection: the editor's own main-thread setNormalised(1) already set `high`, which
+    // would otherwise swallow it. Returns whether it was accepted.
+    bool acceptFromEditor(int k);
+
     // Audio thread: consume an accepted edge / a pending write-back to 0.
     bool takePending(int k) { return slots_[k].pending.exchange(false, std::memory_order_acq_rel); }
     bool takeReset(int k) { return slots_[k].reset.exchange(false, std::memory_order_acq_rel); }
@@ -43,6 +49,8 @@ public:
     void cancelPending();
 
 private:
+    bool accept(int k);   // debounce, then mark pending
+
     struct Slot
     {
         std::atomic<bool> high{false};         // the parameter is on (edge detection)

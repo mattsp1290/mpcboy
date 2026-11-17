@@ -1,5 +1,6 @@
 # macOS VST2 bundle (mpcboy.vst) for desktop hosts such as Ableton Live. Development build:
 # it is not part of the MPC package. Mirrors the SDK's tools/build.py build_desktop():
+# With the Game Boy editor window (src/plugin/mac_editor.mm, plugin_entry_mac.cpp).
 #   mpcboy.vst/Contents/{Info.plist, PkgInfo, MacOS/mpcboy, Resources/Content/Import/README.txt,
 #                        Resources/ui/*.png (the shared Game Boy UI art, ui/art from scripts/build_ui.py)}
 # universal (arm64 + x86_64, set by the mac-vst preset), only VSTPluginMain and main_macho
@@ -20,8 +21,25 @@ set(MPCBOY_BUNDLE_ID "com.${_mfr}.mpcboy")
 configure_file("${CMAKE_SOURCE_DIR}/cmake/Info.plist.in" "${CMAKE_BINARY_DIR}/Info.plist" @ONLY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/plugin/plugin.json")
 
-add_library(mpcboy_macho MODULE src/plugin/plugin_entry.cpp)
-target_link_libraries(mpcboy_macho PRIVATE plugincore)
+# The Game Boy editor window (UI WP4): Objective-C++ with ARC, only in this build. The MPC and
+# native presets never compile it (native tests build src/ui only).
+enable_language(OBJCXX)
+string(REPLACE "." "_" _objc_ver "${MPCBOY_VERSION}")
+add_library(mpcboy_mac_editor STATIC src/plugin/mac_editor.mm)
+set_target_properties(mpcboy_mac_editor PROPERTIES
+  OBJCXX_STANDARD 17 OBJCXX_STANDARD_REQUIRED ON OBJCXX_EXTENSIONS OFF
+  OBJCXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+target_compile_options(mpcboy_mac_editor PRIVATE -fobjc-arc -Werror)
+# Unique Objective-C class names per bundle version (one flat class namespace per host process).
+target_compile_definitions(mpcboy_mac_editor PRIVATE "MPCBOY_OBJC_PREFIX=MPCBOY_${_objc_ver}_")
+target_link_libraries(mpcboy_mac_editor PUBLIC plugincore mpcboy_ui
+  "-framework Cocoa" "-framework QuartzCore" "-framework CoreGraphics" "-framework ImageIO"
+  "-framework CoreFoundation")
+
+# The entry point with the editor (replaces plugin_entry.cpp's MPC_PLUGIN_ENTRY in this build).
+add_library(mpcboy_macho MODULE src/plugin/plugin_entry_mac.cpp)
+target_link_libraries(mpcboy_macho PRIVATE mpcboy_mac_editor)
+target_compile_options(mpcboy_macho PRIVATE -Werror)
 set_target_properties(mpcboy_macho PROPERTIES
   PREFIX "" SUFFIX "" OUTPUT_NAME mpcboy
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/macho")
@@ -62,3 +80,10 @@ add_custom_command(
   COMMENT "Assembling and ad-hoc signing mpcboy.vst"
   VERBATIM)
 add_custom_target(mpcboy_vst ALL DEPENDS ${MPCBOY_BUNDLE_OUTPUTS})
+
+# Offscreen editor renderer: build/mac-vst/render_editor <art dir> <out dir> [scale ...] writes
+# one PNG per page with the editor's own drawing code (checks the look without a DAW).
+add_executable(render_editor tools/render_editor.mm)
+set_target_properties(render_editor PROPERTIES OBJCXX_STANDARD 17 OBJCXX_STANDARD_REQUIRED ON)
+target_compile_options(render_editor PRIVATE -fobjc-arc -Werror)
+target_link_libraries(render_editor PRIVATE mpcboy_mac_editor)
