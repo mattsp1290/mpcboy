@@ -1,0 +1,186 @@
+{
+  "mpc": {
+    "style": {
+      "background": "ff0f380f",
+      "accent": "ff9bbc0f",
+      "text": "ff9bbc0f",
+      "muted": "ff8bac0f"
+    },
+    "pages": [
+      {
+        "name": "MAIN",
+        "controls": [
+          { "param": "Volume",     "widget": "fader", "polarity": "unipolar" },
+          { "param": "Bend Range", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "Retrigger",  "widget": "switch" },
+          { "param": "Note Off",   "widget": "switch" },
+
+          { "param": "P1 On", "widget": "switch" },
+          { "param": "P2 On", "widget": "switch" },
+          { "param": "WV On", "widget": "switch" },
+          { "param": "NZ On", "widget": "switch" },
+
+          { "param": "Tbl Clock", "widget": "switch" },
+          { "param": "Tbl Rate",  "widget": "slider", "overlay": "menu", "visibleWhen": { "param": "Tbl Clock", "choice": "Sync" } },
+          { "param": "Tbl Phase", "widget": "switch", "visibleWhen": { "param": "Tbl Clock", "choice": "Sync" } },
+          { "param": "Free Hz",   "widget": "knob",   "polarity": "unipolar", "visibleWhen": { "param": "Tbl Clock", "choice": "Free" } },
+
+          { "param": "Vel>Vol", "widget": "switch" },
+          "empty",
+          "empty",
+          "empty"
+        ]
+      },
+      {
+        "name": "PULSE1",
+        "controls": [
+          { "param": "P1 On",      "widget": "switch" },
+          { "param": "P1 Volume",  "widget": "fader", "polarity": "unipolar" },
+          { "param": "P1 Env Dir", "widget": "switch" },
+          { "param": "P1 Env Spd", "widget": "knob",  "polarity": "unipolar" },
+
+          { "param": "P1 Duty",   "widget": "switch" },
+          { "param": "P1 Transp", "widget": "knob", "polarity": "bipolar" },
+          { "param": "P1 Fine",   "widget": "knob", "polarity": "bipolar" },
+          { "param": "P1 Pan",    "widget": "switch" },
+
+          { "param": "P1 SwpTime",  "widget": "knob",   "polarity": "unipolar" },
+          { "param": "P1 SwpDir",   "widget": "switch" },
+          { "param": "P1 SwpShift", "widget": "knob",   "polarity": "unipolar" },
+          { "param": "P1 Length",   "widget": "knob",   "polarity": "unipolar" },
+
+          { "param": "P1 Table", "widget": "slider", "overlay": "menu" },
+          "empty",
+          "empty",
+          "empty"
+        ]
+      },
+      {
+        "name": "PULSE2",
+        "controls": [
+          { "param": "P2 On",      "widget": "switch" },
+          { "param": "P2 Volume",  "widget": "fader", "polarity": "unipolar" },
+          { "param": "P2 Env Dir", "widget": "switch" },
+          { "param": "P2 Env Spd", "widget": "knob",  "polarity": "unipolar" },
+
+          { "param": "P2 Duty",   "widget": "switch" },
+          { "param": "P2 Transp", "widget": "knob", "polarity": "bipolar" },
+          { "param": "P2 Fine",   "widget": "knob", "polarity": "bipolar" },
+          { "param": "P2 Pan",    "widget": "switch" },
+
+          { "param": "P2 Length", "widget": "knob", "polarity": "unipolar" },
+          { "param": "P2 Table",  "widget": "slider", "overlay": "menu" },
+          "empty",
+          "empty"
+        ]
+      },
+      {
+        "name": "WAVE",
+        "controls": [
+          { "param": "WV On",    "widget": "switch" },
+          { "param": "WV Level", "widget": "switch" },
+          { "param": "WV Wave",  "widget": "slider" },
+          { "param": "WV Pan",   "widget": "switch" },
+
+          { "param": "WV Transp", "widget": "knob", "polarity": "bipolar" },
+          { "param": "WV Fine",   "widget": "knob", "polarity": "bipolar" },
+          { "param": "WV Length", "widget": "knob", "polarity": "unipolar" },
+          { "param": "WV Table",  "widget": "slider", "overlay": "menu" }
+        ]
+      },
+      {
+        "name": "NOISE",
+        "controls": [
+          { "param": "NZ On",      "widget": "switch" },
+          { "param": "NZ Volume",  "widget": "fader", "polarity": "unipolar" },
+          { "param": "NZ Env Dir", "widget": "switch" },
+          { "param": "NZ Env Spd", "widget": "knob",  "polarity": "unipolar" },
+
+          { "param": "NZ Width",   "widget": "switch" },
+          { "param": "NZ PitchMd", "widget": "switch" },
+          { "param": "NZ Shape",   "widget": "knob", "polarity": "unipolar", "visibleWhen": { "param": "NZ PitchMd", "choice": "Fixed" } },
+          { "param": "NZ Transp",  "widget": "knob", "polarity": "bipolar" },
+
+          { "param": "NZ Pan",    "widget": "switch" },
+          { "param": "NZ Length", "widget": "knob", "polarity": "unipolar" },
+          { "param": "NZ Table",  "widget": "slider", "overlay": "menu" },
+          "empty"
+        ]
+      },
+      {
+        "name": "TABLE",
+        "controls": [
+          { "param": "Edit Table", "widget": "knob", "polarity": "unipolar" },
+          { "param": "Edit Row",   "widget": "knob", "polarity": "unipolar" },
+          "empty",
+          "empty",
+
+          { "param": "Row Vol",    "widget": "knob", "polarity": "unipolar" },
+          { "param": "Row Transp", "widget": "knob", "polarity": "bipolar" },
+          "empty",
+          "empty",
+
+          { "param": "Row Cmd1", "widget": "slider", "overlay": "menu" },
+          { "param": "Row Val1", "widget": "knob", "polarity": "unipolar" },
+          { "param": "Row Cmd2", "widget": "slider", "overlay": "menu" },
+          { "param": "Row Val2", "widget": "knob", "polarity": "unipolar" },
+
+          { "param": "Imp File",   "widget": "knob", "polarity": "unipolar" },
+          { "param": "Imp Go",     "widget": "switch" },
+          { "param": "Imp Undo",   "widget": "switch" },
+          { "param": "Imp Rescan", "widget": "switch" }
+        ]
+      }
+    ]
+  },
+  "gb": {
+    "palette": {
+      "lcdDarkest": "0f380f",
+      "lcdDark": "306230",
+      "lcdLight": "8bac0f",
+      "lcdLightest": "9bbc0f",
+      "lcdPanel": "1b4a1b",
+      "shellLight": "c4c0b8",
+      "shellDark": "8b8680",
+      "labelAccent": "5c5a6e",
+      "magenta": "8e1c4f",
+      "caption": "e0f8d0"
+    },
+    "wordmark": "MPCBOY",
+    "titles": {
+      "MAIN": "MAIN",
+      "PULSE1": "PULSE 1",
+      "PULSE2": "PULSE 2",
+      "WAVE": "WAVE",
+      "NOISE": "NOISE",
+      "TABLE": "TABLE"
+    },
+    "panels": {
+      "TABLE": [
+        {
+          "kind": "lcdTable", "image": "lcd_table_panel.png", "row": 0, "col": 2, "rows": 2, "cols": 2,
+          "grid": {
+            "charScale": 3, "rowPitch": 26, "visibleRows": 8, "padding": 4,
+            "cursorImage": "cursor.png",
+            "columns": [
+              { "title": "ROW", "x": 1,  "chars": 2 },
+              { "title": "VOL", "x": 5,  "chars": 2 },
+              { "title": "TSP", "x": 9,  "chars": 3 },
+              { "title": "CMD", "x": 14, "chars": 1 },
+              { "title": "VAL", "x": 18, "chars": 2 },
+              { "title": "CMD", "x": 23, "chars": 1 },
+              { "title": "VAL", "x": 27, "chars": 2 }
+            ]
+          }
+        }
+      ]
+    },
+    "tabBar": {
+      "position": "bottom",
+      "height": 76,
+      "buttonWidth": 200,
+      "buttonHeight": 52,
+      "pitch": 212
+    }
+  }
+}

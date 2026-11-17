@@ -94,7 +94,7 @@ pad playing a table, and record each check:
 | 5 | Editing a cell, saving the project and reloading it shows the edit. | pending |
 | 6 | No audio dropout while scrolling rows quickly. | pending |
 | 7 | All six tabs are reachable from the function keys. | pending |
-| 8 | A `slider` with `"overlay": "menu"` on a 17-entry choice (`P1 Table`) opens a populated list. If it opens empty, switch those controls to `knob` widgets in `plugin/ui.json`. | pending |
+| 8 | A `slider` with `"overlay": "menu"` on a 17-entry choice (`P1 Table`) opens a populated list. If it opens empty, switch those controls to `knob` widgets in `ui/mpcboy_ui.json` (`"mpc"` section) and re-run `scripts/build_ui.py`. | pending |
 | 10 | `process()` p99 (probe build, `docs/BENCH.md`) stays within the CPU budget while the cursor moves quickly and an import runs: the 10 Hz notifications and display re-reads cost nothing audible. | pending |
 | 11 | `effSetChunk` (project load) and program changes arrive on a thread that is not the one that calls `process()`. If they do not, a trigger restored as 1 could act: it is cancelled by `loadExtraState`, but a restored cell value would be written into the live tables. | pending |
 | 9 | A cell edit made on the screen changes the table (proves that screen edits arrive on the audio thread). If it does not, stop and return to the user. | pending |

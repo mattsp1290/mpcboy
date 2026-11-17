@@ -8,7 +8,7 @@ Standard library only (Python 3.9+). Stops on the first failing step.
   3. host_sim dump -> build/params.json, identity check against plugin.json
   4. host_sim test + WAV peak check (-30 .. -0.1 dBFS)
   5. copy plugin.json, VST/*.so, Content/Import/README.txt, write version.xml
-  6. gen_ui.py (plugin/ui.json, kit cache build/ui-kit); no WARNING/NOTE allowed
+  6. build_ui.py (ui/mpcboy_ui.json via the SDK's gen_ui, Game Boy art); no WARNING/NOTE allowed
   7. validate.py --strict
   8. zip dist/<folder> + INSTALL.txt into dist/<name>-<version>.zip, print SHA-256
 """
@@ -189,19 +189,16 @@ def main():
                 "</plugincontent>\n" % (four_part_version(version), four_part_version(version)))
     print("   version.xml: version and uiversion %s" % four_part_version(version))
 
-    step("generate the skins (gen_ui.py)")
+    step("generate the skins (build_ui.py)")
     skins = os.path.join(out_dir, "Plugin Skins")
-    cmd = [sys.executable, os.path.join(SDK_TOOLS, "gen_ui.py"), "--params", params_path,
-           "--out", skins, "--kit-cache", os.path.join(build, "ui-kit")]
-    ui = os.path.join(ROOT, "plugin", "ui.json")
-    if os.path.isfile(ui):
-        cmd[2:2] = ["--ui", ui]
-    else:
-        print("   no plugin/ui.json: automatic layout")
+    # --root keeps the packaging run out of the tree (ui/art, src/ui/generated); scripts/check.sh
+    # checks separately that the committed copies are up to date.
+    cmd = [sys.executable, os.path.join(ROOT, "scripts", "build_ui.py"), "--params", params_path,
+           "--skins", skins, "--root", os.path.join(build, "ui-package"), "--no-preview"]
     out = run(cmd)
     bad = [l for l in out.splitlines() if "WARNING" in l or "NOTE" in l]
     if bad:
-        raise Fail("gen_ui.py printed WARNING/NOTE lines:\n" + "\n".join(bad))
+        raise Fail("build_ui.py printed WARNING/NOTE lines:\n" + "\n".join(bad))
 
     step("validate.py --strict")
     run([sys.executable, os.path.join(SDK_TOOLS, "validate.py"), out_dir, "--params", params_path, "--strict"])

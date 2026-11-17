@@ -3,7 +3,7 @@
 //
 // Index order is fixed by the enum Params and matches
 // .agents/plans/mpcboy-gb-synth/04-plugin-params-ui-state.md ("Parameter table").
-// Names are what the MPC shows and what plugin/ui.json references.
+// Names are what the MPC shows and what ui/mpcboy_ui.json references.
 #pragma once
 
 #include <cstdint>

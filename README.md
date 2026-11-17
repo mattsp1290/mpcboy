@@ -112,8 +112,54 @@ python3 scripts/package_mpc.py         # dist/mpcboy-<version>.zip
 ```
 
 `package_mpc.py` runs the SDK host simulator (`host_sim dump`/`test` plus a
-WAV peak check), generates the skin from `plugin/ui.json`, runs the SDK
-validator in `--strict` mode and zips the folder with its SHA-256.
+WAV peak check), generates the skin from `ui/mpcboy_ui.json` with
+`scripts/build_ui.py`, runs the SDK validator in `--strict` mode and zips the
+folder with its SHA-256.
+
+## UI (MPC skin and Mac editor)
+
+Both builds share one Game Boy–inspired UI (design:
+`.agents/plans/mpcboy-gb-ui/00-design.md`). Everything comes from
+`ui/mpcboy_ui.json`:
+
+- `"mpc"`: the pages, controls, widgets and `visibleWhen` rules, in the SDK's
+  `ui.json` format (validated by the SDK's `gen_ui.py`; no `kit` key, the art is
+  ours), plus the skin `style` colours.
+- `"gb"`: the Game Boy palette, page titles, the wordmark, decorative panels
+  (the `TABLE` page's LCD grid over rows 0–1, columns 2–3) and the Mac editor's
+  tab bar.
+
+`scripts/build_ui.py` (standard library only) turns it into:
+
+- `ui/art/*.png`: the pixel-art kit (knobs, faders, toggles, segments; same
+  names, sizes and frame counts as the SDK kit), one background per page, and
+  the editor-only art (tab bar and buttons, LCD table panel, row cursor);
+- `src/ui/generated/ui_layout.inc` and `pixel_font.inc`: the layout and the
+  5 × 7 pixel font as C++ tables (structs in `src/ui/ui_layout.h`), walked from
+  the same component tree as the MPC `TUI.json`;
+- `build/ui-preview/<page>.png` (and `tabbar.png`): previews of each MPC page
+  with the controls at their default values and approximate label text, so the
+  look can be reviewed without a device. Slider controls and fonts are drawn
+  by the firmware on the MPC, so they only approximate the real screen there.
+
+To change the UI, edit `ui/mpcboy_ui.json` (or the art code in
+`scripts/ui_art.py`), then regenerate and look at the previews:
+
+```sh
+cmake --preset native && cmake --build --preset native
+build/native/host_sim build/native/mpcboy.dylib dump > build/params.json   # mpcboy.so on Linux
+python3 scripts/build_ui.py            # rewrites ui/art and src/ui/generated, writes build/ui-preview
+python3 -m unittest discover -s tests/ui -v
+```
+
+The generated files are committed, so native builds need no Python. Output is
+byte-reproducible; `scripts/check.sh` regenerates them and fails if anything in
+`ui/art` or `src/ui/generated` changed or is not in git, so commit (or at least
+`git add`) the regenerated files with the change. `package_mpc.py` generates
+the skin into the plugin folder without touching the tree, and fails on any
+`WARNING`/`NOTE` line from the generator. On the MPC, labels use Nexa Bold in
+upper case (names `8bac0f`, values `9bbc0f`); the knob and menu overlays are
+drawn by the firmware on the dark `style.background` and cannot be themed.
 
 For the CPU probe used on the device, see `docs/BENCH.md`.
 
@@ -147,8 +193,9 @@ Caveats:
 
 - VST2 only. Live 12 still loads VST2, but only from the system folder with the
   setting above; there is no AU/VST3 build.
-- No custom editor: Live shows its generic parameter panel (use Configure to
-  pick parameters). The MPC skin is not used. The table editor cursor and the
+- No custom editor yet: Live shows its generic parameter panel (use Configure to
+  pick parameters). The bundle already carries the shared UI art in
+  `Contents/Resources/ui/` for the coming editor. The table editor cursor and the
   `Imp *` parameters work as plain parameters.
 - Host rates 44.1, 48, 96 and 192 kHz work; at 88.2 kHz the plugin is silent.
   96 and 192 kHz use a table-driven polyphase resampler (L = 2 / 4 phases,
@@ -190,7 +237,10 @@ state v2) but not yet run on a device.
 - `src/engine`: mono voice, tick clock, content store, factory tables, `.sav`
   import (`sav_import`).
 - `src/plugin`: the MPC plugin (parameters, state, editor cursor, import worker).
-- `plugin/`: `plugin.json` and `ui.json` for the skin.
+- `plugin/`: `plugin.json` and the import folder's README.
+- `ui/`: `mpcboy_ui.json` (the shared UI source) and the generated `art/`;
+  `src/ui/`: the editor layout header and its generated tables;
+  `scripts/build_ui.py` + `scripts/ui_art.py`: the generator.
 - `vendor/mpc-plugin-builder-sdk`: Akai's MIT plugin SDK (submodule).
 
 License: MIT, see `LICENSE`; third-party notices in `THIRD_PARTY.md`.
