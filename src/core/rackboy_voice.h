@@ -159,6 +159,18 @@ struct VoiceState {
     // note cannot bleed into a new Gate 1 trigger.
     std::int16_t slide_target_pitch;
     std::uint8_t slide_ticks_remaining;
+
+    // MPCBOY LOCAL MOD (WP5): table `P` (pitch per tick) and delayed `K`.
+    //   pbend_accum  accumulated `P` offset in 1/16 semitone; every table tick
+    //                adds pbend_step to it and the frequency is rewritten
+    //                (no trigger). A trigger resets all three fields.
+    //   pbend_step   signed per-tick increment set by `Pxx` (P00 stops the
+    //                motion and keeps the offset).
+    //   kill_ticks_remaining  armed by `Kxx` with xx > 0: the channel is killed
+    //                on the tick where this reaches 0.
+    std::int16_t pbend_accum;
+    std::int8_t  pbend_step;
+    std::uint8_t kill_ticks_remaining;
 };
 
 // Enforce the POD contract at compile time. These two traits together are
@@ -190,7 +202,9 @@ static_assert(std::is_standard_layout<VoiceState>::value,
 // this bound or re-pack existing fields. `bool triggered` is the
 // obvious bit-pack candidate if a future iteration wants to keep the
 // 16-byte budget intact.
-static_assert(sizeof(VoiceState) <= 16,
+// MPCBOY LOCAL MOD: bound raised from 16 to 24 for the WP5 fields (the struct
+// is 20 bytes now).
+static_assert(sizeof(VoiceState) <= 24,
               "VoiceState growth — audit the new field before bumping this "
               "bound. Audio-thread bank copy-in memcpys one of these per "
               "voice per bank swap, so byte budget is load-bearing.");

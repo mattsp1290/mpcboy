@@ -4,7 +4,9 @@
 // sounding + PolyphaseResampler48To441, in 128-frame host blocks (the APU
 // renders inputsNeeded(128) = 136..141 frames per block).
 // Workload B (informational): the same through mpcboy::Engine::render with a
-// held note, four channels and four tables ticking (24 ticks / beat at 120 BPM).
+// held note, four channels and four tables ticking. B0 injects 24 ticks / beat
+// at 120 BPM by hand (WP3). B is the WP6 case: the engine's own TickClock at
+// 240 BPM, 96 ticks / beat (one tick every 114.8 host frames, about 1.1 per block).
 //
 // Prints mean / p50 / p99 / p99.9 / max in microseconds per 128-frame block.
 // Exit status 1 when workload A's p99 exceeds the 25 us pass bar.
@@ -136,7 +138,7 @@ Stats benchResamplerOnly()
     return summarize(us);
 }
 
-Stats benchEngine()
+Stats benchEngine(bool clockMode)
 {
     auto eng = std::make_unique<mpcboy::Engine>();
     // Four tables (each channel its own, arpeggio-like) in the engine's own bank.
@@ -152,6 +154,15 @@ Stats benchEngine()
     }
     mpcboy::EngineSettings s;
     for (int c = 0; c < 4; ++c) { s.ch[c].tableSlot = static_cast<int8_t>(c); s.ch[c].volume = 15; }
+    if (clockMode)
+    {
+        s.tick.enabled = true;
+        s.tick.ticksPerBeat = 96;
+    }
+    else
+    {
+        s.tick.enabled = false;   // hand-placed ticks below
+    }
     eng->applySettings(s);
 
     mpcboy::EngineMidiEvent on;
@@ -168,13 +179,21 @@ Stats benchEngine()
         if (b == 0) { blk.midi = &on; blk.numMidi = 1; }
         int ticks[8];
         int nt = 0;
-        while (nextTick < blockStart + kBlock && nt < 8)
+        if (clockMode)
         {
-            ticks[nt++] = static_cast<int>(nextTick - blockStart);
-            nextTick += 918.75;
+            blk.bpm = 240.0;
+            blk.tempoValid = true;
         }
-        blk.tickOffsets = ticks;
-        blk.numTicks = nt;
+        else
+        {
+            while (nextTick < blockStart + kBlock && nt < 8)
+            {
+                ticks[nt++] = static_cast<int>(nextTick - blockStart);
+                nextTick += 918.75;
+            }
+            blk.tickOffsets = ticks;
+            blk.numTicks = nt;
+        }
         const auto t0 = Clock::now();
         eng->render(blk, L, R, kBlock);
         const auto t1 = Clock::now();
@@ -193,11 +212,13 @@ int main()
     const Stats apuOnly = benchApuOnly();
     const Stats rsOnly = benchResamplerOnly();
     const Stats both = benchApuAndResampler();
-    const Stats engine = benchEngine();
+    const Stats engine0 = benchEngine(false);
+    const Stats engine = benchEngine(true);
     print("APU single pass only (~137 frames)", apuOnly);
     print("resampler only", rsOnly);
     print("A: APU single pass + resampler", both);
-    print("B: Engine::render (4 ch, 4 tables, ticks)", engine);
+    print("B0: Engine 4 ch, 4 tables, 24/beat @120 (manual)", engine0);
+    print("B: Engine 4 ch, 4 tables, 96/beat @240 (clock)", engine);
     std::printf("device budget per block: mean <= 145 us, p99 <= 290 us (S8); native pass bar: A p99 <= %.0f us\n",
                 kPassBarP99Us);
     const bool pass = both.p99 <= kPassBarP99Us;

@@ -104,13 +104,50 @@ Not copied: `rackboy_core/rackboy_control.*` (VCV knob glue),
        NR44 write OR bit 6 while `length_enable` is set (also the `E` and `R`
        paths).
 
+6. **WP5 local changes** (all marked `// MPCBOY LOCAL MOD`):
+   - `src/sav/rackboy_sav_types.h`: `RackboyTableRow` gained `uint8_t vol` and
+     `bool has_vol` (LSDJ table volume column; 5 -> 7 bytes), zeroed by
+     `table_reset`; new `static_assert(sizeof(RackboyTableRow) == 7)`. The `.sav`
+     parser does not read the column and leaves both zero.
+     `sizeof(RackboyBank)` is now 12052 (was 11028).
+   - `src/core/rackboy_voice.{h,cpp}`: `VoiceState` gained `int16_t pbend_accum`,
+     `int8_t pbend_step`, `uint8_t kill_ticks_remaining` (reset in `voice_reset`
+     and `table_trigger`); the size `static_assert` bound is raised from 16 to
+     24 (the struct is 20 bytes).
+   - `src/table/rackboy_table.{h,cpp}`:
+     - `write_channel_pitch` takes `pbend_accum` and adds `pbend_accum * 100 / 16`
+       cents (the term that was a comment in WP4).
+     - Volume column: when `row.has_vol`, after the pitch write and R check and
+       before the row's commands, `NRx2 = vol` plus a retrigger with the running
+       frequency (the `E` path, shared helper `write_envelope_retrigger`; Wave:
+       `NR32 = vol & 0x60`).
+     - `P` command: `pbend_step = (int8_t)param`; every tick adds it to
+       `pbend_accum` (clamped to +-32000) before the pitch write. `P00` stops the
+       motion and keeps the offset.
+     - `K` with delay: `K00` kills at once; `Kxx` (xx > 0) sets
+       `kill_ticks_remaining`, counted at the top of every `table_tick` (also
+       during a `D` delay); the kill fires on the tick where it reaches 0 and
+       that tick does nothing else. Shared helper `kill_channel`.
+     - `W` retrigger: after `rackboy_apu_write_wave_ram`, NR34 is written with
+       the trigger bit and the running frequency. **Only on the engine path**:
+       new `TableRegState::engine_mode` (set by `table_trigger` when it received
+       `TriggerExtras`). Reason: the vendored `wave_set_test` asserts three times
+       that `W` does not set the NR34 trigger bit (legacy behaviour), and the
+       plan allows no vendored expected-value change besides the two constants
+       below, so the legacy path (no extras) keeps no retrigger.
+   - `tests/rackboy/sav/types_test.cpp`: `kExpectedBankSize` 11028 -> 12052
+     (allowed constant change 1 of 2).
+   - The `VoiceState` size bound in `rackboy_voice.h` is the other allowed
+     expected-value change (16 -> 24; no vendored test file carries it).
+
 ## Test count
 
-`mpcboy_tests` (run from `tests/rackboy`): **450 test cases**, 154873
+`mpcboy_tests` (run from `tests/rackboy`): **473 test cases**, 160155
 assertions, 0 skipped, including the golden `audio regression` case. The 426
-copied rackboy cases are unchanged and pass; the 24 added by WP3/WP4 live in
+copied rackboy cases are unchanged and pass; the 47 added by WP3-WP6 live in
 `tests/unit/` (`stereo_pass_test.cpp` 4, `polyphase_test.cpp` 3,
-`engine_test.cpp` 17). Later drift in this number should be explained in the
+`engine_test.cpp` 17, `table_ext_test.cpp` 4, `content_store_test.cpp` 5,
+`tick_clock_test.cpp` 9, `engine_timing_test.cpp` 5). Later drift in this number should be explained in the
 commit that causes it.
 
 ## Copied files

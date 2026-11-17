@@ -228,6 +228,10 @@ struct RackboyTableRow {
     std::uint8_t cmd1_param;
     std::uint8_t cmd2;
     std::uint8_t cmd2_param;
+    // MPCBOY LOCAL MOD: LSDJ table volume column. Valid only when has_vol is
+    // set; the .sav parser leaves both zeroed (it does not read the column).
+    std::uint8_t vol;
+    bool         has_vol;
 };
 
 // A table slot carries its own occupancy flag because LSDJ's table
@@ -334,6 +338,8 @@ inline void table_reset(RackboyTable& t) noexcept
         t.rows[row].cmd1_param = 0;
         t.rows[row].cmd2       = 0;
         t.rows[row].cmd2_param = 0;
+        t.rows[row].vol        = 0;      // MPCBOY LOCAL MOD
+        t.rows[row].has_vol    = false;  // MPCBOY LOCAL MOD
     }
     t.occupied = false;
 }
@@ -404,6 +410,9 @@ static_assert(std::is_trivially_copyable<RackboyTableRow>::value,
 static_assert(std::is_standard_layout<RackboyTableRow>::value,
               "RackboyTableRow must stay standard-layout.");
 
+// MPCBOY LOCAL MOD: vol + has_vol grew the row from 5 to 7 bytes.
+static_assert(sizeof(RackboyTableRow) == 7,
+              "RackboyTableRow is transpose + 2 commands + 2 params + vol + has_vol.");
 static_assert(std::is_trivially_copyable<RackboyTable>::value,
               "RackboyTable must stay trivially copyable.");
 static_assert(std::is_standard_layout<RackboyTable>::value,

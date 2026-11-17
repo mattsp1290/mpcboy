@@ -12,11 +12,13 @@
 #include <cstdint>
 
 #include "channel_settings.h"
+#include "content_store.h"
 #include "dc_blocker.h"
 #include "mono_voice.h"
 #include "polyphase_resampler.h"
 #include "rackboy_apu.h"
 #include "rackboy_sav_types.h"
+#include "tick_clock.h"
 
 namespace mpcboy {
 
@@ -34,13 +36,14 @@ struct EngineBlock
     const EngineMidiEvent* midi = nullptr;
     int numMidi = 0;
 
-    // WP6 seam: table tick positions in host frames from the start of the
-    // block, ascending. WP6's TickClock fills these; until then the caller (or
-    // nothing) does. At equal offsets MIDI is applied before the tick.
+    // External table tick positions in host frames from the start of the
+    // block, ascending (tests, the legacy CPU probe). They are merged with the
+    // ticks of the engine's own TickClock (EngineSettings::tick). At equal
+    // offsets MIDI is applied before the tick.
     const int* tickOffsets = nullptr;
     int numTicks = 0;
 
-    // Transport fields for WP6's TickClock (unused by Engine::render itself).
+    // Transport fields for the TickClock.
     double bpm = 120.0;
     bool tempoValid = false;
     double ppqPos = 0.0;
@@ -73,6 +76,13 @@ public:
     rackboy::sav::RackboyBank& ownBank() { return ownBank_; }
     void setWave(int slot, const uint8_t bytes[16]);
 
+    // Use a ContentStore (WP5) as the source of tables and waves instead of the
+    // engine's own bank: render() begins every block with store->beginBlock()
+    // (consuming staged content) and keeps the wave slots in sync. The store
+    // must outlive the engine; nullptr detaches.
+    void attachContent(ContentStore* store);
+    ContentStore* content() const { return content_; }
+
     void render(const EngineBlock& block, float* left, float* right, int frames);
 
     // APU frames rendered since reset (the spy in tests stamps register writes
@@ -80,14 +90,20 @@ public:
     uint64_t apuFrame() const { return apuFrames_; }
     rackboy_apu_t* apu() { return &apu_; }
     const MonoVoice& voice() const { return voice_; }
+    const TickClock& tickClock() const { return clock_; }
 
 private:
     void renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right);
     void applyMidi(const EngineMidiEvent& e);
-    void onNoteTriggered(int hostOffset);   // WP6 hook: restart the tick clock's note phase
+    void onNoteTriggered(int blockOffset);   // restarts the tick clock's note phase
+    void syncWaves();
 
     rackboy_apu_t apu_;
     MonoVoice voice_;
+    TickClock clock_;
+    ContentStore* content_ = nullptr;
+    uint32_t syncedGen_ = ~0u;
+    bool clockOn_ = false;     // clock_.beginBlock() was called for this render()
     PolyphaseResampler48To441 resampler_;
     DcBlocker dc_;
     EngineSettings settings_;
@@ -95,7 +111,8 @@ private:
     const rackboy::sav::RackboyBank* bank_;
     uint8_t waves_[16][16];
     uint64_t apuFrames_ = 0;
-    int curHostOffset_ = 0;
+    int curHostOffset_ = 0;     // chunk-relative offset of the event being applied
+    int curBlockOffset_ = 0;    // block-relative (chunk base + curHostOffset_)
     // Output frame (absolute) at which the DC blocker is flushed after a Cut,
     // or -1. See renderChunk.
     long long dcResetOut_ = -1;

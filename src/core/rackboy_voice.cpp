@@ -31,6 +31,10 @@ void voice_reset(VoiceState& v) noexcept
     // Pitch-slide state (bead rackboy-h2z).
     v.slide_target_pitch           = 0;
     v.slide_ticks_remaining        = 0;
+    // MPCBOY LOCAL MOD (WP5): P / delayed K state.
+    v.pbend_accum                  = 0;
+    v.pbend_step                   = 0;
+    v.kill_ticks_remaining         = 0;
 }
 
 void voices_reset_all(VoiceState (&voices)[kNumVoices]) noexcept

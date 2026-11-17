@@ -46,6 +46,29 @@ void Engine::setWave(int slot, const uint8_t bytes[16])
     std::memcpy(waves_[slot], bytes, 16);
 }
 
+void Engine::attachContent(ContentStore* store)
+{
+    content_ = store;
+    syncedGen_ = ~0u;
+    if (store)
+    {
+        bank_ = &store->bank();
+        syncWaves();
+    }
+    else
+    {
+        bank_ = &ownBank_;
+    }
+}
+
+void Engine::syncWaves()
+{
+    if (!content_ || syncedGen_ == content_->liveGeneration()) return;
+    const Content& c = content_->live();
+    for (int i = 0; i < kNumWaves; ++i) std::memcpy(waves_[i], c.waves.waves[i], kWaveBytes);
+    syncedGen_ = content_->liveGeneration();
+}
+
 void Engine::reset()
 {
     rackboy_apu_init(&apu_, kApuRate);                 // also writes NR52 = 0x80
@@ -58,8 +81,10 @@ void Engine::reset()
     voice_.applySettings(settings_);
     resampler_.reset(kResamplerPrefill);
     dc_.reset();
+    clock_.reset();
     apuFrames_ = 0;
     curHostOffset_ = 0;
+    curBlockOffset_ = 0;
     dcResetOut_ = -1;
     chunkOutBase_ = 0;
 }
@@ -67,12 +92,15 @@ void Engine::reset()
 void Engine::applySettings(const EngineSettings& s)
 {
     settings_ = s;
+    clock_.setSettings(s.tick.mode, s.tick.ticksPerBeat, s.tick.phase, s.tick.freeHz);
     voice_.applySettings(s);
 }
 
-void Engine::onNoteTriggered(int hostOffset)
+void Engine::onNoteTriggered(int blockOffset)
 {
-    (void)hostOffset;   // WP6: tickClock_.noteOn(hostOffset)
+    // Tick 0 (row 0) was applied by MonoVoice::noteOn itself; the clock's first
+    // tick (row 1) follows one period later. Glides never get here.
+    if (clockOn_) clock_.noteOn(blockOffset);
 }
 
 void Engine::applyMidi(const EngineMidiEvent& e)
@@ -82,7 +110,7 @@ void Engine::applyMidi(const EngineMidiEvent& e)
     {
         if (voice_.noteOn(e.data1, e.data2, *bank_))
         {
-            onNoteTriggered(curHostOffset_);
+            onNoteTriggered(curBlockOffset_);
             dcResetOut_ = -1;   // new sound: do not flush it
         }
     }
@@ -103,11 +131,30 @@ void Engine::applyMidi(const EngineMidiEvent& e)
 
 void Engine::render(const EngineBlock& block, float* left, float* right, int frames)
 {
+    if (content_)
+    {
+        content_->beginBlock();   // consume staged content, republish
+        syncWaves();
+    }
+    clockOn_ = settings_.tick.enabled;
+    if (clockOn_)
+    {
+        TickBlockInput in;
+        in.frames = frames;
+        in.bpm = block.bpm;
+        in.tempoValid = block.tempoValid;
+        in.ppqPos = block.ppqPos;
+        in.ppqValid = block.ppqValid;
+        in.playing = block.playing;
+        clock_.beginBlock(in);
+    }
     for (int c0 = 0; c0 < frames; c0 += kMaxHostFrames)
     {
         const int n = frames - c0 < kMaxHostFrames ? frames - c0 : kMaxHostFrames;
         renderChunk(block, frames, c0, n, left + c0, right + c0);
     }
+    if (clockOn_) clock_.endBlock();
+    clockOn_ = false;
 }
 
 void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right)
@@ -158,16 +205,33 @@ void Engine::renderChunk(const EngineBlock& block, int frames, int c0, int n, fl
             tOff = o;
             break;
         }
-        if (mOff < 0 && tOff < 0) break;
+        // The engine's own clock: its next tick inside this chunk, if any.
+        int cOff = -1;
+        if (clockOn_)
+        {
+            const int p = clock_.peek();
+            if (p >= c0 && p < c0 + n) cOff = p;
+        }
+        if (mOff < 0 && tOff < 0 && cOff < 0) break;
 
-        const bool takeMidi = (mOff >= 0) && (tOff < 0 || mOff <= tOff);
-        const int t = (takeMidi ? mOff : tOff) - c0;
-        int a = (t * 2 * 160 + 147) / (2 * 147);   // round(t * 160 / 147)
+        // MIDI before ticks at equal offsets; external ticks before clock ticks.
+        const int tickMin = (tOff >= 0 && (cOff < 0 || tOff <= cOff)) ? tOff : cOff;
+        const bool takeMidi = (mOff >= 0) && (tickMin < 0 || mOff <= tickMin);
+        const int evOff = takeMidi ? mOff : tickMin;
+        const int t = evOff - c0;
+        // Absolute mapping: APU frame round((outputsSoFar + t) * 160 / 147) minus
+        // the APU frames already rendered before this chunk. Rounding once from
+        // the absolute position keeps the error below half an APU frame instead
+        // of letting the per-block resampler granularity (+-1 APU frame) add up.
+        const long long outAbs = chunkOutBase_ + t;
+        int a = static_cast<int>((outAbs * 2 * 160 + 147) / (2 * 147) - static_cast<long long>(apuBase));
         if (a < apuPos) a = apuPos;
         runTo(a);
         curHostOffset_ = t;
+        curBlockOffset_ = evOff;
         if (takeMidi) { applyMidi(block.midi[mi]); ++mi; }
-        else { voice_.tick(*bank_); ++ti; }
+        else if (tOff >= 0 && tOff == tickMin) { voice_.tick(*bank_); ++ti; }
+        else { voice_.tick(*bank_); clock_.pop(); }
     }
     runTo(nIn);
 

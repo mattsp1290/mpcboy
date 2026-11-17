@@ -18,6 +18,30 @@ enum class NoteOffMode : uint8_t { Cut = 0, Ring = 1 };
 // monotonic: 100 % = 01, 50 % = 10, 25 % = 11, mute = 00).
 enum class WaveLevel : uint8_t { Mute = 0, P25 = 1, P50 = 2, P100 = 3 };
 
+// Table tick clock (WP6, decision D7).
+enum class TickMode : uint8_t { Sync = 0, Free = 1 };
+enum class TickPhase : uint8_t { Note = 0, Grid = 1 };
+
+// Ticks per quarter note offered on screen, in the order of the parameter
+// choices. 24/beat is LSDJ's tick at its default groove (6 ticks per 1/16).
+constexpr int kNumTickChoices = 10;
+constexpr int kTicksPerBeatChoices[kNumTickChoices] = {96, 48, 32, 24, 16, 12, 8, 6, 4, 3};
+constexpr const char* kTickChoiceLabels[kNumTickChoices] = {
+    "96/beat", "48/beat", "32/beat", "24/beat LSDJ", "16/beat",
+    "12/beat", "8/beat",  "6/beat",  "4/beat",       "3/beat"};
+constexpr int kDefaultTickChoice = 3;   // 24/beat LSDJ
+
+struct TickSettings
+{
+    // false: the Engine generates no ticks itself; only EngineBlock::tickOffsets
+    // drive the tables (test rigs, the CPU probe's legacy path).
+    bool enabled = true;
+    TickMode mode = TickMode::Sync;
+    TickPhase phase = TickPhase::Note;
+    uint16_t ticksPerBeat = 24;
+    float freeHz = 59.73f;       // DMG frame rate
+};
+
 struct ChannelSettings
 {
     bool enabled = true;
@@ -52,6 +76,7 @@ struct EngineSettings
     NoteOffMode noteOff = NoteOffMode::Cut;
     bool velToVol = false;      // scale the initial envelope volume by velocity
     float masterGain = 1.0f;    // applied after the DC blocker
+    TickSettings tick;
 
     EngineSettings()
     {

@@ -249,6 +249,6 @@ TEST_CASE("RackboyBank size fits in the Daisy SRAM / SDRAM budget")
     // this value will fire the CHECK and force an explicit re-audit
     // rather than a silent drift. Update the constant below when a
     // schema change is deliberate.
-    constexpr std::size_t kExpectedBankSize = 11028;
+    constexpr std::size_t kExpectedBankSize = 12052;   // MPCBOY LOCAL MOD: was 11028 (RackboyTableRow gained vol + has_vol: 32 tables * 16 rows * 2 bytes)
     CHECK_EQ(sizeof(RackboyBank), kExpectedBankSize);
 }

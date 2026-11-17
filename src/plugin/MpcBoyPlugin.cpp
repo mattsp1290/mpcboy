@@ -84,8 +84,6 @@ public:
         {
             engine_->reset();
             noteHeld_ = false;
-            nextTick_ = kTickFrames;
-            blockStart_ = 0.0;
         }
         mpcboy::EngineMidiEvent on;
         mpcboy::EngineBlock blk;
@@ -95,18 +93,7 @@ public:
             blk.midi = &on;
             blk.numMidi = 1;
             noteHeld_ = true;
-            nextTick_ = blockStart_ + kTickFrames;
         }
-        int ticks[16];
-        int nt = 0;
-        while (nextTick_ < blockStart_ + ctx.numFrames && nt < 16)
-        {
-            ticks[nt++] = static_cast<int>(nextTick_ - blockStart_);
-            nextTick_ += kTickFrames;
-        }
-        blk.tickOffsets = ticks;
-        blk.numTicks = nt;
-        blockStart_ += ctx.numFrames;
         engine_->render(blk, ctx.outputs[0], ctx.numOutputs > 1 ? ctx.outputs[1] : ctx.outputs[0], ctx.numFrames);
 
         const long long dt = nowNs() - t0;
@@ -128,7 +115,6 @@ public:
 
 private:
     static constexpr uint32_t kRing = 32768;          // ~95 s of 128-frame blocks
-    static constexpr double kTickFrames = 918.75;     // 24 ticks/beat at 120 BPM, 44.1 kHz
 
     static long long nowNs()
     {
@@ -170,8 +156,6 @@ private:
     int dbgIndex_ = -1;
     std::atomic<bool> resetPending_{true};
     bool noteHeld_ = false;
-    double nextTick_ = kTickFrames;
-    double blockStart_ = 0.0;
 
     std::atomic<uint32_t> ring_[kRing];
     std::atomic<uint32_t> head_{0};

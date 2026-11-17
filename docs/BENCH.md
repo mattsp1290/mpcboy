@@ -25,8 +25,12 @@ Pulse 2, Wave, Noise at volume 15, NR50 `0x77`, NR51 `0xFF`).
 
 - **A (the pass bar):** `rackboy_apu_run_stereo` for `inputsNeeded(128)` frames
   (136..141 APU frames) + `PolyphaseResampler48To441::process`.
-- **B (informational):** `Engine::render` with a held note, 4 channels, 4
-  tables (return-to-start arpeggios) and 24 ticks/beat at 120 BPM.
+- **B0 (informational, WP3):** `Engine::render` with a held note, 4 channels, 4
+  tables (return-to-start arpeggios) and 24 ticks/beat at 120 BPM injected by
+  hand (`EngineBlock::tickOffsets`).
+- **B (informational, WP6):** the same through the engine's own `TickClock`
+  at 240 BPM, 96 ticks/beat (one tick every 114.8 host frames, about 1.1 per
+  128-frame block), 4 tables on 4 channels.
 - "APU only" and "resampler only" split A.
 
 All times in microseconds per 128-frame block.
@@ -45,6 +49,27 @@ pass 4.6 us, resampler 4.6 us, A 9.4-9.5 us, i.e. about 0.33 % of one core on
 this CPU. `max` values (1 to 20 ms) are scheduler
 preemption of the benchmark thread on a busy desktop, not work done by the
 code; the device rule has no max bar for the same reason.
+
+### WP6 re-run: TickClock in the render path (B = 4 tables, 240 BPM, 96/beat)
+
+Same machine and command, after WP5/WP6 (clock, volume column, `P`, delayed
+`K`, `W` retrigger, content store). Host load average 41-46 during these runs
+(a busy desktop), so only the tails moved. Four consecutive runs, microseconds
+per 128-frame block:
+
+| run | A mean | A p99 | B0 mean | B0 p99 | **B mean** | **B p50** | **B p99** | B p99.9 | gate |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 11.01 | 13.04 | 12.38 | 26.42 | 16.15 | 12.25 | 28.79 | 667.42 | PASS |
+| 2 | 17.29 | 24.46 | 12.26 | 16.62 | 14.45 | 11.46 | 25.25 | 95.50 | PASS |
+| 3 | 11.67 | 24.83 | 17.65 | 24.71 | 12.12 | 11.38 | 15.38 | 32.25 | PASS |
+| 4 | 9.74 | 12.12 | 10.42 | 14.29 | 11.35 | 10.83 | 17.25 | 27.29 | PASS |
+
+B stays within about 1 us (p50) of B0 and A: ticking 4 tables at 96/beat and
+240 BPM (about 8.7x the tick rate of B0) adds roughly 0.5-1 us per block, and
+the clock bookkeeping itself is a few doubles per block. The mean of B in the
+quietest run (run 4, 11.35 us) is under 8 % of the 145 us device budget on this
+Mac. Runs 1-3 had p99 values up to 29 us that come from the contended host (the
+same A workload shows 24 us p99 in run 2); the device is still unmeasured.
 
 ### Runs that did NOT meet the bar (reported as measured)
 

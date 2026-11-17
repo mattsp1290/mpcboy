@@ -50,6 +50,7 @@ struct Rig
     Rig()
     {
         e = std::make_unique<mpcboy::Engine>();
+        s.tick.enabled = false;   // the rig injects ticks by hand (tickAt)
         rackboy_apu_set_write_spy(&Rig::spy, this);
     }
     ~Rig() { rackboy_apu_set_write_spy(nullptr, nullptr); }

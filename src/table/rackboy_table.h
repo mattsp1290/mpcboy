@@ -194,6 +194,10 @@ struct TableRegState {
     // 1 when a length counter is in use (TriggerExtras.length > 0). Every NRx4
     // / NR44 write then carries bit 6 (length enable).
     uint8_t length_enable;
+    // MPCBOY LOCAL MOD (WP5): set by table_trigger when it received
+    // TriggerExtras (the engine path). Selects mpcboy-only behaviour that
+    // would change vendored expected values: `W` retriggers CH3.
+    uint8_t engine_mode;
 };
 
 // Enforce the POD contract at compile time. Same rationale as VoiceState's
@@ -224,6 +228,7 @@ inline void table_reg_state_reset(TableRegState& r) noexcept
     r.fine_cents     = 0;
     r.noise_flags    = 0;
     r.length_enable  = 0;
+    r.engine_mode    = 0;
 }
 
 // MPCBOY LOCAL MOD: NRx4 bit 6 (length enable) and TableRegState::noise_flags.
