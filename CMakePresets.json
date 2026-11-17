@@ -62,6 +62,16 @@
       }
     },
     {
+      "name": "mac-vst",
+      "inherits": "base",
+      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"},
+      "cacheVariables": {
+        "MPCBOY_TARGET": "mac-vst",
+        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0"
+      }
+    },
+    {
       "name": "arm32",
       "inherits": "base",
       "toolchainFile": "${sourceDir}/cmake/zig-arm32.cmake"
@@ -88,6 +98,10 @@
     {
       "name": "native-tsan",
       "configurePreset": "native-tsan"
+    },
+    {
+      "name": "mac-vst",
+      "configurePreset": "mac-vst"
     },
     {
       "name": "arm32",

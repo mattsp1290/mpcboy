@@ -20,7 +20,8 @@
 namespace mpcboy {
 
 constexpr int kEditorCols = 6;
-// Host refresh cadence: at most one refresh per 4,410 frames (100 ms, 10 Hz).
+// Host refresh cadence: at most one refresh per 100 ms (10 Hz): 4,410 frames at
+// 44.1 kHz, sampleRate / 10 in general (setSampleRate).
 constexpr int kRefreshIntervalFrames = 4410;
 
 class EditorSync
@@ -58,10 +59,11 @@ public:
     void requestHostRefresh() { needsRefresh_ = true; }
     // Adds `frames` to the clock; returns true when a refresh is due now (and
     // resets the clock and the request).
+    void setSampleRate(int sr) { interval_ = sr >= 1000 ? sr / 10 : kRefreshIntervalFrames; }
     bool refreshDue(int frames)
     {
-        if (framesSince_ < kRefreshIntervalFrames) framesSince_ += frames;
-        if (needsRefresh_ && framesSince_ >= kRefreshIntervalFrames)
+        if (framesSince_ < interval_) framesSince_ += frames;
+        if (needsRefresh_ && framesSince_ >= interval_)
         {
             needsRefresh_ = false;
             framesSince_ = 0;
@@ -74,6 +76,7 @@ private:
     std::atomic<int> shown_[kEditorCols];
     std::atomic<bool> cursorDirty_{true};
     bool needsRefresh_ = false;
+    int interval_ = kRefreshIntervalFrames;
     int framesSince_ = kRefreshIntervalFrames;
 };
 

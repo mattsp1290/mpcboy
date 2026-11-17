@@ -310,7 +310,7 @@ TEST_CASE("engine 8: bend, fine tune, vibrato and slide compose as documented")
 
 TEST_CASE("engine 9: a table E retrigger after the note's Length expired sounds for Length again, not for the hardware maximum")
 {
-    constexpr long kDelay = 118;
+    constexpr long kDelay = 118;   // 44.1 kHz resampler group delay (117.6 host frames)
     Rig r;
     setTable(r.e->ownBank().tables[0], {{0, 0, 0, 0, 0}, {0, 'E', 0xF0, 0, 0}});
     r.only(0);
@@ -326,7 +326,7 @@ TEST_CASE("engine 9: a table E retrigger after the note's Length expired sounds 
 
 TEST_CASE("engine 9: length silences Pulse 1 after 62.5 ms and Wave after 250 ms")
 {
-    constexpr long kDelay = 118;   // resampler group delay, host frames
+    constexpr long kDelay = 118;   // 44.1 kHz resampler group delay (117.6), host frames
     auto pulseEnd = [&](int variant) {
         Rig r;
         setTable(r.e->ownBank().tables[0], octave());

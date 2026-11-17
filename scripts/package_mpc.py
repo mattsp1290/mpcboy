@@ -179,11 +179,8 @@ def main():
             raise Fail("plugin.json %s -> %s does not exist in the folder" % (key, pj[key]))
     imp = os.path.join(out_dir, "Content", "Import")
     os.makedirs(imp)
-    with open(os.path.join(imp, "README.txt"), "w", encoding="utf-8", newline="\n") as f:
-        f.write("Put LSDJ 9.4.0 .sav files here (up to 64, directly in this folder, no sub-folders).\n"
-                "On the TABLE page pick one with Imp File, then tap Imp Go. It replaces all 16 tables\n"
-                "and 16 waves (the first 16 tables in the file, waves 0-15). Imp Undo restores the\n"
-                "previous content; Imp Rescan re-reads this folder after you add files.\n")
+    # One source for the text, shared with cmake/assemble_mac_bundle.cmake.
+    shutil.copyfile(os.path.join(ROOT, "plugin", "Content", "Import", "README.txt"), os.path.join(imp, "README.txt"))
     with open(os.path.join(out_dir, "version.xml"), "w", encoding="utf-8", newline="\n") as f:
         f.write('<?xml version="1.0" encoding="utf-8"?>\n'
                 '<plugincontent version="1.0">\n'
