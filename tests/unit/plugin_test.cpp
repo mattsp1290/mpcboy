@@ -100,7 +100,7 @@ std::vector<double> measureChanges(PluginRig& r, const std::vector<double>& boun
 }
 
 // Frames between a table tick and the audible pitch change. The polyphase
-// resampler alone is 117.6 (kHalfTaps APU frames at 44.1/48); measured through
+// resampler alone is 117.6 (kHalfTaps = 128 APU frames at 44.1 kHz; 0 at 48 kHz, 256 host frames at 96, 512 at 192); measured through
 // the whole engine it is 146-150 (the APU adds about 30 frames). The tests
 // measure it per run; this constant only places the search windows.
 constexpr double kDelayNominal = 147.0;

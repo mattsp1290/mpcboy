@@ -2,7 +2,9 @@
 # it is not part of the MPC package. Mirrors the SDK's tools/build.py build_desktop():
 #   mpcboy.vst/Contents/{Info.plist, PkgInfo, MacOS/mpcboy, Resources/Content/Import/README.txt}
 # universal (arm64 + x86_64, set by the mac-vst preset), only VSTPluginMain and main_macho
-# exported, ad-hoc codesigned after every build.
+# exported, ad-hoc codesigned whenever the bundle is (re)assembled.
+# Optimisation: -O2, as the SDK's build_desktop() uses (the top-level CMakeLists overrides CMake's
+# Release default of -O3 with CMAKE_*_FLAGS_RELEASE = -O2); no NDEBUG.
 if(NOT APPLE)
   message(FATAL_ERROR "MPCBOY_TARGET=mac-vst only builds on macOS")
 endif()
@@ -27,12 +29,27 @@ target_link_options(mpcboy_macho PRIVATE
   "-Wl,-exported_symbols_list,${CMAKE_SOURCE_DIR}/cmake/mac_exports.txt")
 set_property(TARGET mpcboy_macho APPEND PROPERTY LINK_DEPENDS "${CMAKE_SOURCE_DIR}/cmake/mac_exports.txt")
 
-add_custom_command(TARGET mpcboy_macho POST_BUILD
+# The bundle is a real build output (not a POST_BUILD of the Mach-O target), so deleting it or
+# editing plugin/plugin.json (-> Info.plist, PkgInfo) or the import README rebuilds it.
+set(MPCBOY_BUNDLE "${CMAKE_BINARY_DIR}/mpcboy.vst")
+set(MPCBOY_IMPORT_README "${CMAKE_SOURCE_DIR}/plugin/Content/Import/README.txt")
+set(MPCBOY_BUNDLE_OUTPUTS
+  "${MPCBOY_BUNDLE}/Contents/MacOS/mpcboy"
+  "${MPCBOY_BUNDLE}/Contents/Info.plist"
+  "${MPCBOY_BUNDLE}/Contents/PkgInfo"
+  "${MPCBOY_BUNDLE}/Contents/Resources/Content/Import/README.txt")
+add_custom_command(
+  OUTPUT ${MPCBOY_BUNDLE_OUTPUTS}
   COMMAND "${CMAKE_COMMAND}"
     "-DBINARY=$<TARGET_FILE:mpcboy_macho>"
-    "-DBUNDLE=${CMAKE_BINARY_DIR}/mpcboy.vst"
+    "-DBUNDLE=${MPCBOY_BUNDLE}"
     "-DPLIST=${CMAKE_BINARY_DIR}/Info.plist"
     "-DUID=${MPCBOY_UID}"
+    "-DIMPORT_README=${MPCBOY_IMPORT_README}"
     -P "${CMAKE_SOURCE_DIR}/cmake/assemble_mac_bundle.cmake"
+  DEPENDS mpcboy_macho "$<TARGET_FILE:mpcboy_macho>" "${CMAKE_BINARY_DIR}/Info.plist"
+    "${CMAKE_SOURCE_DIR}/cmake/assemble_mac_bundle.cmake" "${CMAKE_SOURCE_DIR}/plugin/plugin.json"
+    "${MPCBOY_IMPORT_README}"
   COMMENT "Assembling and ad-hoc signing mpcboy.vst"
   VERBATIM)
+add_custom_target(mpcboy_vst ALL DEPENDS ${MPCBOY_BUNDLE_OUTPUTS})

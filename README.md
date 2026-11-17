@@ -48,9 +48,10 @@ run), and `TABLE` (the table editor, see `docs/EDITOR.md`).
 - **Latency:** the output is delayed by about 3 ms. The 48 kHz APU is resampled
   to 44.1 kHz through a polyphase filter that adds about 2.7 ms (117.6 frames),
   and the APU adds roughly 30 more frames (measured: a table tick is audible
-  about 146 frames later). The plugin reports a latency of 0. (On a desktop
-  host at 48 kHz there is no resampler; at 96/192 kHz the resampler adds about
-  2.7 ms.)
+  about 146 frames later). The plugin reports a latency of 0. Desktop hosts:
+  the resampler delay is 128 APU frames (2.67 ms) at every resampled rate, i.e.
+  117.6 host frames at 44.1 kHz, 256 at 96 kHz and 512 at 192 kHz; at 48 kHz
+  there is no resampler (0 frames). The APU's own ~30 APU frames come on top.
 - **Host sample rate:** the MPC runs at 44.1 kHz. The engine also supports 48,
   96 and 192 kHz (desktop hosts): the tick clock, note timing, smoothers and
   refresh rate follow the host rate. 88.2 kHz and other rates are unsupported
@@ -129,9 +130,14 @@ cmake --preset mac-vst && cmake --build --preset mac-vst   # build/mac-vst/mpcbo
 ```
 
 The bundle is universal (arm64 + x86_64), exports only `VSTPluginMain` and
-`main_macho`, and is ad-hoc signed (`codesign --sign -`) after every build. The
-install script copies it to `~/Library/Audio/Plug-Ins/VST/mpcboy.vst`, replacing
-any existing copy, and removes the quarantine flag.
+`main_macho`, is built with `-O2` (as the SDK's desktop build) and is ad-hoc
+signed (`codesign --sign -`) whenever it is assembled; it is rebuilt if you
+delete it or change `plugin/plugin.json`. The install script copies it to
+`~/Library/Audio/Plug-Ins/VST/mpcboy.vst` next to the destination, clears extended
+attributes (including any quarantine flag) on that copy, signs it, and then
+swaps it into place, so a failed install never leaves a half-written plugin.
+Any `.sav` files already in the installed bundle's import folder are carried over.
+It warns (does not stop) if Ableton Live is running.
 
 In Live: Preferences > Plug-ins > turn on **Use VST2 Plug-in System Folders**,
 click **Rescan**, then find it under Plug-ins > mpcboy and drop it on a MIDI
@@ -145,16 +151,22 @@ Caveats:
   pick parameters). The MPC skin is not used. The table editor cursor and the
   `Imp *` parameters work as plain parameters.
 - Host rates 44.1, 48, 96 and 192 kHz work; at 88.2 kHz the plugin is silent.
-  96 kHz and above use a slow reference resampler (a `sin` per tap): about 10 %
-  of one core at 96 kHz and 35 % at 192 kHz on an M-series Mac (`host_sim`).
-  Use 44.1 or 48 kHz for normal work.
+  96 and 192 kHz use a table-driven polyphase resampler (L = 2 / 4 phases,
+  same kernel as the vendored reference resampler, matching it to better than
+  -100 dBFS): `host_sim` reports about 0.4 % (96 kHz) and 0.8 % (192 kHz) average
+  CPU per 128-frame block on an M-series Mac. Switching to 96/192 kHz computes
+  the (at most 1028 coefficient) table once on the audio thread at the rate
+  change, a few tens of microseconds. The DC blocker corner (about 35 Hz) is the
+  same at every rate, so low notes have the same level at 44.1 to 192 kHz.
 - Files that the MPC keeps in `Content/` (the `.sav` import folder) live inside
-  the bundle: `mpcboy.vst/Contents/Resources/Content/Import`. Re-installing
-  replaces the bundle and so removes files you put there; keep your `.sav` files
-  elsewhere and copy them in after installing.
-- The ad-hoc signature is enough for a local build; the plugin is not notarized.
-  If Live refuses it, check the Plug-ins preferences for a blocked-plugin note
-  and re-run the install script.
+  the bundle: `mpcboy.vst/Contents/Resources/Content/Import`. The install script
+  keeps the `*.sav` files found there across a re-install; keep your own copies
+  as well. Adding files to an installed bundle by hand makes `codesign -v` report
+  it as modified; re-running the install script re-signs it.
+- The ad-hoc signature is a local, unnotarized signature: there is no Developer ID,
+  so Gatekeeper would not accept a downloaded copy, but a bundle built and
+  installed on this Mac is not quarantined. If Live refuses it, check the
+  Plug-ins preferences for a blocked-plugin note and re-run the install script.
 
 ## Verification status
 

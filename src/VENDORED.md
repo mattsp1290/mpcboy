@@ -19,7 +19,7 @@ Behavioural changes are marked `// MPCBOY LOCAL MOD` in the source.
 | `src/table/rackboy_table.{h,cpp}` | `rackboy_table/rackboy_table.{h,cpp}` |
 | `src/table/channel_io.{h,cpp}` | (mpcboy-owned, no upstream: the table interpreter's register helpers, see local change 8) |
 | `src/sav/` | `rackboy_sav/*.{h,cpp}` (no `spike/`) |
-| `src/dsp/rackboy_resampler.{hpp,cpp}` | `src/rackboy_resampler.{hpp,cpp}` (compiled into `gbcore`: the engine uses `HostResampler` for 96/192 kHz hosts; the MPC's fixed 44.1 kHz path never calls it, the polyphase resampler is used) |
+| `src/dsp/rackboy_resampler.{hpp,cpp}` | `src/rackboy_resampler.{hpp,cpp}` (test-only: compiled into `mpcboy_tests`, not `gbcore`; the engine uses mpcboy's own `PolyphaseResampler48To441` and `RateResampler`) |
 | `tests/third_party/doctest/` | `tests/third_party/doctest/` |
 | `tests/rackboy/{apu,core,table,sav,resampler,audio,common,fixtures}/`, `tests/rackboy/doctest_main.cpp` | rackboy `tests/` (same layout) |
 | `tests/rackboy/support/rackboy_{bank,clock,trigger}.{h,cpp}`, `rackboy_gate.h` | `rackboy_core/rackboy_{bank,clock,gate,trigger}.*` (test-only; `rackboy_gate.h` is header-only) |
@@ -200,14 +200,18 @@ Not copied: `rackboy_core/rackboy_control.*` (VCV knob glue),
    `table_trigger`). A re-vendor now means re-applying the marked call sites;
    `channel_io.*` is not touched by it.
 
-9. **Host sample rates (desktop build):** `src/dsp/rackboy_resampler.cpp` is
-   linked into `gbcore` again (it was test-only after the stage-2 review; the
-   file itself is unchanged). `Engine::setHostRate` uses `HostResampler` for
-   96000 and 192000 Hz hosts. Nothing in the vendored files changed.
+9. **Host sample rates (desktop build):** nothing in the vendored files changed.
+   `src/dsp/rackboy_resampler.cpp` stays test-only (compiled into `mpcboy_tests`).
+   `Engine::setHostRate` uses mpcboy-owned code for the desktop rates:
+   `src/dsp/rate_resampler.{h,cpp}` (`RateResampler`, a table-driven 96/192 kHz
+   resampler with the same kernel and time axis as `HostResampler`, checked
+   against it in `tests/unit/host_rate_test.cpp`) and `DcBlocker::setSampleRate`
+   (the DC blocker corner follows the rate; 44.1 kHz keeps alpha 0.995).
+   `rackboy_taps.h` is untouched.
 
 ## Test count
 
-`mpcboy_tests` (run from `tests/rackboy`): **512 test cases**, 2215453
+`mpcboy_tests` (run from `tests/rackboy`): **521 test cases**, 2304208
 assertions, 0 skipped, including the golden `audio regression` case (473 test
 cases at WP6; WP7-WP9 and WP11 brought it to 506; the stage-1 review fixes added
 6 more; the stage-2 restructuring changed no count). The 426 copied rackboy cases
@@ -216,7 +220,7 @@ are unchanged and pass; the rest live in `tests/unit/` (`stereo_pass_test.cpp`,
 `content_store_test.cpp`, `tick_clock_test.cpp`, `engine_timing_test.cpp`,
 `plugin_test.cpp`, `plugin_codec_test.cpp`, and the .sav import tests in
 `sav_import_test.cpp`, `import_undo_test.cpp` and `import_plugin_test.cpp`).
-The host-rate work added 5 (`tests/unit/host_rate_test.cpp`). Later drift in this number should be explained in the commit that causes it.
+The host-rate work added 9 (`tests/unit/host_rate_test.cpp`: 517 -> 521 total after the review fixes added the 192 kHz plugin path, RateResampler equivalence, low-note level and CPU bound tests). Later drift in this number should be explained in the commit that causes it.
 
 ## Copied files
 

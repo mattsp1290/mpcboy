@@ -6,10 +6,14 @@
 //
 // Host rates (setHostRate): 44100 uses PolyphaseResampler48To441 (the MPC path,
 // table driven, bit-identical to before rate support); 48000 passes the APU
-// output straight through (no resampling, no latency); 96000 and 192000 use the
-// vendored rate-agnostic HostResampler (a sin per tap: a desktop-only path, the
-// MPC never selects it). Any other rate is unsupported: setHostRate returns
-// false and the caller must not render.
+// output straight through (no resampling, no latency); 96000 and 192000 use
+// RateResampler (same kernel as the vendored HostResampler, table driven with
+// L = 2 / 4 phases; a desktop-only path, the MPC never selects it). Any other
+// rate is unsupported: setHostRate returns false and the caller must not render.
+//
+// Output delay by rate (resampler group delay, 128 APU frames = 2.67 ms): 44.1k
+// ~117.6 host frames, 48k 0, 96k 256, 192k 512 (+ about 30 APU frames of APU
+// register latency at every rate). The plugin still reports latency 0.
 //
 // Everything is audio-thread only. render() allocates nothing and takes no
 // lock. No SDK headers: the plugin adapts mpc::MidiEvent / Transport to
@@ -24,7 +28,7 @@
 #include "mono_voice.h"
 #include "polyphase_resampler.h"
 #include "rackboy_apu.h"
-#include "rackboy_resampler.hpp"
+#include "rate_resampler.h"
 #include "rackboy_sav_types.h"
 #include "tick_clock.h"
 
@@ -79,8 +83,9 @@ public:
 
     // True for 44100, 48000, 96000 and 192000.
     static bool hostRateSupported(int sampleRate);
-    // Selects the host rate (audio thread; allocates nothing). Returns false and
-    // changes nothing when unsupported. Takes effect fully after reset(), which
+    // Selects the host rate (audio thread; allocates nothing; at 96/192 kHz it
+    // fills RateResampler's <= 1028 coefficient table, tens of microseconds, once
+    // per rate change). Returns false and changes nothing when unsupported. Takes effect fully after reset(), which
     // the caller must call next (it re-primes the resampler and the tick clock).
     bool setHostRate(int sampleRate);
     int hostRate() const { return hostRate_; }
@@ -121,7 +126,7 @@ private:
     TickClock clock_;
     ContentStore* content_ = nullptr;
     bool clockOn_ = false;     // clock_.beginBlock() was called for this render()
-    enum class RateMode { Poly44, Direct48, Host };
+    enum class RateMode { Poly44, Direct48, Table };
     RateMode rateMode_ = RateMode::Poly44;
     int hostRate_ = 44100;
     int mapNum_ = 160;          // APU frames per mapDen_ host frames (48000 / 44100 reduced)
@@ -129,7 +134,7 @@ private:
     int dcFlushDelay_ = 240;    // host frames, see renderChunk
     long long directOut_ = 0;   // Direct48: output frames since reset
     PolyphaseResampler48To441 resampler_;
-    rackboy::resampler::HostResampler hostResampler_{};
+    RateResampler rateResampler_;
     DcBlocker dc_;
     EngineSettings settings_;
     rackboy::sav::RackboyBank ownBank_;

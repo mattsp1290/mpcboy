@@ -42,7 +42,7 @@ mpc::PluginInfo MpcBoyPlugin::makeInfo()
     i.isInstrument = true;
     i.numInputs = 0;
     i.numOutputs = 2;
-    i.latencySamples = 0;                          // the ~118-frame resampler delay is documented, not reported (R7)
+    i.latencySamples = 0;                          // resampler delay (117.6 host frames at 44.1k, 0 at 48k, 256 at 96k, 512 at 192k) is documented, not reported (R7)
     return i;
 }
 

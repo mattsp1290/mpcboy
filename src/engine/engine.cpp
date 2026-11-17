@@ -15,7 +15,8 @@ namespace {
 // A Cut note-off turns the DACs off at APU frame a. The resampler's output
 // stops depending on that step ~237 host frames later (kernel half width 128
 // APU frames each side). Past that point only the DC blocker's tail is left: a
-// one-pole high-pass with alpha 0.995 turns the DAC's DC step into a
+// one-pole high-pass with alpha 0.995 (at 44.1 kHz; the corner is held constant
+// in Hz across rates, see DcBlocker) turns the DAC's DC step into a
 // -47 dBFS exponential that needs ~26 ms to fall below -90 dBFS. The engine
 // therefore flushes the blocker at that moment (the step it removes is the tail
 // itself, ~-47 dBFS), which gives the plan's "silent within 10 ms + resampler
@@ -87,9 +88,10 @@ bool Engine::setHostRate(int sr)
     else if (sr == 48000) rateMode_ = RateMode::Direct48;
     else
     {
-        rateMode_ = RateMode::Host;
-        rackboy::resampler::host_resampler_init(&hostResampler_, static_cast<unsigned>(sr));
+        rateMode_ = RateMode::Table;
+        rateResampler_.setRate(sr);   // sr in {96000, 192000}: always supported
     }
+    dc_.setSampleRate(sr);
     dcFlushDelay_ = sr == 44100 ? 240 : dcFlushDelayFor(sr, rateMode_ != RateMode::Direct48);
     clock_.setSampleRate(static_cast<double>(sr));
     return true;
@@ -101,14 +103,7 @@ int Engine::inputsNeeded(int outFrames) const
     {
         case RateMode::Poly44: return resampler_.inputsNeeded(outFrames);
         case RateMode::Direct48: return outFrames;
-        case RateMode::Host:
-        {
-            // Same arithmetic as the vendored host_resampler_required_inputs, for the last output of the chunk.
-            const long long last = hostResampler_.output_count + outFrames - 1;
-            const long long need = last * hostResampler_.M / hostResampler_.L + hostResampler_.half_taps + 1
-                                   - hostResampler_.input_count;
-            return need > 0 ? static_cast<int>(need) : 0;
-        }
+        case RateMode::Table: return rateResampler_.inputsNeeded(outFrames);
     }
     return 0;
 }
@@ -119,7 +114,7 @@ long long Engine::outputCount() const
     {
         case RateMode::Poly44: return resampler_.outputCount();
         case RateMode::Direct48: return directOut_;
-        case RateMode::Host: return hostResampler_.output_count;
+        case RateMode::Table: return rateResampler_.outputCount();
     }
     return 0;
 }
@@ -136,22 +131,9 @@ void Engine::resample(const float* inL, const float* inR, int inFrames, float* o
             std::memcpy(outR, inR, sizeof(float) * static_cast<size_t>(outFrames));
             directOut_ += outFrames;
             break;
-        case RateMode::Host:
-        {
-            int pushed = 0;
-            for (int i = 0; i < outFrames; ++i)
-            {
-                while (pushed < inFrames && rackboy::resampler::host_resampler_required_inputs(&hostResampler_) > 0)
-                {
-                    rackboy::resampler::host_resampler_push_input(&hostResampler_, inL[pushed], inR[pushed], 0.0f, 0.0f);
-                    ++pushed;
-                }
-                rackboy::resampler::host_resampler_emit(&hostResampler_, &outL[i], &outR[i], nullptr, nullptr);
-            }
-            for (; pushed < inFrames; ++pushed)   // none in practice: inputsNeeded() is exact
-                rackboy::resampler::host_resampler_push_input(&hostResampler_, inL[pushed], inR[pushed], 0.0f, 0.0f);
+        case RateMode::Table:
+            rateResampler_.process(inL, inR, inFrames, outL, outR, outFrames);
             break;
-        }
     }
 }
 
@@ -178,11 +160,7 @@ void Engine::reset()
     {
         case RateMode::Poly44: resampler_.reset(kResamplerPrefill); break;
         case RateMode::Direct48: directOut_ = 0; break;
-        case RateMode::Host:
-            rackboy::resampler::host_resampler_reset_state(&hostResampler_);
-            for (int i = 0; i < kResamplerPrefill; ++i)   // same priming as the polyphase path
-                rackboy::resampler::host_resampler_push_input(&hostResampler_, 0.0f, 0.0f, 0.0f, 0.0f);
-            break;
+        case RateMode::Table: rateResampler_.reset(kResamplerPrefill); break;   // same priming as the 44.1 kHz path
     }
     dc_.reset();
     clock_.reset();

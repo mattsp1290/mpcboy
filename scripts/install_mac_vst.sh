@@ -19,13 +19,37 @@ DEST="$DEST_DIR/mpcboy.vst"
 [ -d "$SRC" ] || { echo "install_mac_vst.sh: $SRC was not produced" >&2; exit 1; }
 
 echo "== install to $DEST"
+if pgrep -f "Ableton Live" >/dev/null 2>&1; then
+  echo "warning: Ableton Live is running. It keeps the old plugin loaded until it rescans or restarts." >&2
+fi
 mkdir -p "$DEST_DIR"
-rm -rf "$DEST"
-cp -R "$SRC" "$DEST"
-# This macOS xattr has no -r: strip the quarantine flag file by file (no-op when absent).
-find "$DEST" -exec xattr -d com.apple.quarantine {} \; 2>/dev/null || true
-codesign --force --sign - "$DEST"
-codesign -v "$DEST"
+NEW="$DEST.new.$$"
+OLD="$DEST.old.$$"
+trap 'rm -rf "$NEW"' EXIT
+rm -rf "$NEW"
+cp -R "$SRC" "$NEW"
+# Keep the user's .sav files: they live inside the bundle (Contents/Resources/Content/Import).
+IMPORT_REL="Contents/Resources/Content/Import"
+if [ -d "$DEST/$IMPORT_REL" ]; then
+  mkdir -p "$NEW/$IMPORT_REL"
+  kept=0
+  for f in "$DEST/$IMPORT_REL"/*.sav; do
+    [ -e "$f" ] || continue
+    cp -p "$f" "$NEW/$IMPORT_REL/"
+    kept=$((kept + 1))
+  done
+  echo "kept $kept .sav file(s) from the existing install"
+fi
+# Strip quarantine / other xattrs from the new copy. Newer macOS xattr has -r; this one may not
+# (it only has -c), so fall back to clearing file by file.
+xattr -cr "$NEW" >/dev/null 2>&1 || find "$NEW" -exec xattr -c {} + >/dev/null 2>&1 || true
+codesign --force --sign - "$NEW"
+codesign -v --strict "$NEW"
+# Swap in one step: the old bundle is moved aside, the new one renamed into place, then the old one removed.
+if [ -e "$DEST" ]; then mv "$DEST" "$OLD"; fi
+mv "$NEW" "$DEST"
+rm -rf "$OLD"
+trap - EXIT
 echo "installed: $DEST"
 lipo -archs "$DEST/Contents/MacOS/mpcboy" | sed 's/^/architectures: /'
 
