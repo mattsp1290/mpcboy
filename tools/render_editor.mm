@@ -5,8 +5,8 @@
 //
 // Writes <out dir>/<page>.png (scale 1) and <page>@<scale>x.png for each further scale, using
 // the editor's own drawing code (mpcboy::renderEditorPng) on a real MpcBoyPlugin. Playback is
-// simulated so the live LCDs show something: PU1 and WAV (switched on) play table 1 (MajArp) from a C-4
-// note-on until the playhead reaches row 2; the TABLE page edits table 1 with the cursor on
+// simulated so the live LCDs show something: PU1 and WAV (switched on) play table 1 (MajArp) from a MIDI 60
+// (C3 in Ableton terms) note-on until the playhead reaches row 2; the TABLE page edits table 1 with the cursor on
 // row 2. Exit 0 when every page rendered with all art found and the playhead got there.
 #import <Foundation/Foundation.h>
 

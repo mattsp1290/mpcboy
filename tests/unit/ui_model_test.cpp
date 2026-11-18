@@ -905,12 +905,18 @@ TEST_CASE("ui: channel LCD - page channels, sections inside the panel, note name
     CHECK(ui::lcdWindowFirst(7) == 4);
     CHECK(ui::lcdWindowFirst(15) == 9);
     char n[4];
-    ui::noteName(60, n);
-    CHECK(std::string(n) == "C-4");
+    ui::noteName(60, n);   // Ableton Live's middle C
+    CHECK(std::string(n) == "C-3");
     ui::noteName(61, n);
-    CHECK(std::string(n) == "C#4");
+    CHECK(std::string(n) == "C#3");
     ui::noteName(69, n);
-    CHECK(std::string(n) == "A-4");
+    CHECK(std::string(n) == "A-3");
+    ui::noteName(24, n);
+    CHECK(std::string(n) == "C-0");
+    ui::noteName(23, n);
+    CHECK(std::string(n) == "B--");
+    ui::noteName(127, n);
+    CHECK(std::string(n) == "G-8");
     ui::noteName(-1, n);
     CHECK(std::string(n) == "---");
     CHECK(ui::envelopeLevel(15, false, 3, 4) == 11);

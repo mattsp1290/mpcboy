@@ -289,7 +289,9 @@ struct ChannelLcdLayout
 ChannelLcdLayout channelLcdLayout(const Rect& panel);
 // First row of the table window around `row`, clamped so the window stays inside 0..15.
 int lcdWindowFirst(int row);
-// "C-4", "C#4" (MIDI 60 = C-4); "---" for a negative note. `out` holds at least 4 characters.
+// "C-3", "C#3" (MIDI 60 = C3, matching Ableton Live); "---" for a negative note. Octaves below 0
+// (MIDI 0..23, below the Game Boy's playable range) show '-' in place of the digit, as in "C--".
+// `out` holds at least 4 characters.
 void noteName(int midiNote, char* out);
 // Envelope level after `step` envelope steps from `level` (0..15) moving up or down; time 0
 // keeps the level (no envelope).

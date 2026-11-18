@@ -550,7 +550,7 @@ void noteName(int midiNote, char* out)
     static const char* const kNames[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
     if (midiNote < 0) { std::strcpy(out, "---"); return; }
     const int n = clampi(midiNote, 0, 127);
-    const int oct = n / 12 - 1;
+    const int oct = n / 12 - 2;   // Ableton convention: MIDI 60 = C3
     out[0] = kNames[n % 12][0];
     out[1] = kNames[n % 12][1];
     out[2] = oct < 0 ? '-' : static_cast<char>('0' + oct);
