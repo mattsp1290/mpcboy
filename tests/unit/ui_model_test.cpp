@@ -1,11 +1,14 @@
 // UI WP2: the Mac editor's platform-free interaction model (src/ui/ui_model.h) and the
 // parameter name / index agreement between the generated layout and the plugin (design step 10).
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include "doctest/doctest.h"
+#include "factory_content.h"
 #include "param_bridge.h"
 #include "table_bank.h"
 #include "ui_model.h"
@@ -765,4 +768,251 @@ TEST_CASE("ui: the level fader's 15 cells - every level 0..15 lands on a frame t
         const int f = ui::filmFrame(ui::normOfStep(k, lvl.steps), 127);
         CHECK(static_cast<int>(std::floor(f / 126.0 * ui::kFaderCells + 0.5)) == k);
     }
+}
+
+// ---- redesign step 3: the Mac editor's live LCDs, TABLE grid, breadcrumb, captions ----------
+TEST_CASE("ui: TABLE grid - 16 rows fit the LCD panel; hex row numbers, beat rows, column caret extents")
+{
+    const ui::GridLayout g = ui::gridLayout();
+    const ui::Rect pb = ui::kTableGrid.panelBounds;
+    // Inside the panel at cols 0-1, rows 0-1, left of the MPC Q-Link sidebar.
+    CHECK(pb.x == 23);
+    CHECK(pb.w == 598);
+    CHECK(g.field.x >= pb.x);
+    CHECK(g.field.y >= pb.y);
+    CHECK(g.field.x + g.field.w <= pb.x + pb.w);
+    CHECK(g.field.y + g.field.h <= pb.y + pb.h);
+    // Every row band is inside the field, rows are contiguous, glyphs fit their band.
+    for (int r = 0; r < ui::kGridRows; ++r)
+    {
+        CAPTURE(r);
+        const ui::Rect b = ui::gridRowBand(r);
+        CHECK(b.y == g.rowsY + r * ui::kGridPitch);
+        CHECK(b.h == ui::kGridPitch);
+        CHECK(b.y + b.h <= g.field.y + g.field.h);
+        CHECK(ui::gridTextY(r) >= b.y);
+        CHECK(ui::gridTextY(r) + ui::kPixelFontHeight * ui::kGridScale <= b.y + b.h);
+        CHECK(b.x + b.w <= g.side.x);
+    }
+    CHECK(g.headerY >= g.field.y);
+    CHECK(g.rowsY >= g.headerY + 7 * ui::kGridHeaderScale);
+    // The side column (name, chips) is inside the field and right of the text.
+    CHECK(g.side.w >= 150);
+    CHECK(g.side.x + g.side.w <= g.field.x + g.field.w);
+    // Beat rows every 4th row.
+    CHECK(ui::isBeatRow(0));
+    CHECK(ui::isBeatRow(4));
+    CHECK(ui::isBeatRow(12));
+    CHECK_FALSE(ui::isBeatRow(3));
+    // Column extents tile the row left to right; the caret covers exactly the column's text.
+    for (int c = 0; c + 1 < ui::kTableGrid.numColumns; ++c)
+    {
+        CAPTURE(c);
+        const ui::Rect a = ui::gridCellRect(5, c), b = ui::gridCellRect(5, c + 1);
+        CHECK(a.x + a.w == b.x);
+        const ui::Rect caret = ui::gridCaretRect(5, c);
+        CHECK(caret.x >= a.x);
+        CHECK(caret.x + caret.w <= a.x + a.w);
+    }
+    CHECK(ui::gridEditorColumn(0) == -1);
+    CHECK(ui::gridEditorColumn(1) == 0);   // VOL -> Row Vol
+    CHECK(ui::gridEditorColumn(6) == 5);   // VAL 2 -> Row Val2
+}
+
+TEST_CASE("ui: TABLE grid - rows show the factory table in hex; the cursor row is flagged")
+{
+    Content c;
+    loadFactoryContent(c);
+    ui::TableLine rows[ui::kGridRows];
+    ui::buildGridRows(c, 0, 2, rows);   // MajArp, cursor on row 2
+    for (int r = 0; r < ui::kGridRows; ++r)
+    {
+        CAPTURE(r);
+        CHECK(rows[r].row == r);
+        CHECK(rows[r].cursor == (r == 2));
+        char hex[3];
+        ui::formatHex2(r, hex);
+        CHECK(std::strncmp(rows[r].text + ui::kTableGrid.columns[0].x, hex, 2) == 0);
+    }
+    CHECK(std::string(rows[10].text).substr(ui::kTableGrid.columns[0].x, 2) == "0A");
+    CHECK(std::string(rows[3].text).find("-07") != std::string::npos);
+    CHECK(std::string(rows[3].text).find("H") != std::string::npos);
+}
+
+TEST_CASE("ui: TABLE grid - a click maps to its row and column; outside the rows nothing")
+{
+    for (int r = 0; r < ui::kGridRows; ++r)
+        for (int c = 0; c < ui::kTableGrid.numColumns; ++c)
+        {
+            CAPTURE(r);
+            CAPTURE(c);
+            const ui::Rect cell = ui::gridCellRect(r, c);
+            const ui::GridHit h = ui::hitGrid(cell.x + cell.w / 2, cell.y + cell.h / 2);
+            CHECK(h.row == r);
+            CHECK(h.column == c);
+            // Band edges: the first and last unit of a band belong to that row.
+            CHECK(ui::hitGrid(cell.x + 1, cell.y).row == r);
+            CHECK(ui::hitGrid(cell.x + 1, cell.y + cell.h - 1).row == r);
+        }
+    const ui::GridLayout g = ui::gridLayout();
+    CHECK(ui::hitGrid(g.field.x + 20, g.headerY + 2).row == -1);    // the header
+    CHECK(ui::hitGrid(g.side.x + 10, g.rowsY + 30).row == -1);      // the side column
+    CHECK(ui::hitGrid(700, 100).row == -1);                         // Edit Table's slot
+    // The grid sits on the TABLE page's LCD, where no control is hit.
+    const std::vector<float> d = defaults();
+    const ui::Rect cell = ui::gridCellRect(7, 2);
+    CHECK(ui::hitTest(ui::kTableGrid.page, cell.x + 4, cell.y + 4, d.data(), static_cast<int>(d.size())).control == -1);
+}
+
+TEST_CASE("ui: breadcrumb text and its top-band area")
+{
+    char b[32];
+    ui::channelBreadcrumb(b, sizeof(b), 0, "MajArp", 2);
+    CHECK(std::string(b) == "PU1 > MAJARP ROW 02");
+    ui::channelBreadcrumb(b, sizeof(b), 2, "Table 09", 11);
+    CHECK(std::string(b) == "WAV > TABLE 09 ROW 0B");
+    ui::channelBreadcrumb(b, sizeof(b), 3, "Hat", -1);   // assigned, not running
+    CHECK(std::string(b) == "NOI > HAT");
+    ui::channelBreadcrumb(b, sizeof(b), 1, nullptr, 4);
+    CHECK(std::string(b) == "PU2 > TABLE OFF");
+    ui::channelBreadcrumb(b, sizeof(b), 1, "", 4);
+    CHECK(std::string(b) == "PU2 > TABLE OFF");
+    ui::tableBreadcrumb(b, sizeof(b), 1, 2);
+    CHECK(std::string(b) == "TABLE 01 > ROW 02");
+    ui::tableBreadcrumb(b, sizeof(b), 16, 15);
+    CHECK(std::string(b) == "TABLE 16 > ROW 0F");
+    char small[6];
+    ui::channelBreadcrumb(small, sizeof(small), 0, "MajArp", 2);
+    CHECK(std::string(small) == "PU1 >");   // truncated, terminated
+
+    for (int p = 0; p < ui::kNumPages; ++p)
+    {
+        CAPTURE(p);
+        const ui::Rect r = ui::breadcrumbRect(p);
+        // After the title, in the top band, left of the wordmark and the TABLE page's legend.
+        CHECK(r.x >= ui::kTitleX + ui::textWidth(ui::page(p).title, ui::kTitleScale));
+        CHECK(r.y >= 0);
+        CHECK(r.y + r.h <= ui::page(p).controls[0].slot.y + 8);
+        CHECK(r.x + r.w <= 662);
+    }
+}
+
+TEST_CASE("ui: channel LCD - page channels, sections inside the panel, note names, envelope, noise")
+{
+    CHECK(ui::pageChannel(0) == -1);   // MAIN
+    CHECK(ui::pageChannel(1) == 0);
+    CHECK(ui::pageChannel(2) == 1);
+    CHECK(ui::pageChannel(3) == 2);
+    CHECK(ui::pageChannel(4) == 3);
+    CHECK(ui::pageChannel(5) == -1);   // TABLE has a table LCD, not a channel LCD
+    for (int p = 1; p <= 4; ++p)
+    {
+        CAPTURE(p);
+        const ui::Panel* panel = ui::channelPanel(p);
+        REQUIRE(panel != nullptr);
+        const ui::ChannelLcdLayout l = ui::channelLcdLayout(panel->bounds);
+        const ui::Rect* secs[5] = {&l.tag, &l.tone, &l.env, &l.note, &l.table};
+        for (int i = 0; i < 5; ++i)
+        {
+            CHECK(secs[i]->x >= l.field.x);
+            CHECK(secs[i]->x + secs[i]->w <= l.field.x + l.field.w);
+            if (i > 0) CHECK(secs[i]->x > secs[i - 1]->x + secs[i - 1]->w);
+        }
+        // The table window (+-3 rows at scale 1) fits the field height.
+        CHECK(ui::kLcdTableRows * ui::kLcdTablePitch <= l.field.h);
+        CHECK(l.table.w >= 200);
+    }
+    CHECK(ui::lcdWindowFirst(0) == 0);
+    CHECK(ui::lcdWindowFirst(2) == 0);
+    CHECK(ui::lcdWindowFirst(7) == 4);
+    CHECK(ui::lcdWindowFirst(15) == 9);
+    char n[4];
+    ui::noteName(60, n);
+    CHECK(std::string(n) == "C-4");
+    ui::noteName(61, n);
+    CHECK(std::string(n) == "C#4");
+    ui::noteName(69, n);
+    CHECK(std::string(n) == "A-4");
+    ui::noteName(-1, n);
+    CHECK(std::string(n) == "---");
+    CHECK(ui::envelopeLevel(15, false, 3, 4) == 11);
+    CHECK(ui::envelopeLevel(15, false, 3, 40) == 0);
+    CHECK(ui::envelopeLevel(2, true, 1, 20) == 15);
+    CHECK(ui::envelopeLevel(9, false, 0, 7) == 9);   // no envelope: hold
+    std::uint8_t a[127], b2[127];
+    ui::noiseMotif(true, a, 127);
+    ui::noiseMotif(false, b2, 127);
+    int ones = 0;
+    for (std::uint8_t v : b2) ones += v;
+    CHECK(ones > 20);
+    CHECK(ones < 107);
+    CHECK(std::memcmp(a, b2, sizeof(a)) != 0);
+}
+
+TEST_CASE("ui: caption fit - 4-way captions condense to fit their segment, others keep the normal layout")
+{
+    int condensed = 0;
+    for (int p = 0; p < ui::kNumPages; ++p)
+    {
+        const ui::Page& pg = ui::page(p);
+        for (int i = 0; i < pg.numControls; ++i)
+            for (int k = 0; k < pg.controls[i].numCaptions; ++k)
+            {
+                const ui::Caption& cap = pg.controls[i].captions[k];
+                CAPTURE(cap.text);
+                std::string up = cap.text;
+                for (char& ch : up) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+                const ui::TextStyle st = ui::captionStyle(cap);
+                CHECK(ui::textWidth(up.c_str(), st) <= cap.bounds.w - 2 * ui::kCaptionMargin);
+                CHECK(st.scale == ui::labelScale(cap.fontHeight));   // condensed, never smaller
+                if (st.proportional) ++condensed;
+                // The normal layout whenever it fits.
+                if (ui::textWidth(up.c_str(), ui::labelScale(cap.fontHeight)) <= cap.bounds.w - 2 * ui::kCaptionMargin)
+                    CHECK_FALSE(st.proportional);
+            }
+    }
+    CHECK(condensed > 0);
+    // The ladder: normal, proportional with a font-pixel gap, then a one-unit gap, then a smaller scale.
+    CHECK_FALSE(ui::fitText("RIGHT", 58, 2).proportional);
+    CHECK(ui::fitText("RIGHT", 50, 2).proportional);
+    CHECK(ui::textWidth("RIGHT", ui::fitText("RIGHT", 50, 2)) <= 50);
+    CHECK(ui::textWidth("12.5%", ui::fitText("12.5%", 50, 2)) <= 50);
+    CHECK(ui::fitText("12.5%", 50, 2).scale == 2);
+    CHECK(ui::fitText("ABCDEFGHIJ", 40, 2).scale == 1);
+    // Proportional width: glyph ink widths plus the gaps.
+    const ui::TextStyle prop{2, 0, true, 1};
+    const int iw = ui::glyphSpan(ui::glyph('I')).width;
+    CHECK(ui::textWidth("II", prop) == 2 * iw * 2 + 1);
+    // Rasterising a condensed caption stays inside its measured width.
+    const ui::Rect box{0, 0, 200, 40};
+    const ui::TextStyle st = ui::fitText("RIGHT", 50, 2);
+    int maxX = 0;
+    ui::rasterizeText("RIGHT", 0, 0, st, &box, [&](int x, int, int w, int) { maxX = std::max(maxX, x + w); });
+    CHECK(maxX == ui::textWidth("RIGHT", st));
+}
+
+TEST_CASE("ui: MAIN header-band On toggles - the strip LEDs on MAIN only, grown hit rects")
+{
+    const ui::Page& main = ui::page(0);
+    int toggles = 0;
+    for (int i = 0; i < main.numDynamics; ++i)
+    {
+        const ui::Dynamic& d = main.dynamics[i];
+        if (!ui::isHeaderToggle(0, d)) continue;
+        ++toggles;
+        const ui::Rect r = ui::headerToggleRect(d);
+        CHECK(ui::hitHeaderToggle(0, r.x + r.w / 2, r.y + r.h / 2) == i);
+        CHECK(ui::hitHeaderToggle(0, d.bounds.x - ui::kHeaderToggleSlop, d.bounds.y) == i);
+        // Not a control's hit area: the strip's fader / segments sit lower.
+        const std::vector<float> dv = defaults();
+        CHECK(ui::hitTest(0, d.bounds.x + 2, d.bounds.y + 2, dv.data(), static_cast<int>(dv.size())).control == -1);
+    }
+    CHECK(toggles == 4);
+    const int ons[4] = {P1_On, P2_On, WV_On, NZ_On};
+    for (int k = 0, n = 0; k < main.numDynamics; ++k)
+        if (ui::isHeaderToggle(0, main.dynamics[k])) CHECK(main.dynamics[k].param == ons[n++]);
+    // Channel pages: the LED is inside the LCD, so it is no toggle there.
+    for (int p = 1; p < ui::kNumPages; ++p)
+        for (int i = 0; i < ui::page(p).numDynamics; ++i) CHECK_FALSE(ui::isHeaderToggle(p, ui::page(p).dynamics[i]));
+    CHECK(ui::hitHeaderToggle(0, 640, 400) == -1);
 }

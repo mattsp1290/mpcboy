@@ -169,6 +169,31 @@ void Engine::reset()
     curBlockOffset_ = 0;
     dcResetOut_ = -1;
     chunkOutBase_ = 0;
+    publishPlayback();
+}
+
+void Engine::publishPlayback()
+{
+    const GB_apu_t& a = apu_.gb.apu;
+    for (int ch = 0; ch < 4; ++ch)
+    {
+        ChannelPlayback p;
+        p.table = voice_.tableSlot(ch);
+        p.running = voice_.tableRunning(ch) && p.table >= 0 && bank_->tables[p.table].occupied;
+        p.row = voice_.playRow(ch);
+        p.note = voice_.channelNote(ch);
+        p.active = a.is_active[ch];
+        int level = 0;
+        switch (ch)
+        {
+            case 0: case 1: level = a.square_channels[ch].current_volume; break;
+            case 2: level = a.wave_channel.shift >= 4 ? 0 : 15 >> a.wave_channel.shift; break;   // NR32: 100 / 50 / 25 %
+            default: level = a.noise_channel.current_volume; break;
+        }
+        p.level = p.active ? (level & 15) : 0;
+        playback_.store(ch, p);
+    }
+    playback_.storeWave(&apu_.gb.io_registers[GB_IO_WAV_START]);
 }
 
 void Engine::applySettings(const EngineSettings& s)
@@ -232,6 +257,7 @@ void Engine::render(const EngineBlock& block, float* left, float* right, int fra
     }
     if (clockOn_) clock_.endBlock();
     clockOn_ = false;
+    publishPlayback();
 }
 
 // The engine clock's next tick inside [c0, c0 + n), or -1.

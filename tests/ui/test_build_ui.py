@@ -164,6 +164,34 @@ class BuildUiTest(unittest.TestCase):
                     labels += 1
         self.assertGreater(labels, 20)
 
+    def test_segment_captions_fit_by_estimate(self):
+        # Every segment caption's estimated Nexa Bold width fits its box minus the padding; the
+        # 4-way captions are smaller than the default and all one size; 2-way keep the default.
+        import build_ui
+        default = round(build_ui.GEN_UI_CAPTION_HEIGHT * build_ui.LABEL_HEIGHT_SCALE, 1)
+        seg4 = set()
+        seen = 0
+        for tab in get(get(self.tui, "pageData"), "tabs"):
+            for e in get(get(tab, "componentDefinition"), "componentsData"):
+                cd = get(e, "componentData")
+                if get(cd, "type") != "Label" or " seg " not in get(cd, "name"):
+                    continue
+                data = get(cd, "data")
+                text = get(data, "text")
+                height = float(get(get(get(data, "textStyle"), "font"), "height"))
+                width = int(get(get(e, "bounds"), "bounds").split()[2])
+                self.assertLessEqual(build_ui.nexa_width(text, height), width - 2 * build_ui.CAPTION_PAD, text)
+                if width == 58:
+                    seg4.add(height)
+                elif width == 122:
+                    self.assertEqual(height, default, text)
+                seen += 1
+        self.assertGreater(seen, 20)
+        self.assertEqual(len(seg4), 1)
+        self.assertLess(seg4.pop(), default)
+        # "RIGHT" at the default height would not fit a 4-way segment.
+        self.assertGreater(build_ui.nexa_width("RIGHT", default), 58 - 2 * build_ui.CAPTION_PAD)
+
     def test_overlay_duplicate_version_keys_survive(self):
         # ui-reference 1.8: the overlays need both "version" keys; a json round-trip would drop one.
         self.assertIn('"overlayType": "Knob With Header"', self.tui_text)

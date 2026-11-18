@@ -284,7 +284,7 @@ inline constexpr ComponentDef kComponents[] = {
 };
 inline constexpr int kNumComponents = 32;
 
-inline constexpr Caption kPage0Control2Captions[] = {{"Mute", {678, 99, 58, 40}, 18.7f}, {"25%", {740, 99, 58, 40}, 18.7f}, {"50%", {802, 99, 58, 40}, 18.7f}, {"100%", {864, 99, 58, 40}, 18.7f}};
+inline constexpr Caption kPage0Control2Captions[] = {{"Mute", {678, 99, 58, 40}, 15.7f}, {"25%", {740, 99, 58, 40}, 15.7f}, {"50%", {802, 99, 58, 40}, 15.7f}, {"100%", {864, 99, 58, 40}, 15.7f}};
 inline constexpr Caption kPage0Control8Captions[] = {{"Tempo", {38, 400, 122, 40}, 18.7f}, {"Free", {164, 400, 122, 40}, 18.7f}};
 inline constexpr Caption kPage0Control11Captions[] = {{"Note", {678, 400, 122, 40}, 18.7f}, {"Grid", {804, 400, 122, 40}, 18.7f}};
 inline constexpr Caption kPage0Control15Captions[] = {{"Always", {678, 551, 122, 40}, 18.7f}, {"Legato", {804, 551, 122, 40}, 18.7f}};
@@ -314,10 +314,10 @@ inline constexpr Dynamic kPage0Dynamics[] = {
     {DynamicKind::FilmStrip, 32, "WAV On", {915, 49, 20, 16}, "led_wav_plate.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
     {DynamicKind::FilmStrip, 40, "NOI On", {1235, 49, 20, 16}, "led_noi_plate.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
 };
-inline constexpr Caption kPage1Control1Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage1Control1Captions[] = {{"12.5%", {38, 250, 58, 40}, 15.7f}, {"25%", {100, 250, 58, 40}, 15.7f}, {"50%", {162, 250, 58, 40}, 15.7f}, {"75%", {224, 250, 58, 40}, 15.7f}};
 inline constexpr Caption kPage1Control6Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
 inline constexpr Caption kPage1Control10Captions[] = {{"Down", {358, 551, 122, 40}, 18.7f}, {"Up", {484, 551, 122, 40}, 18.7f}};
-inline constexpr Caption kPage1Control12Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
+inline constexpr Caption kPage1Control12Captions[] = {{"Mute", {998, 551, 58, 40}, 15.7f}, {"Left", {1060, 551, 58, 40}, 15.7f}, {"Both", {1122, 551, 58, 40}, 15.7f}, {"Right", {1184, 551, 58, 40}, 15.7f}};
 inline constexpr Control kPage1Controls[] = {  // PULSE1
     {9, "PU1 On", WidgetKind::Toggle, false, 15, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 16},
     {13, "PU1 Duty", WidgetKind::Radio4, false, 6, {23, 196, 278, 107}, {-1, 0, 0}, kPage1Control1Captions, 4, 0xffff5a7eu, 9},
@@ -343,9 +343,9 @@ inline constexpr Dynamic kPage1Dynamics[] = {
     {DynamicKind::FilmStrip, 11, "PU1 Env Dir", {545, 77, 28, 60}, "lcd_envdir.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
     {DynamicKind::ValueLabel, 21, "PU1 Table", {609, 75, 316, 40}, nullptr, 1, 0xff9bbc0fu, 25.5f, Justify::Left, true},
 };
-inline constexpr Caption kPage2Control1Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage2Control1Captions[] = {{"12.5%", {38, 250, 58, 40}, 15.7f}, {"25%", {100, 250, 58, 40}, 15.7f}, {"50%", {162, 250, 58, 40}, 15.7f}, {"75%", {224, 250, 58, 40}, 15.7f}};
 inline constexpr Caption kPage2Control6Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
-inline constexpr Caption kPage2Control9Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
+inline constexpr Caption kPage2Control9Captions[] = {{"Mute", {998, 551, 58, 40}, 15.7f}, {"Left", {1060, 551, 58, 40}, 15.7f}, {"Both", {1122, 551, 58, 40}, 15.7f}, {"Right", {1184, 551, 58, 40}, 15.7f}};
 inline constexpr Control kPage2Controls[] = {  // PULSE2
     {22, "PU2 On", WidgetKind::Toggle, false, 16, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 16},
     {26, "PU2 Duty", WidgetKind::Radio4, false, 7, {23, 196, 278, 107}, {-1, 0, 0}, kPage2Control1Captions, 4, 0xfff5c542u, 9},
@@ -368,8 +368,8 @@ inline constexpr Dynamic kPage2Dynamics[] = {
     {DynamicKind::FilmStrip, 24, "PU2 Env Dir", {545, 77, 28, 60}, "lcd_envdir.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
     {DynamicKind::ValueLabel, 31, "PU2 Table", {609, 75, 316, 40}, nullptr, 1, 0xff9bbc0fu, 25.5f, Justify::Left, true},
 };
-inline constexpr Caption kPage3Control5Captions[] = {{"Mute", {38, 400, 58, 40}, 18.7f}, {"25%", {100, 400, 58, 40}, 18.7f}, {"50%", {162, 400, 58, 40}, 18.7f}, {"100%", {224, 400, 58, 40}, 18.7f}};
-inline constexpr Caption kPage3Control7Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
+inline constexpr Caption kPage3Control5Captions[] = {{"Mute", {38, 400, 58, 40}, 15.7f}, {"25%", {100, 400, 58, 40}, 15.7f}, {"50%", {162, 400, 58, 40}, 15.7f}, {"100%", {224, 400, 58, 40}, 15.7f}};
+inline constexpr Caption kPage3Control7Captions[] = {{"Mute", {998, 551, 58, 40}, 15.7f}, {"Left", {1060, 551, 58, 40}, 15.7f}, {"Both", {1122, 551, 58, 40}, 15.7f}, {"Right", {1184, 551, 58, 40}, 15.7f}};
 inline constexpr Control kPage3Controls[] = {  // WAVE
     {32, "WAV On", WidgetKind::Toggle, false, 17, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 16},
     {34, "WAV Shape", WidgetKind::SliderWithFocus, true, 9, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 9},
@@ -391,7 +391,7 @@ inline constexpr Dynamic kPage3Dynamics[] = {
 inline constexpr Caption kPage4Control1Captions[] = {{"Hiss 15", {38, 250, 122, 40}, 18.7f}, {"Buzz 7", {164, 250, 122, 40}, 18.7f}};
 inline constexpr Caption kPage4Control3Captions[] = {{"Track", {678, 250, 122, 40}, 18.7f}, {"Fixed", {804, 250, 122, 40}, 18.7f}};
 inline constexpr Caption kPage4Control6Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
-inline constexpr Caption kPage4Control10Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
+inline constexpr Caption kPage4Control10Captions[] = {{"Mute", {998, 551, 58, 40}, 15.7f}, {"Left", {1060, 551, 58, 40}, 15.7f}, {"Both", {1122, 551, 58, 40}, 15.7f}, {"Right", {1184, 551, 58, 40}, 15.7f}};
 inline constexpr Control kPage4Controls[] = {  // NOISE
     {40, "NOI On", WidgetKind::Toggle, false, 18, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 16},
     {44, "NOI Mode", WidgetKind::Radio2, false, 13, {23, 196, 278, 107}, {-1, 0, 0}, kPage4Control1Captions, 2, 0xff9d8cffu, 9},
@@ -473,6 +473,14 @@ inline constexpr int kTableInnerWidth = 574;   // text area width, design units
 inline constexpr int kTableBandPad = 2;      // highlight bands extend this far around the text cells
 // Text grid of the TABLE page LCD (tab coordinates): header row, then visibleRows rows.
 inline constexpr TableGrid kTableGrid = {5, {23, 45, 598, 258}, 35, 57, 3, 26, 8, "lcd_table_panel.png", "cursor.png", kTableColumns, 7};
+
+// Top band and LCD panels, as ui_art draws them (the editor's breadcrumb and live LCDs).
+inline constexpr int kTitleX = 28;           // page title: left edge and font scale
+inline constexpr int kTitleScale = 4;
+inline constexpr int kBandRuleGap = 20;      // title end to the band rule
+inline constexpr int kBandTextY = 15;        // band legends: top edge and font scale
+inline constexpr int kBandTextScale = 2;
+inline constexpr int kLcdInset = 8;         // LCD panel edge to its field
 
 // Text sizes (shared by the previews and the editor).
 inline constexpr float kLabelScaleThreshold = 24.0f;   // font height below this: 2x font pixels, else 3x

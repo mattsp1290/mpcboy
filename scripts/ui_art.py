@@ -548,6 +548,8 @@ BG_W, BG_H = 1280, 628
 WORDMARK_RIGHT = 1008        # design; left of the Q-Link sidebar (x >= 1025)
 TITLE_X, TITLE_Y, TITLE_SCALE = 28, 6, 4
 LEGEND_SCALE = 2             # section legends: one font pixel = one art pixel
+BAND_RULE_GAP = 20           # top band: title end to the rule
+BAND_TEXT_Y = 15             # top band: legends' top edge
 
 
 def draw_plate(img, P, x, y, w, h, stripe=None):
@@ -611,7 +613,7 @@ def render_background(P, title, wordmark, accent, band_legends=()):
     wx = WORDMARK_RIGHT - ww
     draw_text(img, wordmark, wx + 2, 12, 3, P.shadow, shear=True)
     draw_text(img, wordmark, wx, 10, 3, P.text_dim, shear=True)
-    x0, x1 = TITLE_X + tw + 20, wx - 16
+    x0, x1 = TITLE_X + tw + BAND_RULE_GAP, wx - 16
     stops = []
     for text, lx in band_legends:
         lx = max(lx, x0 + 16)
@@ -621,7 +623,7 @@ def render_background(P, title, wordmark, accent, band_legends=()):
         if a - 12 - x > 4:
             img.rect(x, 18, a - 12 - x, 2, accent)
             img.rect(x, 24, a - 12 - x, 2, P.plate_hi)
-        draw_text(img, text, a, 15, LEGEND_SCALE, accent)
+        draw_text(img, text, a, BAND_TEXT_Y, LEGEND_SCALE, accent)
         x = b + 12
     if x1 - x > 4:
         img.rect(x, 18, x1 - x, 2, accent)

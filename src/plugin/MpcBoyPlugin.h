@@ -60,6 +60,9 @@ public:
     void editorEndEdit(int index);
     void endAllEditorEdits();
     bool editorEditOpen(int index) const;
+    // Live table playback per channel (any thread; relaxed atomics written once per block by the
+    // audio thread). The editor's channel LCDs and TABLE grid read it at 30 Hz.
+    const mpcboy::PlaybackState& playback() const { return engine_->playback(); }
 
     // Tests.
     mpcboy::ContentStore& content() { return *store_; }

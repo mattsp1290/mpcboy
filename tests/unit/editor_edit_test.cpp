@@ -10,7 +10,10 @@
 
 #include "doctest/doctest.h"
 #include "MpcBoyPlugin.h"
+#include "editor_actions.h"
+#include "editor_sync.h"
 #include "plugin_test_support.h"
+#include "ui_model.h"
 
 using namespace mpcboy;
 using namespace mpcboy_test;
@@ -265,4 +268,70 @@ TEST_CASE("editor edits: host writes to 51..58 from a non-audio thread are still
     Content after;
     r.p->content().readPublished(after);
     CHECK(std::memcmp(&before.tables, &after.tables, sizeof(before.tables)) == 0);
+}
+
+// ---- redesign step 3: TABLE grid clicks and MAIN header toggles ----------------------------
+TEST_CASE("editor clicks: a TABLE grid click sets Edit Row through the editor API, the cursor resyncs")
+{
+    HostedRig r;
+    r.p->set(ED_Table, 1);   // MajArp
+    r.p->set(ED_Row, 0);
+    r.block();
+    g_calls.clear();
+    // The editor's path: hit-test the grid cell, then select its row.
+    const ui::Rect cell = ui::gridCellRect(3, 2);   // row 3, SEMI
+    const ui::GridHit hit = ui::hitGrid(cell.x + cell.w / 2, cell.y + cell.h / 2);
+    REQUIRE(hit.row == 3);
+    REQUIRE(ui::gridEditorColumn(hit.column) == ED_Tsp - ED_Vol);
+    onEditorThread([&] { editorSelectRow(*r.p, hit.row); });
+    CHECK(r.p->getInt(ED_Row) == 3);
+    CHECK_FALSE(r.p->editorEditOpen(ED_Row));   // begin and end paired
+    CHECK(g_calls.empty());                     // 52 is not automatable: nothing to the host
+    CHECK(r.p->displayText(ED_Row) == "03");    // hex, as the grid numbers rows
+    r.block();                                  // the audio thread resyncs the Row controls
+    CHECK(r.p->getInt(ED_Tsp) == -7);           // MajArp row 3: -7, H01
+    CHECK(r.p->getInt(ED_Val1) == 1);
+
+    // Out of range: nothing.
+    onEditorThread([&] { editorSelectRow(*r.p, 16); editorSelectRow(*r.p, -1); });
+    CHECK(r.p->getInt(ED_Row) == 3);
+
+    // The caret column's drag after the click edits the clicked row (captured at begin).
+    Content c;
+    onEditorThread([&] {
+        editorSelectRow(*r.p, 1);
+        r.p->editorBeginEdit(ED_Tsp);
+        r.p->editorSet(ED_Tsp, normOf(*r.p, ED_Tsp, 9.0f));
+        r.p->editorEndEdit(ED_Tsp);
+    });
+    r.block();
+    r.block();
+    CHECK(publishedRow(*r.p, 0, 1, c).transpose == 9);
+    CHECK(publishedRow(*r.p, 0, 3, c).transpose == -7);
+    CHECK(g_calls.empty());
+}
+
+TEST_CASE("editor clicks: a MAIN header-band On toggle flips through begin / automate / end")
+{
+    HostedRig r;
+    r.block();
+    const ui::Page& main = ui::page(0);
+    int pu2 = -1;
+    for (int i = 0; i < main.numDynamics; ++i)
+        if (ui::isHeaderToggle(0, main.dynamics[i]) && main.dynamics[i].param == P2_On) pu2 = i;
+    REQUIRE(pu2 >= 0);
+    const ui::Rect hr = ui::headerToggleRect(main.dynamics[pu2]);
+    const int hit = ui::hitHeaderToggle(0, hr.x + 2, hr.y + 2);
+    REQUIRE(hit == pu2);
+    const int before = r.p->getInt(P2_On);
+    g_calls.clear();
+    onEditorThread([&] { editorToggle(*r.p, main.dynamics[hit].param); });
+    CHECK(r.p->getInt(P2_On) == 1 - before);
+    REQUIRE(g_calls.size() == 3);
+    CHECK(g_calls[0].opcode == audioMasterBeginEdit);
+    CHECK(g_calls[1].opcode == audioMasterAutomate);
+    CHECK(g_calls[1].index == P2_On);
+    CHECK(g_calls[2].opcode == audioMasterEndEdit);
+    onEditorThread([&] { editorToggle(*r.p, P2_On); });
+    CHECK(r.p->getInt(P2_On) == before);
 }

@@ -35,6 +35,8 @@ void MonoVoice::reset()
     {
         tbl::table_reg_state_reset(regs_[i]);
         tableSlot_[i] = -1;
+        playRow_[i] = 0;
+        chNote_[i] = -1;
     }
     ticking_ = false;
     silenced_ = false;
@@ -139,8 +141,10 @@ void MonoVoice::trigger(int note, int velocity, const rackboy::sav::RackboyBank&
         const bool hasTable = slot >= 0 && slot < static_cast<int>(rackboy::sav::kMaxTables) &&
                               bank.tables[slot].occupied;
         tableSlot_[i] = hasTable ? static_cast<int8_t>(slot) : static_cast<int8_t>(-1);
+        chNote_[i] = static_cast<int16_t>(std::clamp<int>(note + cs.transpose, 0, 127));
+        playRow_[i] = 0;
         if (hasTable)   // tick 0: applies row 0 at the note-on itself
-            tbl::table_tick(voices_[i], regs_[i], ch, bank.tables[slot], apu_, &bank);
+            tickTable(i, bank.tables[slot], bank);
     }
     writeNr51();
     ticking_ = true;
@@ -154,6 +158,7 @@ void MonoVoice::glide(int oldNote, int newNote)
     {
         if (!voices_[i].triggered) continue;
         regs_[i].pitch_offset = static_cast<int16_t>(regs_[i].pitch_offset + delta);
+        if (chNote_[i] >= 0) chNote_[i] = static_cast<int16_t>(std::clamp<int>(chNote_[i] + delta, 0, 127));
         if (voices_[i].slide_ticks_remaining > 0)
             voices_[i].slide_target_pitch = static_cast<int16_t>(voices_[i].slide_target_pitch + delta);
         tbl::table_write_pitch(voices_[i], regs_[i], kChannels[i], apu_);
@@ -209,8 +214,19 @@ void MonoVoice::tick(const rackboy::sav::RackboyBank& bank)
         if (!voices_[i].triggered || tableSlot_[i] < 0) continue;
         const rackboy::sav::RackboyTable& t = bank.tables[tableSlot_[i]];
         if (!t.occupied) continue;
-        tbl::table_tick(voices_[i], regs_[i], kChannels[i], t, apu_, &bank);
+        tickTable(i, t, bank);
     }
+}
+
+// One table tick, remembering which row it applied (the playhead): the cursor before the tick,
+// unless a `D` delay holds it or a delayed `K` fires on this tick (neither reads a row).
+void MonoVoice::tickTable(int ch, const rackboy::sav::RackboyTable& t, const rackboy::sav::RackboyBank& bank)
+{
+    rackboy::core::VoiceState& v = voices_[ch];
+    const uint8_t before = v.table_cursor;
+    const bool reads = v.table_delay_ticks_remaining == 0 && v.kill_ticks_remaining != 1;
+    tbl::table_tick(v, regs_[ch], kChannels[ch], t, apu_, &bank);
+    if (reads) playRow_[ch] = static_cast<uint8_t>(before & 15);
 }
 
 }  // namespace mpcboy

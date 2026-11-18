@@ -4,9 +4,10 @@
 //   render_editor <art dir> <out dir> [scale ...]
 //
 // Writes <out dir>/<page>.png (scale 1) and <page>@<scale>x.png for each further scale, using
-// the editor's own drawing code (mpcboy::renderEditorPng) on a real MpcBoyPlugin at its
-// defaults after a few process() blocks (the TABLE grid shows the factory content). Exit 0 when
-// every page rendered with all art found.
+// the editor's own drawing code (mpcboy::renderEditorPng) on a real MpcBoyPlugin. Playback is
+// simulated so the live LCDs show something: PU1 and WAV (switched on) play table 1 (MajArp) from a C-4
+// note-on until the playhead reaches row 2; the TABLE page edits table 1 with the cursor on
+// row 2. Exit 0 when every page rendered with all art found and the playhead got there.
 #import <Foundation/Foundation.h>
 
 #include <cstdio>
@@ -36,9 +37,38 @@ int main(int argc, char** argv)
                                                         error:nil];
         MpcBoyPlugin plugin;
         plugin.prepare(44100.0, 512);
-        std::vector<float> l(512), r(512);
+        plugin.set(mpcboy::P1_Tbl, 1.0f);   // MajArp
+        plugin.set(mpcboy::WV_On, 1.0f);
+        plugin.set(mpcboy::WV_Tbl, 1.0f);
+        plugin.set(mpcboy::ED_Table, 1.0f);
+        plugin.set(mpcboy::ED_Row, 2.0f);
+        constexpr int kBlock = 64;
+        std::vector<float> l(kBlock), r(kBlock);
         float* outs[2] = {l.data(), r.data()};
-        for (int b = 0; b < 4; ++b) plugin.internalProcess(nullptr, outs, 512);
+        long long pos = 0;
+        bool reached = false;
+        for (int b = 0; b < 2000 && !reached; ++b)
+        {
+            mpc::MidiEvent on = mpc::MidiEvent::noteOn(0, 60, 100, 0);
+            mpc::ProcessContext ctx;
+            ctx.outputs = outs;
+            ctx.numOutputs = 2;
+            ctx.numFrames = kBlock;
+            ctx.midi = b == 8 ? &on : nullptr;   // a few blocks in: the content is live by then
+            ctx.numMidiEvents = b == 8 ? 1 : 0;
+            ctx.sampleRate = 44100.0;
+            ctx.transport.valid = true;
+            ctx.transport.bpm = 120.0;
+            ctx.transport.tempoValid = true;
+            ctx.transport.playing = true;
+            ctx.transport.ppqValid = true;
+            ctx.transport.ppqPos = static_cast<double>(pos) / 44100.0 * 2.0;
+            plugin.process(ctx);
+            pos += kBlock;
+            const mpcboy::ChannelPlayback pb = plugin.playback().load(0);
+            reached = b > 8 && pb.running && pb.row == 2;
+        }
+        if (!reached) std::fprintf(stderr, "render_editor: the PU1 playhead never reached row 2\n");
 
         int failures = 0;
         for (int p = 0; p < mpcboy::ui::kNumPages; ++p)
@@ -55,6 +85,6 @@ int main(int argc, char** argv)
                 if (!ok) ++failures;
             }
         }
-        return failures == 0 ? 0 : 1;
+        return failures == 0 && reached ? 0 : 1;
     }
 }

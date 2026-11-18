@@ -50,10 +50,20 @@ public:
     const rackboy::table::TableRegState& regs(int ch) const { return regs_[ch]; }
     const rackboy::core::VoiceState& voice(int ch) const { return voices_[ch]; }
 
+    // Playback state for the UI (PlaybackState): the row the channel's table applied last, the
+    // table slot in use since the last trigger (-1 none), whether that table is ticking, and the
+    // channel's note (the triggered MIDI note plus the channel transpose, moved by legato glides;
+    // -1 before the first trigger since reset).
+    int playRow(int ch) const { return playRow_[ch]; }
+    int tableSlot(int ch) const { return tableSlot_[ch]; }
+    bool tableRunning(int ch) const { return ticking_ && voices_[ch].triggered && tableSlot_[ch] >= 0; }
+    int channelNote(int ch) const { return chNote_[ch]; }
+
 private:
     void trigger(int note, int velocity, const rackboy::sav::RackboyBank& bank);
     void glide(int oldNote, int newNote);
     void silence();
+    void tickTable(int ch, const rackboy::sav::RackboyTable& t, const rackboy::sav::RackboyBank& bank);
     void dacOff(int ch);
     void writeNr51();
     void updateBendCents();
@@ -65,6 +75,8 @@ private:
     rackboy::core::VoiceState voices_[4];
     rackboy::table::TableRegState regs_[4];
     int8_t tableSlot_[4] = {-1, -1, -1, -1};   // table in use per channel since the last trigger
+    uint8_t playRow_[4] = {};                   // row each table applied last
+    int16_t chNote_[4] = {-1, -1, -1, -1};      // channel note (see channelNote)
     bool ticking_ = false;
     bool silenced_ = false;
     bool triggeredSinceReset_ = false;         // NR51 stays 0 until a note

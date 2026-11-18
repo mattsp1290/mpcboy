@@ -40,6 +40,7 @@ Standard library only; Python 3.9+.
 
 import argparse
 import json
+import math
 import os
 import struct
 import sys
@@ -159,13 +160,62 @@ def rect_str(r):
 _ORIG_LABEL_DATA = gen_ui.label_data
 
 
+# Segment captions on the MPC (Nexa Bold, upper case) have fixed boxes: a 4-way segment is only
+# 58 units wide, so "12.5%", "RIGHT", "LEFT" and "MUTE" overflow at the default height. The
+# generator has no font metrics, so it estimates each caption's width from per-character advance
+# factors (fractions of the font height, deliberately on the wide side for Nexa Bold) and lowers
+# the height until the estimate fits inside the box minus CAPTION_PAD on each side. Every caption
+# of one segment width gets the smallest fitted height, so a switch's captions stay one size.
+CAPTION_PAD = 5
+NEXA_ADVANCE_DEFAULT = 0.68
+NEXA_ADVANCE = {c: 0.32 for c in "I1.,:;!' "}
+NEXA_ADVANCE.update({c: 0.92 for c in "MW%@"})
+GEN_UI_CAPTION_HEIGHT = 22.0   # gen_ui.tab_component's segment caption height (SDK febd2ca)
+CAPTION_HEIGHTS = {}   # caption text -> fitted (already scaled) height, set by plan_caption_heights
+
+
+def nexa_width(text, height):
+    return sum(NEXA_ADVANCE.get(c, NEXA_ADVANCE_DEFAULT) for c in text.upper()) * height
+
+
+def fit_caption_height(text, width, height):
+    avail = width - 2 * CAPTION_PAD
+    if nexa_width(text, height) <= avail:
+        return height
+    units = nexa_width(text, 1.0)
+    return math.floor(avail / units * 10) / 10.0
+
+
+def plan_caption_heights(pages):
+    """Fitted heights for every segment caption of `pages` (keyed by caption text; a text used on
+    several widths gets the smallest)."""
+    base = round(GEN_UI_CAPTION_HEIGHT * LABEL_HEIGHT_SCALE, 1)
+    by_width = {}
+    for pg in pages:
+        for c in pg.controls:
+            if c.param is None or not c.definition.startswith("radio"):
+                continue
+            width = gen_ui.SEGMENTS[len(c.param.choices)][0]
+            for choice in c.param.choices:
+                by_width.setdefault(width, set()).add(choice)
+    heights = {}
+    for width, texts in by_width.items():
+        h = min(fit_caption_height(t, width, base) for t in texts)
+        for t in texts:
+            heights[t] = min(h, heights.get(t, h))
+    return heights
+
+
 def install_gen_ui_patches(caption_argb):
     gen_ui.FONT_NAME = FONT_NAME
 
     def label_data(label_type, colour, height=30.0, justification="left", text=None):
+        scaled = round(height * LABEL_HEIGHT_SCALE, 1)
         if label_type == "Text":
             colour = caption_argb  # gen_ui's "Text" labels here are segment captions
-        d = _ORIG_LABEL_DATA(label_type, colour, round(height * LABEL_HEIGHT_SCALE, 1), justification, text)
+            if "horizontallyCentred" in justification and text in CAPTION_HEIGHTS:
+                scaled = min(scaled, CAPTION_HEIGHTS[text])
+        d = _ORIG_LABEL_DATA(label_type, colour, scaled, justification, text)
         style = oget(d, "textStyle")
         oset(oget(style, "font"), "style", FONT_STYLE)
         oset(style, "case", FONT_CASE)
@@ -953,6 +1003,14 @@ def emit_layout(spec, style, defs, pages, art, colours):
         [x["name"] for x in pages].index(pg["name"]), crect(b), ox, oy, g["charScale"], g["rowPitch"], g["visibleRows"],
         cstr(p["image"]), cstr(g["cursorImage"]), len(g["columns"])))
     out.append("")
+    out.append("// Top band and LCD panels, as ui_art draws them (the editor's breadcrumb and live LCDs).")
+    out.append("inline constexpr int kTitleX = %d;           // page title: left edge and font scale" % ui_art.TITLE_X)
+    out.append("inline constexpr int kTitleScale = %d;" % ui_art.TITLE_SCALE)
+    out.append("inline constexpr int kBandRuleGap = %d;      // title end to the band rule" % ui_art.BAND_RULE_GAP)
+    out.append("inline constexpr int kBandTextY = %d;        // band legends: top edge and font scale" % ui_art.BAND_TEXT_Y)
+    out.append("inline constexpr int kBandTextScale = %d;" % ui_art.LEGEND_SCALE)
+    out.append("inline constexpr int kLcdInset = %d;         // LCD panel edge to its field" % ui_art.LCD_INSET)
+    out.append("")
     out.append("// Text sizes (shared by the previews and the editor).")
     out.append("inline constexpr float kLabelScaleThreshold = %.1ff;   // font height below this: 2x font pixels, else 3x" % LABEL_SCALE_THRESHOLD)
     out.append("inline constexpr float kTabTitleFontHeight = %.1ff;" % TAB_TITLE_FONT_H)
@@ -1126,6 +1184,8 @@ def build(args):
     shared = parse_shared_slots(spec, pages, table)
     dynamics = resolve_dynamics(spec, pages, table)
 
+    CAPTION_HEIGHTS.clear()
+    CAPTION_HEIGHTS.update(plan_caption_heights(pages))
     install_gen_ui_patches("ff" + gb["palette"]["text"].lower())
     P = ui_art.Palette(gb["palette"], gb["colours"])
     tui, qlinks = build_tree(spec, params, pages, style, frames, shared, dynamics, flags)

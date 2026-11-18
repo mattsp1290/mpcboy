@@ -26,6 +26,7 @@
 #include "content_store.h"
 #include "dc_blocker.h"
 #include "mono_voice.h"
+#include "playback_state.h"
 #include "polyphase_resampler.h"
 #include "rackboy_apu.h"
 #include "rate_resampler.h"
@@ -111,6 +112,9 @@ public:
     rackboy_apu_t* apu() { return &apu_; }
     const MonoVoice& voice() const { return voice_; }
     const TickClock& tickClock() const { return clock_; }
+    // Live table playback per channel, for the UI thread (relaxed atomics, written at the end of
+    // every render() and by reset()).
+    const PlaybackState& playback() const { return playback_; }
 
 private:
     void renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right);
@@ -120,6 +124,7 @@ private:
     long long outputCount() const;
     void resample(const float* inL, const float* inR, int inFrames, float* outL, float* outR, int outFrames);
     void onNoteTriggered(int blockOffset);   // restarts the tick clock's note phase
+    void publishPlayback();                  // audio thread: voice + APU state -> playback_
 
     rackboy_apu_t apu_;
     MonoVoice voice_;
@@ -146,6 +151,7 @@ private:
     // or -1. See renderChunk.
     long long dcResetOut_ = -1;
     long long chunkOutBase_ = 0;
+    PlaybackState playback_;
     float apuL_[kMaxApuFrames];
     float apuR_[kMaxApuFrames];
 };

@@ -296,6 +296,11 @@ bool formatParamValue(int index, float plain, std::string& out)
             std::snprintf(buf, sizeof(buf), "%.2fHz", static_cast<double>(plain));
             out = buf;
             return true;
+        case ED_Row:
+            // Two-digit hex, as LSDJ and the TABLE grid number rows.
+            std::snprintf(buf, sizeof(buf), "%02X", std::clamp<int>(iv, 0, 15));
+            out = buf;
+            return true;
         case ED_Vol:
         {
             const int v = iv;

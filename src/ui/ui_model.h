@@ -128,16 +128,66 @@ struct Point
 // Top-left of `text` inside `bounds` (justified horizontally, centred vertically).
 Point placeText(const char* text, const Rect& bounds, int scale, Justify justify);
 
+// A pixel-font layout: font pixels of `scale` x `scale` design units. Monospaced (the normal
+// layout): one character every `advance` design units. Proportional (condensed captions): each
+// glyph takes only its lit columns, followed by `gap` design units (a space: 3 font pixels).
+struct TextStyle
+{
+    int scale = 2;
+    int advance = kPixelFontAdvance * 2;
+    bool proportional = false;
+    int gap = 0;
+};
+inline TextStyle textStyle(int scale) { return {scale, kPixelFontAdvance * scale, false, 0}; }
+// Lit column extent of a glyph: first lit column and the number of columns (a blank glyph:
+// 0 and 3).
+struct GlyphSpan
+{
+    int first, width;
+};
+GlyphSpan glyphSpan(const PixelGlyph& g);
+int textWidth(const char* text, const TextStyle& style);
+Point placeText(const char* text, const Rect& bounds, const TextStyle& style, Justify justify);
+// The widest layout of `text` at `scale` that fits `maxWidth`, in whole design units: the
+// normal layout; else proportional with a one-font-pixel gap; else proportional with a
+// one-unit gap; else the same ladder at the next smaller scale (scale 1 is returned even when
+// it does not fit).
+TextStyle fitText(const char* text, int maxWidth, int scale);
+// Segment captions keep this many design units clear on each side of their box (the segment
+// art's rounded edge).
+constexpr int kCaptionMargin = 4;
+// The layout of a segment caption: its label scale, condensed when the text would not fit.
+TextStyle captionStyle(const Caption& c);
+
 // Calls fill(x, y, w, h) once per horizontal run of lit font pixels, each font pixel being
 // scale x scale. Runs are clipped to `clip` when it is non-null.
 template <typename Fill>
+void rasterizeText(const char* text, int x, int y, const TextStyle& style, const Rect* clip, Fill&& fill);
+template <typename Fill>
 void rasterizeText(const char* text, int x, int y, int scale, const Rect* clip, Fill&& fill)
 {
+    rasterizeText(text, x, y, textStyle(scale), clip, static_cast<Fill&&>(fill));
+}
+template <typename Fill>
+void rasterizeText(const char* text, int x, int y, const TextStyle& style, const Rect* clip, Fill&& fill)
+{
     if (text == nullptr) return;
+    const int scale = style.scale;
+    int pen = x;
     for (int n = 0; text[n] != '\0'; ++n)
     {
         const PixelGlyph& g = glyph(text[n]);
-        const int gx = x + n * kPixelFontAdvance * scale;
+        int gx = pen;
+        if (style.proportional)
+        {
+            const GlyphSpan sp = glyphSpan(g);
+            gx = pen - sp.first * scale;
+            pen += sp.width * scale + style.gap;
+        }
+        else
+        {
+            pen += style.advance;
+        }
         for (int r = 0; r < kPixelFontHeight; ++r)
         {
             int c = 0;
@@ -195,5 +245,96 @@ int tableLineY(int line);
 // Highlight bands (tab coordinates), as the generated MPC art draws them.
 Rect tableHeaderBand();
 Rect tableCursorBand(int line);
+
+// ---- TABLE page live grid (Mac editor; redesign step 3) ---------------------------------
+// All 16 rows of the edited table inside the LCD panel (kTableGrid.panelBounds, cols 0-1 x rows
+// 0-1): a scale-1 column header, then one band per row at kGridScale with hex row numbers, beat
+// rows every 4th row, the inverted cursor row, playhead rows and a channel-marker gutter left of
+// the row numbers. Text columns follow kTableColumns (character positions); a side column right
+// of the text holds the table's name and "used by" chips. Tab coordinates.
+constexpr int kGridRows = 16;
+constexpr int kGridScale = 2;        // rows: 14-unit glyphs
+constexpr int kGridPitch = 15;       // row band height
+constexpr int kGridHeaderScale = 1;
+constexpr int kGridHeaderHeight = 11;
+constexpr int kGridFieldInset = 3;   // panel edge to the LCD field
+constexpr int kGridMarkerStep = 5;   // channel '>' markers stack this far apart
+struct GridLayout
+{
+    Rect panel;    // kTableGrid.panelBounds
+    Rect field;    // the LCD field (panel minus kGridFieldInset)
+    int textX;     // x of character column 0 (kTableColumns count from here)
+    int headerY;   // top of the header text
+    int rowsY;     // top of row 0's band
+    int markerX;   // first channel marker
+    Rect side;     // the info column right of the text
+};
+GridLayout gridLayout();
+int gridCharX(int charCol);
+Rect gridRowBand(int row);           // the full band of a row (beat / cursor / playhead fill)
+int gridTextY(int row);              // top of a row's glyphs
+inline bool isBeatRow(int row) { return row % 4 == 0; }
+// Column c (0 = ROW, 1..6 = the six cell columns, as kTableColumns): its clickable extent on
+// a row, from one character left of its text to one character left of the next column's.
+Rect gridCellRect(int row, int column);
+// The cell text and caret extent of a column (exactly its characters).
+Rect gridCaretRect(int row, int column);
+struct GridHit
+{
+    int row = -1;      // 0..15, -1 = not on a row
+    int column = -1;   // 0..6 as gridCellRect
+};
+GridHit hitGrid(int x, int y);
+// Grid column 1..6 -> editor cell column 0..5 (Row Vol .. Row Val2); -1 for the ROW column.
+inline int gridEditorColumn(int column) { return column >= 1 && column <= 6 ? column - 1 : -1; }
+// The 16 row lines of table `table` (0-based) in kTableColumns positions; `cursorRow` flagged.
+void buildGridRows(const Content& content, int table, int cursorRow, TableLine out[kGridRows]);
+
+// ---- channel LCD (Mac editor; pages with an LcdChannel panel) ---------------------------
+// Channel index (0 PU1, 1 PU2, 2 WAV, 3 NOI) of a page's channel LCD, or -1 when the page has
+// none. Taken from the tag of the page's first parameter name ("PU1 On" -> 0).
+int pageChannel(int pageIndex);
+const Panel* channelPanel(int pageIndex);   // the LcdChannel panel, or nullptr
+const char* channelTag(int channel);        // "PU1", "PU2", "WAV", "NOI"
+// Sections of the channel LCD (tab coordinates), left to right: tag + LED, tone (duty / wave
+// shape / noise motif), envelope, note + level, table window. `dividers` are the dotted rules.
+constexpr int kLcdTableRows = 7;            // the table window: the playhead row +-3
+constexpr int kLcdTablePitch = 12;          // scale-1 rows
+struct ChannelLcdLayout
+{
+    Rect field, tag, tone, env, note, table;
+    int dividers[4];
+};
+ChannelLcdLayout channelLcdLayout(const Rect& panel);
+// First row of the table window around `row`, clamped so the window stays inside 0..15.
+int lcdWindowFirst(int row);
+// "C-4", "C#4" (MIDI 60 = C-4); "---" for a negative note. `out` holds at least 4 characters.
+void noteName(int midiNote, char* out);
+// Envelope level after `step` envelope steps from `level` (0..15) moving up or down; time 0
+// keeps the level (no envelope).
+int envelopeLevel(int level, bool up, int time, int step);
+// The first `n` output bits of the noise LFSR (15-bit, or 7-bit when `width7`), from the
+// power-on state: 1 = high.
+void noiseMotif(bool width7, std::uint8_t* bits, int n);
+
+// ---- top band breadcrumb (Mac editor) -----------------------------------------------------
+// Channel pages: "PU1 > MAJARP ROW 02" (`row` < 0: the table is not running: "PU1 > MAJARP");
+// `tableName` nullptr or "": "PU1 > TABLE OFF". TABLE: "TABLE 01 > ROW 02" (`table1` 1..16).
+// Upper case; truncated to `size` - 1 characters.
+void channelBreadcrumb(char* out, int size, int channel, const char* tableName, int row);
+void tableBreadcrumb(char* out, int size, int table1, int row);
+constexpr int kBreadcrumbMaxChars = 24;
+// The top-band area the breadcrumb owns on a page (after the title, on the rule): it is redrawn
+// with the band background and the text at kBandTextY / kBandTextScale.
+Rect breadcrumbRect(int pageIndex);
+
+// ---- MAIN header-band On toggles (Mac editor) ----------------------------------------------
+// The page's two-frame film-strip LEDs outside every panel (MAIN's strip headers) act as On
+// toggles on the Mac; the MPC shows them only. Hit rect: the LED grown by kHeaderToggleSlop.
+constexpr int kHeaderToggleSlop = 6;
+bool isHeaderToggle(int pageIndex, const Dynamic& d);
+Rect headerToggleRect(const Dynamic& d);
+// Index into page(pageIndex).dynamics of the toggle under the point, or -1.
+int hitHeaderToggle(int pageIndex, int x, int y);
 
 }  // namespace mpcboy::ui
