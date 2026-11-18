@@ -194,7 +194,10 @@ void Engine::publishPlayback()
         playback_.store(ch, p);
     }
     playback_.storeWave(&apu_.gb.io_registers[GB_IO_WAV_START]);
+    playback_.markBlock();
 }
+
+void Engine::publishIdle() { playback_.storeIdle(); }
 
 void Engine::applySettings(const EngineSettings& s)
 {

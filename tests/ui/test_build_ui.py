@@ -394,6 +394,191 @@ class BuildUiTest(unittest.TestCase):
         b = check_ui_generated.decode_png(read_bytes(os.path.join(ROOT, "ui", "art", "bg_pulse1.png")))
         self.assertNotEqual(a, b)
 
+    def test_command_card_matches_row_cmd_choices(self):
+        # The TABLE LCD's printed command card (gb.panels...grid.commandCard) lists the Row Cmd choices
+        # of the plugin (param_bridge cmdLabels, minus the "-" none entry), in order, upper case.
+        with open(os.path.join(ROOT, "ui", "mpcboy_ui.json"), "r", encoding="utf-8") as f:
+            spec = json.load(f)
+        card = [p["grid"]["commandCard"] for p in spec["gb"]["panels"]["TABLE"] if p["kind"] == "lcdTable"][0]
+        by_name = {p["name"]: p for p in params_json()["params"]}
+        for name in ("Row Cmd1", "Row Cmd2"):
+            choices = by_name[name]["choices"]
+            self.assertEqual(choices[0], "-", name)
+            self.assertEqual(card, [c.upper() for c in choices[1:]], name)
+
+    def test_gen_ui_entry_naming_for_shared_slots(self):
+        # build_ui.build_tree moves a phantom page's entries behind the occupant's by NAME: the control's
+        # entry is named after its parameter and an n-way switch is followed by "<param> seg <i>" Labels.
+        # If a vendored SDK bump changes that naming this fails before the shared slot lands wrongly.
+        style = {"background": "ff1c1d27", "accent": "ffe8558a", "text": "ffeceae4", "muted": "ffa3a7b0"}
+        sw = gen_ui.Param(0, "Mode", "choice", ["A", "B", "C"], 0.0, "A")
+        kn = gen_ui.Param(1, "Amount", "float", None, 0.0, "0")
+        controls = [gen_ui.Control("empty")] * 16
+        controls[0] = gen_ui.Control("switch", param=sw)
+        controls[1] = gen_ui.Control("knob", param=kn)
+        tab = gen_ui.tab_component(gen_ui.Page("T", controls), style)
+        entries = get(tab, "componentsData")
+        names = [get(get(e, "componentData"), "name") for e in entries]
+        types = [get(get(e, "componentData"), "type") for e in entries]
+        self.assertEqual(names, ["Mode", "Mode seg 0", "Mode seg 1", "Mode seg 2", "Amount"])
+        self.assertEqual(types[0], "radio3")
+        self.assertEqual(types[1:4], ["Label"] * 3)
+        self.assertNotEqual(types[4], "Label")
+        # The occupant's slot and the phantom's are found by bounds: the real entry has the slot bounds.
+        self.assertEqual(get(get(entries[0], "bounds"), "bounds"), "%d %d %d %d" % (gen_ui.SLOT_X[0], gen_ui.SLOT_Y[0], gen_ui.SLOT_W, gen_ui.SLOT_H))
+
+    def test_label_boxes_fit_by_estimate(self):
+        # Every component Name label fits its box for every control of that component, every Value label
+        # with choices fits for its longest choice, and the dynamic value labels fit theirs; no label is
+        # below the floor. (R Retrig in the TABLE cursor row and PU2 Env Time were over by estimate.)
+        import build_ui
+        idx = {p["name"]: p for p in params_json()["params"]}
+        defs = {}
+        for d in get(get(get(self.tui, "pageData"), "componentDefinitions"), "localComponentDefinitions"):
+            defs[get(d, "key")] = get(d, "value")
+        checked_names = checked_values = checked_dyn = 0
+        for tab in self.tabs():
+            for e in self.entries(tab):
+                cd = get(e, "componentData")
+                name, t = get(cd, "name"), get(cd, "type")
+                if t == "Label" and name.startswith("dyn "):
+                    data = get(cd, "data")
+                    h = float(get(get(get(data, "textStyle"), "font"), "height"))
+                    w = int(get(get(e, "bounds"), "bounds").split()[2])
+                    self.assertGreaterEqual(h, build_ui.LABEL_HEIGHT_FLOOR, name)
+                    for c in idx[name[4:]].get("choices") or []:
+                        self.assertLessEqual(build_ui.nexa_width(c, h), w, "%s %s" % (name, c))
+                        checked_dyn += 1
+                    continue
+                if t not in defs or name not in idx:
+                    continue
+                for child in get(defs[t], "componentsData"):
+                    ccd = get(child, "componentData")
+                    if get(ccd, "type") != "Label":
+                        continue
+                    data = get(ccd, "data")
+                    h = float(get(get(get(data, "textStyle"), "font"), "height"))
+                    w = int(get(get(child, "bounds"), "bounds").split()[2])
+                    self.assertGreaterEqual(h, build_ui.LABEL_HEIGHT_FLOOR, "%s %s" % (t, name))
+                    if get(data, "type") == "Name":
+                        self.assertLessEqual(build_ui.nexa_width(name, h), w, "%s %s" % (t, name))
+                        checked_names += 1
+                    else:
+                        for c in idx[name].get("choices") or []:
+                            self.assertLessEqual(build_ui.nexa_width(c, h), w, "%s %s %s" % (t, name, c))
+                            checked_values += 1
+        self.assertGreater(checked_names, 50)
+        self.assertGreater(checked_values, 10)
+        self.assertGreater(checked_dyn, 10)
+        # The shrinks are recorded in the generated layout (a NOTE line would fail the package gate).
+        with open(os.path.join(self.base, "root", "src", "ui", "generated", "ui_layout.inc"), "r", encoding="utf-8") as f:
+            inc = f.read()
+        self.assertIn("lowered to fit their boxes", inc)
+        self.assertIn("'R RETRIG' in 81", inc)
+        self.assertIn("'PU2 ENV TIME' in 156", inc)
+
+    def test_label_below_the_floor_fails_the_build(self):
+        with open(os.path.join(ROOT, "ui", "mpcboy_ui.json"), "r", encoding="utf-8") as f:
+            spec = json.load(f)
+        for d in spec["gb"]["dynamics"]["TABLE"]:
+            if d["param"] == "Row Cmd1":
+                d["column"] = 3
+                d["fontHeight"] = 24.0
+        # Make the TABLE column too narrow for "R Retrig" at the floor: a tiny char scale shrinks the box.
+        for p in spec["gb"]["panels"]["TABLE"]:
+            p["grid"]["charScale"] = 1
+        base = os.path.join(self.tmp, "floor")
+        os.makedirs(base)
+        ui = os.path.join(base, "ui.json")
+        with open(ui, "w", encoding="utf-8") as f:
+            json.dump(spec, f)
+        p = subprocess.run([sys.executable, SCRIPT, "--params", PARAMS, "--ui", ui, "--root", os.path.join(base, "root"),
+                            "--no-preview", "--quiet"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           universal_newlines=True, cwd=ROOT)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("floor", p.stdout)
+
+    def test_lcd_sections_single_source(self):
+        # The channel LCD section x / widths come from ui_art.LCD_SECTIONS: emitted for the Mac editor,
+        # and the MPC film strips and table label are placed from them (panel x = 23).
+        import ui_art
+        with open(os.path.join(self.base, "root", "src", "ui", "generated", "ui_layout.inc"), "r", encoding="utf-8") as f:
+            inc = f.read()
+        self.assertIn("kLcdSections[] = {%s};" % ", ".join("{%d, %d}" % (x, w) for _, x, w in ui_art.LCD_SECTIONS), inc)
+        self.assertIn("kLcdDividers[] = {%s};" % ", ".join(str(x) for x in ui_art.LCD_DIVIDERS), inc)
+        px = 23
+        want = {"PU1 Duty": px + ui_art.lcd_section("tone")[0], "PU1 Env Time": px + ui_art.lcd_section("env")[0],
+                "PU1 On": px + ui_art.lcd_section("tag")[0], "PU1 Table": px + ui_art.lcd_section("note")[0]}
+        ex, ew = ui_art.lcd_section("env")
+        want["PU1 Env Dir"] = px + ex + ew - 28
+        seen = {}
+        for e in self.entries(self.tabs()[1]):   # PULSE1
+            n = get(get(e, "componentData"), "name")
+            if n.startswith("dyn ") and n[4:] in want:
+                seen[n[4:]] = int(get(get(e, "bounds"), "bounds").split()[0])
+        self.assertEqual(seen, want)
+        # The Mac and MPC ends of the sections match: the table label ends where the table section ends.
+        label = [e for tab in self.tabs() for e in self.entries(tab) if get(get(e, "componentData"), "name") == "dyn PU1 Table"][0]
+        x, _, w, _ = (int(v) for v in get(get(label, "bounds"), "bounds").split())
+        tx, tw = ui_art.lcd_section("table")
+        self.assertEqual(x + w, px + tx + tw)
+
+    def test_lcd_off_text_is_readable(self):
+        # "OFF" status is drawn in the LCD ink; ink on the field has at least 4.5:1 contrast.
+        import ui_art
+        with open(os.path.join(ROOT, "ui", "mpcboy_ui.json"), "r", encoding="utf-8") as f:
+            pal = json.load(f)["gb"]["palette"]
+
+        def lum(h):
+            def f(v):
+                v /= 255.0
+                return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+            r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+            return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+        a, b = sorted((lum(pal["lcdInk"]), lum(pal["lcdField"])), reverse=True)
+        self.assertGreaterEqual((a + 0.05) / (b + 0.05), 4.5)
+        with open(os.path.join(ROOT, "scripts", "ui_art.py"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn('"OFF", img.w - 22, 10, 1, P.lcd_dim', src)
+        self.assertNotIn("P.lcd_ink if on else P.lcd_dim", src)
+
+    def test_shared_slot_has_cartridge_cue_and_no_badge(self):
+        # Table Rate / Free Rate: the page legend carries "Q6 = TEMPO RATE" (the Q-Link drives Table Rate only),
+        # the slot has no static Q6 badge, and the cartridge window is drawn behind the pair.
+        with open(os.path.join(ROOT, "ui", "mpcboy_ui.json"), "r", encoding="utf-8") as f:
+            spec = json.load(f)
+        self.assertEqual(spec["gb"]["sharedSlots"]["MAIN"][0]["qlinkCue"], "TEMPO RATE")
+        no_cue = json.loads(json.dumps(spec))
+        del no_cue["gb"]["sharedSlots"]["MAIN"][0]["qlinkCue"]
+        base = os.path.join(self.tmp, "nocue")
+        os.makedirs(base)
+        ui = os.path.join(base, "ui.json")
+        with open(ui, "w", encoding="utf-8") as f:
+            json.dump(no_cue, f)
+        p = subprocess.run([sys.executable, SCRIPT, "--params", PARAMS, "--ui", ui, "--root", os.path.join(base, "root"),
+                            "--no-preview", "--quiet"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           universal_newlines=True, cwd=ROOT)
+        self.assertEqual(p.returncode, 0, p.stdout)
+        a = check_ui_generated.decode_png(read_bytes(os.path.join(base, "root", "ui", "art", "bg_main.png")))
+        b = check_ui_generated.decode_png(read_bytes(os.path.join(ROOT, "ui", "art", "bg_main.png")))
+        self.assertNotEqual(a, b)   # the cue changes the legend
+
+    def test_noise_fixpitch_hint_only_on_conditional_slots(self):
+        with open(os.path.join(ROOT, "ui", "mpcboy_ui.json"), "r", encoding="utf-8") as f:
+            spec = json.load(f)
+        self.assertEqual(spec["gb"]["hiddenDecals"]["NOISE"][0]["text"], "FIXED PITCH ONLY")
+        spec["gb"]["hiddenDecals"]["NOISE"][0].update(row=1, col=3)   # NOI Table: always visible
+        base = os.path.join(self.tmp, "hint")
+        os.makedirs(base)
+        ui = os.path.join(base, "ui.json")
+        with open(ui, "w", encoding="utf-8") as f:
+            json.dump(spec, f)
+        p = subprocess.run([sys.executable, SCRIPT, "--params", PARAMS, "--ui", ui, "--root", os.path.join(base, "root"),
+                            "--no-preview", "--quiet"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           universal_newlines=True, cwd=ROOT)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("always visible", p.stdout)
+
     def test_backgrounds_have_no_dot_grid_and_use_the_palette(self):
         # The bezel colour fills the field outside the slots (a dot grid would break the run).
         data = read_bytes(os.path.join(ROOT, "ui", "art", "bg_main.png"))

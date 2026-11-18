@@ -19,6 +19,7 @@
 
 #include "mac_editor.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <map>
@@ -213,13 +214,19 @@ void lcdRowText(const rackboy::sav::RackboyTableRow& row, int r, char* out, size
     std::snprintf(out, n, "%02X %s %s %s%s", r & 15, vol, tsp, cmd, val);
 }
 
-void buildLcd(MpcBoyPlugin& p, const Snapshot& s, const mpcboy::Content& content, int ch, ChannelLcdData& d)
+// The channel's playback, or idle when the audio thread has stopped publishing (stale).
+mpcboy::ChannelPlayback playbackOf(MpcBoyPlugin& p, int ch, bool stale)
+{
+    return stale ? mpcboy::ChannelPlayback() : p.playback().load(ch);
+}
+
+void buildLcd(MpcBoyPlugin& p, const Snapshot& s, const mpcboy::Content& content, int ch, bool stale, ChannelLcdData& d)
 {
     using namespace mpcboy;
     std::memset(&d, 0, sizeof(d));
     d.channel = ch;
     if (ch < 0) return;
-    const ChannelPlayback pb = p.playback().load(ch);
+    const ChannelPlayback pb = playbackOf(p, ch, stale);
     d.on = p.getInt(kOnParam[ch]);
     if (ch == 2)
     {
@@ -265,7 +272,7 @@ void buildLcd(MpcBoyPlugin& p, const Snapshot& s, const mpcboy::Content& content
     for (int i = 0; i < ui::kLcdTableRows; ++i) lcdRowText(t.rows[d.first + i], d.first + i, d.rows[i], sizeof(d.rows[i]));
 }
 
-void buildGrid(MpcBoyPlugin& p, const Snapshot& s, const mpcboy::Content& content, int caret, GridData& g)
+void buildGrid(MpcBoyPlugin& p, const Snapshot& s, const mpcboy::Content& content, int caret, bool stale, GridData& g)
 {
     using namespace mpcboy;
     std::memset(&g, 0, sizeof(g));
@@ -275,7 +282,7 @@ void buildGrid(MpcBoyPlugin& p, const Snapshot& s, const mpcboy::Content& conten
     ui::buildGridRows(content, g.table, g.cursor, g.rows);
     for (int ch = 0; ch < 4; ++ch)
     {
-        const ChannelPlayback pb = p.playback().load(ch);
+        const ChannelPlayback pb = playbackOf(p, ch, stale);
         g.playRow[ch] = pb.running && pb.table == g.table ? pb.row : -1;
         g.usedBy[ch] = p.getInt(kTblParam[ch]) == g.table + 1;
     }
@@ -285,7 +292,7 @@ void buildGrid(MpcBoyPlugin& p, const Snapshot& s, const mpcboy::Content& conten
     (void)s;
 }
 
-void takeSnapshot(MpcBoyPlugin& p, int page, int caret, mpcboy::Content& scratch, Snapshot& s)
+void takeSnapshot(MpcBoyPlugin& p, int page, int caret, mpcboy::Content& scratch, Snapshot& s, bool stale = false)
 {
     s.page = page;
     s.numParams = std::min(p.numParams(), static_cast<int>(mpcboy::kTotalParams));
@@ -301,14 +308,14 @@ void takeSnapshot(MpcBoyPlugin& p, int page, int caret, mpcboy::Content& scratch
     if (s.hasTable || ch >= 0) p.content().readPublished(scratch);
     if (s.hasTable)
     {
-        buildGrid(p, s, scratch, caret, s.grid);
+        buildGrid(p, s, scratch, caret, stale, s.grid);
         ui::tableBreadcrumb(s.crumb, sizeof(s.crumb), s.grid.table + 1, s.grid.cursor);
     }
     else
     {
         std::memset(&s.grid, 0, sizeof(s.grid));
     }
-    buildLcd(p, s, scratch, ch, s.lcd);
+    buildLcd(p, s, scratch, ch, stale, s.lcd);
     if (ch >= 0) ui::channelBreadcrumb(s.crumb, sizeof(s.crumb), ch, s.lcd.table > 0 ? s.lcd.tableName : nullptr, s.lcd.playRow);
 }
 
@@ -524,7 +531,7 @@ void drawChannelLcd(CGContextRef ctx, const ChannelLcdData& d, const ui::Rect& p
     const int ly = f.y + f.h - 22 + oy;
     fillRect(ctx, L.tag.x, ly, 14, 12, d.on ? accent : t.lcdBeat);
     if (d.on) fillRect(ctx, L.tag.x + 2, ly + 2, 4, 4, 0xffffffffu);
-    drawTextAt(ctx, d.on ? "ON" : "OFF", L.tag.x + 22, ly - 1, 2, d.on ? t.lcdInk : t.lcdPlayhead);
+    drawTextAt(ctx, d.on ? "ON" : "OFF", L.tag.x + 22, ly - 1, 2, t.lcdInk);   // lcdInk both ways: lcdPlayhead is < 4.5:1 on the field
 
     // Tone: duty, wave shape (the wave bytes) or a noise motif.
     drawTextAt(ctx, d.toneText, L.tone.x, capY, 1, t.lcdInk);
@@ -775,8 +782,32 @@ void drawTabBar(CGContextRef ctx, Art& art, int page)
     }
 }
 
-// The whole editor in a flipped context (origin top-left, one unit per design unit).
-void drawEditor(CGContextRef ctx, Art& art, const Snapshot& s)
+// Which parts of the editor a draw must repaint: everything (nullptr), or what intersects `dirty`
+// (the view's dirty rect, in the same flipped design units). A part that misses it paints nothing
+// the context would not clip away anyway, so the result is pixel-identical.
+bool needsDraw(const CGRect* dirty, int x, int y, int w, int h)
+{
+    return dirty == nullptr || CGRectIntersectsRect(*dirty, CGRectMake(x, y, w, h));
+}
+
+// A control's drawn extent: its slot plus any child or caption that reaches outside it.
+ui::Rect controlExtent(const ui::Control& c)
+{
+    const ui::ComponentDef& d = ui::componentOf(c);
+    int x0 = c.slot.x, y0 = c.slot.y, x1 = c.slot.x + c.slot.w, y1 = c.slot.y + c.slot.h;
+    auto grow = [&](const ui::Rect& r) {
+        x0 = std::min(x0, r.x); y0 = std::min(y0, r.y);
+        x1 = std::max(x1, r.x + r.w); y1 = std::max(y1, r.y + r.h);
+    };
+    for (int i = 0; i < d.numChildren; ++i)
+        if (!d.children[i].onlyWhenFocused) grow(ui::childRect(c, d.children[i]));
+    for (int k = 0; k < c.numCaptions; ++k) grow(c.captions[k].bounds);
+    return {x0, y0, x1 - x0, y1 - y0};
+}
+
+// The whole editor in a flipped context (origin top-left, one unit per design unit). `dirty`: only
+// the parts that intersect it are drawn (the background image is always drawn whole).
+void drawEditor(CGContextRef ctx, Art& art, const Snapshot& s, const CGRect* dirty = nullptr)
 {
     CGContextSaveGState(ctx);   // leave the host's / caller's context state as found
     CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
@@ -787,16 +818,32 @@ void drawEditor(CGContextRef ctx, Art& art, const Snapshot& s)
     const int oy = content.y;
     if (CGImageRef bg = art.frame(pg.background, 0)) drawImage(ctx, bg, content.x, oy);
     else fillRect(ctx, content.x, content.y, content.w, content.h, ui::kTheme.background);
-    if (s.hasTable) drawTableGrid(ctx, s.grid, oy);
-    if (const ui::Panel* lcd = ui::channelPanel(s.page)) drawChannelLcd(ctx, s.lcd, lcd->bounds, pg.accent, oy);
-    drawBreadcrumb(ctx, s.crumb, s.page);
-    for (int i = 0; i < pg.numDynamics; ++i) drawDynamic(ctx, art, s, pg.dynamics[i], oy);
+    if (s.hasTable)
+    {
+        const ui::Rect pb = ui::kTableGrid.panelBounds;
+        if (needsDraw(dirty, pb.x, pb.y + oy, pb.w, pb.h)) drawTableGrid(ctx, s.grid, oy);
+    }
+    if (const ui::Panel* lcd = ui::channelPanel(s.page))
+        if (needsDraw(dirty, lcd->bounds.x, lcd->bounds.y + oy, lcd->bounds.w, lcd->bounds.h))
+            drawChannelLcd(ctx, s.lcd, lcd->bounds, pg.accent, oy);
+    {
+        const ui::Rect br = ui::breadcrumbRect(s.page);
+        if (needsDraw(dirty, br.x, br.y, br.w, br.h)) drawBreadcrumb(ctx, s.crumb, s.page);
+    }
+    for (int i = 0; i < pg.numDynamics; ++i)
+    {
+        const ui::Rect& b = pg.dynamics[i].bounds;
+        if (needsDraw(dirty, b.x, b.y + oy, b.w, b.h)) drawDynamic(ctx, art, s, pg.dynamics[i], oy);
+    }
     for (int i = 0; i < pg.numControls; ++i)
     {
         const ui::Control& c = pg.controls[i];
-        if (ui::isVisible(c, s.norm, s.numParams)) drawControl(ctx, art, s, c, oy);
+        if (!ui::isVisible(c, s.norm, s.numParams)) continue;
+        const ui::Rect e = controlExtent(c);
+        if (needsDraw(dirty, e.x, e.y + oy, e.w, e.h)) drawControl(ctx, art, s, c, oy);
     }
-    drawTabBar(ctx, art, s.page);
+    const ui::Rect& tb = ui::kTabBar.bounds;
+    if (needsDraw(dirty, tb.x, tb.y, tb.w, tb.h)) drawTabBar(ctx, art, s.page);
     CGContextRestoreGState(ctx);
 }
 
@@ -836,6 +883,7 @@ std::string defaultArtDir() { return mpc::pluginFolder() + "/ui"; }
     std::unique_ptr<mpcboy::Content> scratch_;
     int page_;
     int caret_;                       // TABLE grid column caret (1..6): the cell a grid drag edits
+    mpcboy::PlaybackWatch watch_;     // idle when process() has not published for > 250 ms
     NSTimer* timer_;
     ui::Gesture gesture_;
     id resignObserver_;
@@ -853,9 +901,18 @@ std::string defaultArtDir() { return mpc::pluginFolder() + "/ui"; }
         scratch_ = std::make_unique<mpcboy::Content>();
         page_ = 0;
         caret_ = 1;
-        takeSnapshot(*plugin_, page_, caret_, *scratch_, *shown_);
+        takeSnapshot(*plugin_, page_, caret_, *scratch_, *shown_, [self playbackStale]);
     }
     return self;
+}
+
+// True when the audio thread has not published a block for more than 250 ms (a stopped host,
+// a plugin that is not being processed): the last note and playhead would be frozen.
+- (bool)playbackStale
+{
+    const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+    return watch_.stale(plugin_->playback().blocks(), ms);
 }
 
 - (BOOL)isFlipped { return YES; }
@@ -943,7 +1000,8 @@ std::string defaultArtDir() { return mpc::pluginFolder() + "/ui"; }
 {
     CGContextRef ctx = [[NSGraphicsContext currentContext] CGContext];
     if (!ctx) return;
-    drawEditor(ctx, *art_, *shown_);
+    const CGRect dirtyRect = NSRectToCGRect(dirty);
+    drawEditor(ctx, *art_, *shown_, &dirtyRect);
 }
 
 // Rebuild the snapshot and invalidate what changed.
@@ -953,7 +1011,7 @@ std::string defaultArtDir() { return mpc::pluginFolder() + "/ui"; }
     // Nothing to show while the window is hidden, minimised or fully covered (a page switch is
     // still taken, so clicks and the next draw see the page the user picked).
     if (self.window && !(self.window.occlusionState & NSWindowOcclusionStateVisible) && shown_->page == page_) return;
-    takeSnapshot(*plugin_, page_, caret_, *scratch_, *next_);
+    takeSnapshot(*plugin_, page_, caret_, *scratch_, *next_, [self playbackStale]);
     Snapshot& a = *shown_;
     Snapshot& b = *next_;
     if (a.page != b.page)
@@ -1190,7 +1248,7 @@ void MacEditor::close()
 
 bool MacEditor::isOpen() const { return impl_ && impl_->view; }
 
-bool renderEditorPng(MpcBoyPlugin& plugin, int page, double scale, const std::string& artDir, const std::string& pngPath)
+bool renderEditorPng(MpcBoyPlugin& plugin, int page, double scale, const std::string& artDir, const std::string& pngPath, int tile)
 {
     @autoreleasepool
     {
@@ -1210,7 +1268,22 @@ bool renderEditorPng(MpcBoyPlugin& plugin, int page, double scale, const std::st
         // Flipped, scaled user space: the same coordinates the view draws in.
         CGContextTranslateCTM(ctx, 0, static_cast<CGFloat>(h));
         CGContextScaleCTM(ctx, scale, -scale);
-        drawEditor(ctx, art, *snap);
+        if (tile > 0)
+        {
+            for (int ty = 0; ty < kH; ty += tile)
+                for (int tx = 0; tx < kW; tx += tile)
+                {
+                    const CGRect r = CGRectMake(tx, ty, std::min(tile, kW - tx), std::min(tile, kH - ty));
+                    CGContextSaveGState(ctx);
+                    CGContextClipToRect(ctx, r);
+                    drawEditor(ctx, art, *snap, &r);
+                    CGContextRestoreGState(ctx);
+                }
+        }
+        else
+        {
+            drawEditor(ctx, art, *snap);
+        }
         CGImageRef img = CGBitmapContextCreateImage(ctx);
         CGContextRelease(ctx);
         if (!img) return false;

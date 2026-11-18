@@ -67,7 +67,8 @@ struct ChannelSettings
     bool noiseWidth7 = false;   // 7-bit LFSR (NR43 bit 3)
     NoisePitchMode noisePitchMode = NoisePitchMode::Track;
     uint8_t noiseFixedShape = 0;   // 0..111: shift = idx / 8 (0..13), divisor code = idx % 8 (register order: a higher idx
-                                   // is a lower pitch; the NOI FixPitch parameter is 111 - idx)
+                                   // is a lower pitch). The NOI FixPitch parameter is not this index: it indexes the
+                                   // pitch-sorted kFixPitch table (param_bridge.cpp; noiseFixPitchRegIndex maps it here)
     // Table
     int8_t tableSlot = -1;      // -1 = off, 0..15
 };

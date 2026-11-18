@@ -567,3 +567,29 @@ TEST_CASE("engine: the frame sequencer runs (envelope decay and sweep work throu
         CHECK(fLate > fEarly * 1.2);
     }
 }
+
+TEST_CASE("engine: Pulse 1 sweep Off (Amt Off or Time Off) never silences a high note")
+{
+    // Sweep time > 0 with shift 0 would run the hardware overflow check (freq + freq >> 0) and
+    // silence high notes; "Off" must write NR10 fully disabled.
+    struct Case { int time; int shift; bool down; };
+    const Case cases[] = {{3, 0, false}, {7, 0, false}, {3, 0, true}, {0, 3, false}, {0, 3, true}};
+    for (const Case& c : cases)
+    {
+        CAPTURE(c.time);
+        CAPTURE(c.shift);
+        CAPTURE(c.down);
+        Rig r;
+        r.only(0);
+        r.s.ch[0].sweepTime = static_cast<uint8_t>(c.time);
+        r.s.ch[0].sweepShift = static_cast<uint8_t>(c.shift);
+        r.s.ch[0].sweepDown = c.down;
+        r.apply();
+        r.run(30000, {noteOn(0, 100)});
+        CHECK(rmsDb(r.L, 25000, 29000) > -40.0);   // still sounding long after the sweep clocks
+        bool nr10 = false;
+        for (const W& w : r.log)
+            if (w.addr == 0xFF10) { nr10 = true; CHECK(w.v == 0); }
+        CHECK(nr10);
+    }
+}

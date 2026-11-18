@@ -20,6 +20,8 @@ overlays keep their duplicate "version" keys, ui-reference 1.8):
     complementary visibleWhen (built by gen_ui on a phantom page, then moved into the tab);
   * MPC dynamics ("gb.dynamics", gated by "gb.mpcDynamics"): parameter-bound Image film
     strips (ui-reference 6.6) and Value labels (6.3), remapped Data -> Parameter N (4.5);
+  * label fit: every component Name label and every Value label with choices, and the value-label
+    dynamics, get a font height whose nexa_width estimate fits the label box (see fit_label_height);
   * per-page kit variants: every kit component definition is cloned per accent colour
     ("knobUni_pu1" uses knob_uni_pu1.png); gen_ui shares one definition across pages;
   * Q-Links "Bank Direction" ("gb.qlinks") and qlinkBoundsData that wrap one screen row.
@@ -178,6 +180,73 @@ def nexa_width(text, height):
     return sum(NEXA_ADVANCE.get(c, NEXA_ADVANCE_DEFAULT) for c in text.upper()) * height
 
 
+# Name / Value labels of the kit components and the dynamic value labels have fixed boxes too
+# (gen_ui: knob name "104 14 160 38", fader value "150 8 113 34", ...). The same estimate lowers the
+# font height of a label until its widest text fits the whole box, to a floor of LABEL_HEIGHT_FLOOR;
+# below that the text cannot be shown legibly and the build fails. The shrinks are recorded in
+# LABEL_FITS and printed into ui_layout.inc as comments (a NOTE line would fail the package gate).
+LABEL_HEIGHT_FLOOR = 14.0
+LABEL_FITS = []   # (where, widest text, box width, height before, height after)
+
+
+def label_fit_height(text, width, height, where):
+    """`height`, lowered (to 0.1) until nexa_width(text) fits `width`; BuildError below the floor."""
+    if nexa_width(text, height) <= width:
+        return height
+    fitted = math.floor(width / nexa_width(text, 1.0) * 10) / 10.0
+    if fitted < LABEL_HEIGHT_FLOOR:
+        raise BuildError("%s: %r needs a font height of %.1f to fit its %d-wide box (floor %.1f)"
+                         % (where, text, fitted, width, LABEL_HEIGHT_FLOOR))
+    return fitted
+
+
+def fit_label_font(font, texts, width, where):
+    """Fit the Obj `font` (its "height") to the widest of `texts`; records the shrink."""
+    before = float(oget(font, "height"))
+    height = before
+    widest = ""
+    for t in sorted(texts):
+        h = label_fit_height(t, width, height, where)
+        if h < height:
+            height, widest = h, t
+    if height < before:
+        oset(font, "height", height)
+        LABEL_FITS.append((where, widest, width, before, height))
+
+
+def fit_component_labels(tui, params):
+    """Fit the Name and Value labels of every component definition to the texts of every control that
+    instantiates it (a definition is shared, so it gets the smallest height any of them needs):
+    Name = the parameter names, Value = the choice labels of choice / bool parameters. Value labels of
+    plain numeric parameters are not fitted (their text is a number)."""
+    by_name = {p.name: p for p in params}
+    page_data = oget(tui, "pageData")
+    defs = {oget(d, "key"): oget(d, "value") for d in oget(oget(page_data, "componentDefinitions"), "localComponentDefinitions")}
+    need = {}   # (definition, child index) -> set of texts
+    for tab in oget(page_data, "tabs"):
+        for e in oget(oget(tab, "componentDefinition"), "componentsData"):
+            cd = oget(e, "componentData")
+            t = oget(cd, "type")
+            p = by_name.get(oget(cd, "name"))
+            if t not in defs or p is None:
+                continue
+            for ci, child in enumerate(oget(defs[t], "componentsData")):
+                ccd = oget(child, "componentData")
+                if oget(ccd, "type") != "Label":
+                    continue
+                kind = oget(oget(ccd, "data"), "type")
+                texts = [p.name] if kind == "Name" else (p.choices or []) if kind == "Value" else []
+                if texts:
+                    need.setdefault((t, ci), set()).update(texts)
+    for (t, ci), texts in sorted(need.items()):
+        child = oget(defs[t], "componentsData")[ci]
+        ccd = oget(child, "componentData")
+        data = oget(ccd, "data")
+        width = parse_rect(oget(oget(child, "bounds"), "bounds"))[2]
+        where = "%s %s label" % (t, oget(data, "type").lower())
+        fit_label_font(oget(oget(data, "textStyle"), "font"), texts, width, where)
+
+
 def fit_caption_height(text, width, height):
     avail = width - 2 * CAPTION_PAD
     if nexa_width(text, height) <= avail:
@@ -257,7 +326,7 @@ def write_if_changed(path, data):
 # Spec
 # --------------------------------------------------------------------------------------------
 GB_KEYS = ("palette", "colours", "pageColours", "controlColours", "wordmark", "titles", "qlinks", "sharedSlots",
-           "legends", "decals", "panels", "mpcDynamics", "dynamics", "tabBar")
+           "legends", "decals", "hiddenDecals", "panels", "mpcDynamics", "dynamics", "tabBar")
 GB_REQUIRED = ("palette", "colours", "pageColours", "wordmark", "titles", "qlinks", "panels", "mpcDynamics", "tabBar")
 
 
@@ -276,7 +345,7 @@ def load_spec(path):
     for key in gb:
         if key not in GB_KEYS:
             raise BuildError('%s: unknown "gb" key "%s" (allowed: %s)' % (path, key, ", ".join(GB_KEYS)))
-    for key in ("controlColours", "sharedSlots", "legends", "decals", "dynamics"):
+    for key in ("controlColours", "sharedSlots", "legends", "decals", "hiddenDecals", "dynamics"):
         gb.setdefault(key, {})
     flags = gb["mpcDynamics"]
     if set(flags) != {"valueLabels", "filmStrips"} or not all(isinstance(v, bool) for v in flags.values()):
@@ -445,7 +514,7 @@ def cursor_band(bounds, grid):
     ox, oy, inner_w, _ = table_metrics(bounds, ui_art.LCD_INSET, grid)
     adv = ui_art.FONT_ADVANCE * grid["charScale"]
     s = grid["charScale"]
-    return (ox + adv - TABLE_BAND_PAD, oy + grid["rowPitch"] - TABLE_BAND_PAD, inner_w - adv + 2 * TABLE_BAND_PAD,
+    return (ox + adv - TABLE_BAND_PAD, oy + grid["mpcRowPitch"] - TABLE_BAND_PAD, inner_w - adv + 2 * TABLE_BAND_PAD,
             ui_art.FONT_H * s + 2 * TABLE_BAND_PAD)
 
 
@@ -482,6 +551,19 @@ def render_page_background(spec, P, page, colours, dyn_specs, flags, art, qmap):
     for c in page["controls"]:
         by_slot.setdefault(c["slot"], []).append(c)
 
+    # Shared slots ("gb.sharedSlots"): one plate for two controls. Its static Q-Link badge would be wrong
+    # for the second control (the Q-Link drives the occupant only), so the page's legend on that row
+    # carries the cue instead ("Q6 = TEMPO RATE").
+    shared_at = {(it["row"], it["col"]): it for it in gb["sharedSlots"].get(name, [])}
+    hidden_hints = {(it["row"], it["col"]): it["text"] for it in gb["hiddenDecals"].get(name, [])}
+    legend_notes = {}
+    for (r, col), it in shared_at.items():
+        q = gen_ui.slot_qlink(r, col)
+        if it.get("qlinkCue") and qmap.get(q, -1) >= 0:
+            if not any(l["row"] == r for l in gb["legends"].get(name, [])):
+                raise BuildError('page "%s": the shared slot at row %d needs a legend on its row to carry "%s"' % (name, r, it["qlinkCue"]))
+            legend_notes[r] = "Q%d = %s" % (q, it["qlinkCue"])
+
     drawn_decals = set()
     for r in range(4):
         for col in range(4):
@@ -494,11 +576,18 @@ def render_page_background(spec, P, page, colours, dyn_specs, flags, art, qmap):
                 if any(colours.explicit(name, c["name"]) for c in ctls):
                     stripe = P.accent(ctls[0]["colour"])
                 ui_art.draw_plate(bg, P, sx - 1, sy - 1, gen_ui.SLOT_W + 2, gen_ui.SLOT_H + 1, stripe)
-                if len(ctls) == 1 and ctls[0]["kind"] == "SliderWithFocus" and ctls[0]["menu"]:
+                # The navy value window of a firmware menu slider; a shared slot gets it when one of its
+                # controls is a menu slider (the other, a knob, then draws over it).
+                menus = [c for c in ctls if c["kind"] == "SliderWithFocus" and c["menu"]]
+                if menus:
                     cx, cy, cw, ch = CARTRIDGE
-                    ui_art.draw_cartridge(bg, P, sx + cx, sy + cy, cw, ch, P.accent(ctls[0]["colour"]))
+                    ui_art.draw_cartridge(bg, P, sx + cx, sy + cy, cw, ch, P.accent(menus[0]["colour"]))
+                if (r, col) in hidden_hints:
+                    if not all(c["visible"][0] >= 0 for c in ctls):
+                        raise BuildError('page "%s": "gb.hiddenDecals" at row %d col %d, but its control is always visible' % (name, r, col))
+                    ui_art.draw_slot_hint(bg, P, hidden_hints[(r, col)], sx - 1, sy - 1, gen_ui.SLOT_W + 2, gen_ui.SLOT_H + 1)
                 q = gen_ui.slot_qlink(r, col)
-                if qmap.get(q, -1) >= 0:
+                if qmap.get(q, -1) >= 0 and (r, col) not in shared_at:
                     ui_art.draw_badge(bg, P, "Q%d" % q, sx + gen_ui.SLOT_W - BADGE_INSET[0], sy + gen_ui.SLOT_H - BADGE_INSET[1])
             elif (r, col) in decal_cells:
                 d = decal_cells[(r, col)]
@@ -513,7 +602,7 @@ def render_page_background(spec, P, page, colours, dyn_specs, flags, art, qmap):
         if l["row"] == 0:
             continue
         ui_art.draw_legend(bg, P, l["text"], gen_ui.SLOT_X[l.get("col", 0)], gen_ui.SLOT_Y[l["row"]] - 26,
-                           gen_ui.SLOT_X[3] + gen_ui.SLOT_W, accent)
+                           gen_ui.SLOT_X[3] + gen_ui.SLOT_W, accent, legend_notes.get(l["row"], ""))
 
     for p in gb["panels"].get(name, []):
         b = panel_bounds(p)
@@ -551,12 +640,12 @@ def decorate_table(bg, P, bounds, grid, cursor, live_row):
     bg.rect(ox - pad, oy - pad, inner_w + 2 * pad, ui_art.FONT_H * s + 2 * pad, P.lcd_beat)
     for col in grid["columns"]:
         ui_art.draw_text(bg, col["title"], ox + col["x"] * adv, oy, s, P.lcd_ink)
-    card_y = oy + grid["rowPitch"]
+    card_y = oy + grid["mpcRowPitch"]
     if live_row:
         x, y, w, h = cursor_band(bounds, grid)
         bg.rect(x, y, w, h, P.lcd_cursor)
-        bg.blit(cursor, ox, oy + grid["rowPitch"])
-        card_y = oy + 2 * grid["rowPitch"]
+        bg.blit(cursor, ox, oy + grid["mpcRowPitch"])
+        card_y = oy + 2 * grid["mpcRowPitch"]
     ui_art.draw_command_card(bg, P, ox, card_y + 14, inner_w, grid["commandCard"])
 
 
@@ -582,6 +671,26 @@ def parse_shared_slots(spec, pages, table):
                                  % (where, ctl.param.name, occ.param.name))
             out.setdefault(name, []).append((i, ctl))
     return out
+
+
+def lcd_section_extent(gb, page_name, d, width, where):
+    """Panel-absolute (x, w) of a dynamic placed by "section" inside the page's channel LCD:
+    the section's x (with "align": "right", its right edge minus `width`) and, for a label with
+    "spanTo", the width from that section's x to the end of the target section."""
+    panels = [p for p in gb["panels"].get(page_name, []) if p["kind"] == "lcdChannel"]
+    if len(panels) != 1:
+        raise BuildError('%s: "section" needs the page\'s lcdChannel panel' % where)
+    px = panel_bounds(panels[0])[0]
+    try:
+        sx, sw = ui_art.lcd_section(d["section"])
+        if "spanTo" in d:
+            ex, ew = ui_art.lcd_section(d["spanTo"])
+            return px + sx, ex + ew - sx
+    except KeyError as e:
+        raise BuildError("%s: unknown LCD section %s (known: %s)" % (where, e, ", ".join(n for n, _, _ in ui_art.LCD_SECTIONS)))
+    if d.get("align") == "right":
+        return px + sx + sw - width, width
+    return px + sx, width
 
 
 def resolve_dynamics(spec, pages, table):
@@ -614,7 +723,11 @@ def resolve_dynamics(spec, pages, table):
                     raise BuildError("%s: unknown colour %r" % (where, colour))
                 r["image"] = strip_file(d["art"], colour)
                 r["frames"] = n
-                r["bounds"] = (gen_ui.SLOT_X[d["col"]] + d["x"], gen_ui.SLOT_Y[d["row"]] + d["y"], aw * 2, ah * 2)
+                if "section" in d:
+                    bx, _ = lcd_section_extent(gb, name, d, aw * 2, where)
+                else:
+                    bx = gen_ui.SLOT_X[d["col"]] + d["x"]
+                r["bounds"] = (bx, gen_ui.SLOT_Y[d["row"]] + d["y"], aw * 2, ah * 2)
                 default = p.default or 0.0
                 r["defaultFrame"] = int(round(default * (n - 1)))
             elif d["kind"] == "valueLabel":
@@ -627,6 +740,9 @@ def resolve_dynamics(spec, pages, table):
                         raise BuildError('%s: "column" needs the page\'s lcdTable panel' % where)
                     r["bounds"] = table_column_label_bounds(panel_bounds(grids[0]), grids[0]["grid"], d["column"])
                     r["inTable"] = True
+                elif "section" in d:
+                    bx, bw = lcd_section_extent(gb, name, d, d.get("w", 0), where)
+                    r["bounds"] = (bx, gen_ui.SLOT_Y[d["row"]] + d["y"], bw, d["h"])
                 else:
                     r["bounds"] = (gen_ui.SLOT_X[d["col"]] + d["x"], gen_ui.SLOT_Y[d["row"]] + d["y"], d["w"], d["h"])
             else:
@@ -647,6 +763,7 @@ def dynamic_entry(d):
         return gen_ui.entry("dyn %s" % p.name, "Image", data, rect_str(d["bounds"]), "No", "Hide", "Always",
                             remap=[("Data", p.handle)])
     data = gen_ui.label_data("Value", d["argb"], d["fontHeight"], "left verticallyCentred")
+    fit_label_font(oget(oget(data, "textStyle"), "font"), p.choices or [], d["bounds"][2], "dyn %s label" % p.name)
     return gen_ui.entry("dyn %s" % p.name, "Label", data, rect_str(d["bounds"]), "No", "Hide", "Always",
                         remap=[("Data", p.handle)])
 
@@ -679,6 +796,12 @@ def build_tree(spec, params, pages, style, frames, shared, dynamics, flags):
     for (name, _), ptab in zip(phantoms, tabs[len(pages):]):
         # The phantom tab holds only the shared control (and its captions): move them after the
         # occupant's entries on the real tab.
+        #
+        # This depends on gen_ui.tab_component's entry naming (SDK pinned at febd2ca): a control's
+        # entry is named after its parameter (type != "Label"), and an n-way switch is followed by
+        # one Label entry per choice named "<parameter> seg <i>". Both are matched below by name;
+        # tests/ui/test_build_ui.py test_gen_ui_entry_naming_for_shared_slots fails when an SDK
+        # bump changes either, before the phantom entries can land in the wrong place.
         extra = oget(oget(ptab, "componentDefinition"), "componentsData")
         target = oget(oget(tabs[[pg.name for pg in pages].index(name)], "componentDefinition"), "componentsData")
         slot = oget(oget(extra[0], "bounds"), "bounds")
@@ -894,6 +1017,13 @@ def emit_layout(spec, style, defs, pages, art, colours):
     theme = [argb(style[k] if src == "style" else pal[k]) for _, src, k in THEME_FIELDS]
     out.append("inline constexpr Theme kTheme = {%s};" % ", ".join("0x%08xu" % v for v in theme))
     out.append("")
+    out.append("// MPC label font heights lowered to fit their boxes by the Nexa Bold width estimate (build_ui.py,")
+    out.append("// label_fit_height; floor %.1f). Label, widest text, box width: height before -> after." % LABEL_HEIGHT_FLOOR)
+    for where, text, width, before, after in sorted(LABEL_FITS):
+        out.append("//   %s: %r in %d: %.1f -> %.1f" % (where, text.upper(), width, before, after))
+    if not LABEL_FITS:
+        out.append("//   (none)")
+    out.append("")
     out.append("inline constexpr Asset kAssets[] = {")
     for f in sorted(art.files):
         w, h, n, _, _ = art.files[f]
@@ -996,12 +1126,21 @@ def emit_layout(spec, style, defs, pages, art, colours):
     out.append("inline constexpr TableColumn kTableColumns[] = {%s};" % ", ".join(
         "{%s, %d, %d}" % (cstr(c["title"]), c["x"], c["chars"]) for c in g["columns"]))
     out.append("inline constexpr int kTableLineChars = %d;   // font cells per text line (the LCD text area)" % line_chars)
-    out.append("inline constexpr int kTableInnerWidth = %d;   // text area width, design units" % inner_w)
-    out.append("inline constexpr int kTableBandPad = %d;      // highlight bands extend this far around the text cells" % TABLE_BAND_PAD)
-    out.append("// Text grid of the TABLE page LCD (tab coordinates): header row, then visibleRows rows.")
-    out.append("inline constexpr TableGrid kTableGrid = {%d, %s, %d, %d, %d, %d, %d, %s, %s, kTableColumns, %d};" % (
-        [x["name"] for x in pages].index(pg["name"]), crect(b), ox, oy, g["charScale"], g["rowPitch"], g["visibleRows"],
+    out.append("// The TABLE page LCD (tab coordinates): panel, the MPC art's text origin and scale, columns.")
+    out.append("inline constexpr TableGrid kTableGrid = {%d, %s, %d, %d, %d, %s, %s, kTableColumns, %d};" % (
+        [x["name"] for x in pages].index(pg["name"]), crect(b), ox, oy, g["charScale"],
         cstr(p["image"]), cstr(g["cursorImage"]), len(g["columns"])))
+    live = g["live"]
+    out.append("// The Mac editor's live grid inside that panel (from \"grid.live\" in ui/mpcboy_ui.json): all 16 rows, one")
+    out.append("// band per row. static_asserted against the panel in ui_model.cpp.")
+    out.append("inline constexpr int kGridRows = %d;" % live["rows"])
+    out.append("inline constexpr int kGridScale = %d;         // row glyphs: font cell scale" % live["scale"])
+    out.append("inline constexpr int kGridPitch = %d;         // row band height" % live["pitch"])
+    out.append("inline constexpr int kGridHeaderScale = %d;" % live["headerScale"])
+    out.append("inline constexpr int kGridHeaderHeight = %d;  // header band height" % live["headerHeight"])
+    out.append("inline constexpr int kGridFieldInset = %d;    // panel edge to the LCD field" % live["fieldInset"])
+    out.append("inline constexpr int kGridMarkerStep = %d;    // channel '>' markers stack this far apart" % live["markerStep"])
+    out.append("inline constexpr int kGridLastChar = %d;      // the text uses character columns 0 .. kGridLastChar - 1" % live["lastChar"])
     out.append("")
     out.append("// Top band and LCD panels, as ui_art draws them (the editor's breadcrumb and live LCDs).")
     out.append("inline constexpr int kTitleX = %d;           // page title: left edge and font scale" % ui_art.TITLE_X)
@@ -1010,6 +1149,11 @@ def emit_layout(spec, style, defs, pages, art, colours):
     out.append("inline constexpr int kBandTextY = %d;        // band legends: top edge and font scale" % ui_art.BAND_TEXT_Y)
     out.append("inline constexpr int kBandTextScale = %d;" % ui_art.LEGEND_SCALE)
     out.append("inline constexpr int kLcdInset = %d;         // LCD panel edge to its field" % ui_art.LCD_INSET)
+    out.append("// Channel LCD sections (panel-relative x, width), left to right: tag + LED, tone, envelope, note + level, table")
+    out.append("// window; and the dotted rules between them. The MPC film strips and value labels are placed from the same")
+    out.append("// values (ui_art.LCD_SECTIONS); its table label spans the note and table sections.")
+    out.append("inline constexpr LcdSection kLcdSections[] = {%s};" % ", ".join("{%d, %d}" % (x, w) for _, x, w in ui_art.LCD_SECTIONS))
+    out.append("inline constexpr int kLcdDividers[] = {%s};" % ", ".join(str(x) for x in ui_art.LCD_DIVIDERS))
     out.append("")
     out.append("// Text sizes (shared by the previews and the editor).")
     out.append("inline constexpr float kLabelScaleThreshold = %.1ff;   // font height below this: 2x font pixels, else 3x" % LABEL_SCALE_THRESHOLD)
@@ -1159,6 +1303,34 @@ def check_slots(spec, pages):
                                          % (name, key[:-1], r, c))
 
 
+GRID_LIVE_KEYS = ("rows", "scale", "pitch", "headerScale", "headerHeight", "fieldInset", "markerStep", "lastChar")
+
+
+def check_lcd_geometry(spec):
+    """The channel LCD sections fit every channel panel; the live TABLE grid fits its panel."""
+    gb = spec["gb"]
+    for name, plist in gb["panels"].items():
+        for p in plist:
+            if p["kind"] == "lcdChannel":
+                try:
+                    ui_art.check_lcd_sections(panel_bounds(p)[2])
+                except ValueError as e:
+                    raise BuildError('page "%s": %s' % (name, e))
+            elif p["kind"] == "lcdTable":
+                live = p["grid"].get("live")
+                if not isinstance(live, dict) or set(live) != set(GRID_LIVE_KEYS):
+                    raise BuildError('"gb.panels.%s" grid needs "live" with exactly: %s' % (name, ", ".join(GRID_LIVE_KEYS)))
+                b = panel_bounds(p)
+                field_h = b[3] - 2 * live["fieldInset"]
+                used = live["headerHeight"] + 1 + live["rows"] * live["pitch"]
+                if used > field_h:
+                    raise BuildError('"gb.panels.%s" live grid: header + %d rows need %d units, the field has %d'
+                                     % (name, live["rows"], used, field_h))
+                if live["pitch"] < ui_art.FONT_H * live["scale"]:
+                    raise BuildError('"gb.panels.%s" live grid: pitch %d is below the %d-unit glyphs'
+                                     % (name, live["pitch"], ui_art.FONT_H * live["scale"]))
+
+
 def build(args):
     spec = load_spec(args.ui)
     with tempfile.TemporaryDirectory() as tmp:
@@ -1178,6 +1350,7 @@ def build(args):
         print('build_ui: NOTE: drawn bipolar (centre-zero) by auto-detection: %s. Set "polarity" to override.'
               % ", ".join('"%s"' % n for n in bip))
     check_slots(spec, pages)
+    check_lcd_geometry(spec)
     gb = spec["gb"]
     flags = gb["mpcDynamics"]
     colours = Colours(gb, pages)
@@ -1188,7 +1361,9 @@ def build(args):
     CAPTION_HEIGHTS.update(plan_caption_heights(pages))
     install_gen_ui_patches("ff" + gb["palette"]["text"].lower())
     P = ui_art.Palette(gb["palette"], gb["colours"])
+    del LABEL_FITS[:]
     tui, qlinks = build_tree(spec, params, pages, style, frames, shared, dynamics, flags)
+    fit_component_labels(tui, params)   # before the per-colour clones, which copy the fitted heights
     kit_used = colour_kit_definitions(tui, pages, colours)
     qmaps = {}
     for page, e in zip(pages, oget(oget(qlinks, "Screen Mode Q-Links"), "map")):

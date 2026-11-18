@@ -151,3 +151,38 @@ TEST_CASE("playback: a reader on another thread sees consistent channel words wh
     reader.join();
     CHECK(bad.load() == 0);
 }
+
+TEST_CASE("playback: a disabled channel publishes no stale note or playhead")
+{
+    Rig r;
+    setTable(r.e->ownBank().tables[0], majArp());
+    for (int c = 0; c < 4; ++c) r.s.ch[c].tableSlot = 0;
+    r.apply();
+    r.run(128, {noteOn(0, 60)});
+    r.run(128, {tickAt(10)});
+    CHECK(r.e->playback().load(1).note == 60);
+    CHECK(r.e->playback().load(1).row == 1);
+
+    r.s.ch[1].enabled = false;
+    r.apply();
+    r.run(128, {noteOff(0, 60)});
+    r.run(128, {noteOn(0, 64)});
+    const ChannelPlayback p = r.e->playback().load(1);
+    CHECK(p.note == -1);
+    CHECK(p.row == 0);
+    CHECK_FALSE(p.running);
+    CHECK(p.table == -1);
+    CHECK(r.e->playback().load(0).note == 64);   // the other channels are unaffected
+}
+
+TEST_CASE("playback: the editor treats the state as stale after 250 ms without a published block")
+{
+    PlaybackWatch w;
+    CHECK_FALSE(w.stale(5, 1000));       // first look: fresh
+    CHECK_FALSE(w.stale(5, 1250));       // exactly 250 ms: not yet
+    CHECK(w.stale(5, 1251));             // more than 250 ms with the counter standing still
+    CHECK_FALSE(w.stale(6, 1260));       // a new block: fresh again
+    CHECK_FALSE(w.stale(7, 1500));
+    CHECK_FALSE(w.stale(7, 1700));
+    CHECK(w.stale(7, 1800));
+}

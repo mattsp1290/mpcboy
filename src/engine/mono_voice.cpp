@@ -111,6 +111,8 @@ void MonoVoice::trigger(int note, int velocity, const rackboy::sav::RackboyBank&
         {
             voices_[i].triggered = false;
             tableSlot_[i] = -1;
+            chNote_[i] = -1;    // a disabled channel shows no stale note or playhead
+            playRow_[i] = 0;
             continue;
         }
         if (s_.velToVol)

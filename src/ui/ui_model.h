@@ -212,19 +212,13 @@ void rasterizeText(const char* text, int x, int y, const TextStyle& style, const
     }
 }
 
-// ---- TABLE page text grid (LSDJ style) ------------------------------------------------------
+// ---- TABLE page text lines (LSDJ style) -----------------------------------------------------
 // kTableLineChars (generated): characters per text line (plus NUL)
 struct TableLine
 {
     char text[kTableLineChars + 1];   // columns at their character positions, spaces between
-    int row = -1;                     // table row shown (-1: the header)
+    int row = -1;                     // table row shown
     bool cursor = false;              // the Edit Row row (drawn inverted)
-};
-struct TableView
-{
-    TableLine header;
-    TableLine rows[16];
-    int numRows = 0;                  // kTableGrid.visibleRows
 };
 
 // Cell text, the same rules as the plugin's formatValue for the editor parameters:
@@ -235,30 +229,15 @@ void formatTranspose(int semis, char* buf);
 void formatCommand(std::uint8_t cmdByte, char* buf);
 void formatHex2(int value, char* buf);
 
-// First row of the visible window: the cursor sits on the 4th line where the table allows.
-int tableFirstRow(int cursorRow);
-// The header plus kTableGrid.visibleRows rows around `cursorRow` of table `table` (0-based).
-void buildTableView(const Content& content, int table, int cursorRow, TableView& out);
-// Tab coordinates of a character cell: column `charCol`, line 0 = header, 1.. = rows.
-int tableCharX(int charCol);
-int tableLineY(int line);
-// Highlight bands (tab coordinates), as the generated MPC art draws them.
-Rect tableHeaderBand();
-Rect tableCursorBand(int line);
-
 // ---- TABLE page live grid (Mac editor; redesign step 3) ---------------------------------
-// All 16 rows of the edited table inside the LCD panel (kTableGrid.panelBounds, cols 0-1 x rows
+// All kGridRows (16) rows of the edited table inside the LCD panel (kTableGrid.panelBounds, cols 0-1 x rows
 // 0-1): a scale-1 column header, then one band per row at kGridScale with hex row numbers, beat
 // rows every 4th row, the inverted cursor row, playhead rows and a channel-marker gutter left of
 // the row numbers. Text columns follow kTableColumns (character positions); a side column right
 // of the text holds the table's name and "used by" chips. Tab coordinates.
-constexpr int kGridRows = 16;
-constexpr int kGridScale = 2;        // rows: 14-unit glyphs
-constexpr int kGridPitch = 15;       // row band height
-constexpr int kGridHeaderScale = 1;
-constexpr int kGridHeaderHeight = 11;
-constexpr int kGridFieldInset = 3;   // panel edge to the LCD field
-constexpr int kGridMarkerStep = 5;   // channel '>' markers stack this far apart
+// kGridRows, kGridScale, kGridPitch, kGridHeaderScale, kGridHeaderHeight, kGridFieldInset,
+// kGridMarkerStep and kGridLastChar are generated (ui_layout.inc, from "grid.live" in
+// ui/mpcboy_ui.json); ui_model.cpp static_asserts that the grid fits the panel.
 struct GridLayout
 {
     Rect panel;    // kTableGrid.panelBounds
@@ -298,6 +277,8 @@ const Panel* channelPanel(int pageIndex);   // the LcdChannel panel, or nullptr
 const char* channelTag(int channel);        // "PU1", "PU2", "WAV", "NOI"
 // Sections of the channel LCD (tab coordinates), left to right: tag + LED, tone (duty / wave
 // shape / noise motif), envelope, note + level, table window. `dividers` are the dotted rules.
+// The section x positions, widths and the dividers are generated (kLcdSections, kLcdDividers):
+// the MPC's film strips and the printed LCD art use the same values.
 constexpr int kLcdTableRows = 7;            // the table window: the playhead row +-3
 constexpr int kLcdTablePitch = 12;          // scale-1 rows
 struct ChannelLcdLayout

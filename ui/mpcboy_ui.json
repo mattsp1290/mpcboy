@@ -213,7 +213,7 @@
     "qlinks": { "bankDirection": "Row", "boundsMargin": [8, 6] },
     "sharedSlots": {
       "MAIN": [
-        { "row": 2, "col": 1,
+        { "row": 2, "col": 1, "qlinkCue": "TEMPO RATE",
           "control": { "param": "Free Rate", "widget": "knob", "polarity": "unipolar", "visibleWhen": { "param": "Table Sync", "choice": "Free" } } }
       ]
     },
@@ -230,6 +230,9 @@
       "WAVE":   [ { "row": 2, "col": 1, "cols": 2, "text": "NO ENVELOPE" }, { "row": 3, "col": 0, "cols": 3, "text": "SWEEP: PU1 ONLY" } ],
       "NOISE":  [ { "row": 3, "col": 0, "cols": 1, "text": "SWEEP: PU1 ONLY" } ]
     },
+    "hiddenDecals": {
+      "NOISE":  [ { "row": 3, "col": 1, "text": "FIXED PITCH ONLY" } ]
+    },
     "panels": {
       "PULSE1": [ { "kind": "lcdChannel", "row": 0, "col": 0, "rows": 1, "cols": 3, "tag": "PU1", "motif": "duty" } ],
       "PULSE2": [ { "kind": "lcdChannel", "row": 0, "col": 0, "rows": 1, "cols": 3, "tag": "PU2", "motif": "duty" } ],
@@ -239,7 +242,8 @@
         {
           "kind": "lcdTable", "image": "lcd_table_panel.png", "row": 0, "col": 0, "rows": 2, "cols": 2,
           "grid": {
-            "charScale": 3, "rowPitch": 26, "visibleRows": 8, "padding": 4,
+            "charScale": 3, "mpcRowPitch": 26, "padding": 4,
+            "live": { "rows": 16, "scale": 2, "pitch": 15, "headerScale": 1, "headerHeight": 11, "fieldInset": 3, "markerStep": 5, "lastChar": 30 },
             "cursorImage": "cursor.png",
             "columns": [
               { "title": "ROW",  "x": 1,  "chars": 2 },
@@ -264,29 +268,29 @@
         { "kind": "filmStrip", "art": "ledPlate", "param": "NOI On", "colour": "noi", "row": 0, "col": 3, "x": 252, "y": 4 }
       ],
       "PULSE1": [
-        { "kind": "filmStrip", "art": "ledLcd", "param": "PU1 On", "colour": "pu1", "row": 0, "col": 0, "x": 16, "y": 66 },
-        { "kind": "filmStrip", "art": "duty", "param": "PU1 Duty", "caption": "DUTY", "row": 0, "col": 0, "x": 122, "y": 32 },
-        { "kind": "filmStrip", "art": "envTime", "param": "PU1 Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "x": 346, "y": 32 },
-        { "kind": "filmStrip", "art": "envDir", "param": "PU1 Env Dir", "row": 0, "col": 0, "x": 522, "y": 32 },
-        { "kind": "valueLabel", "param": "PU1 Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "x": 586, "y": 30, "w": 316, "h": 40 }
+        { "kind": "filmStrip", "art": "ledLcd", "param": "PU1 On", "colour": "pu1", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "duty", "param": "PU1 Duty", "caption": "DUTY", "row": 0, "col": 0, "section": "tone", "y": 32 },
+        { "kind": "filmStrip", "art": "envTime", "param": "PU1 Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "section": "env", "y": 32 },
+        { "kind": "filmStrip", "art": "envDir", "param": "PU1 Env Dir", "row": 0, "col": 0, "section": "env", "align": "right", "y": 32 },
+        { "kind": "valueLabel", "param": "PU1 Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
       ],
       "PULSE2": [
-        { "kind": "filmStrip", "art": "ledLcd", "param": "PU2 On", "colour": "pu2", "row": 0, "col": 0, "x": 16, "y": 66 },
-        { "kind": "filmStrip", "art": "duty", "param": "PU2 Duty", "caption": "DUTY", "row": 0, "col": 0, "x": 122, "y": 32 },
-        { "kind": "filmStrip", "art": "envTime", "param": "PU2 Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "x": 346, "y": 32 },
-        { "kind": "filmStrip", "art": "envDir", "param": "PU2 Env Dir", "row": 0, "col": 0, "x": 522, "y": 32 },
-        { "kind": "valueLabel", "param": "PU2 Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "x": 586, "y": 30, "w": 316, "h": 40 }
+        { "kind": "filmStrip", "art": "ledLcd", "param": "PU2 On", "colour": "pu2", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "duty", "param": "PU2 Duty", "caption": "DUTY", "row": 0, "col": 0, "section": "tone", "y": 32 },
+        { "kind": "filmStrip", "art": "envTime", "param": "PU2 Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "section": "env", "y": 32 },
+        { "kind": "filmStrip", "art": "envDir", "param": "PU2 Env Dir", "row": 0, "col": 0, "section": "env", "align": "right", "y": 32 },
+        { "kind": "valueLabel", "param": "PU2 Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
       ],
       "WAVE": [
-        { "kind": "filmStrip", "art": "ledLcd", "param": "WAV On", "colour": "wav", "row": 0, "col": 0, "x": 16, "y": 66 },
-        { "kind": "filmStrip", "art": "waveShape", "param": "WAV Shape", "caption": "SHAPE", "row": 0, "col": 0, "x": 122, "y": 32 },
-        { "kind": "valueLabel", "param": "WAV Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "x": 586, "y": 30, "w": 316, "h": 40 }
+        { "kind": "filmStrip", "art": "ledLcd", "param": "WAV On", "colour": "wav", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "waveShape", "param": "WAV Shape", "caption": "SHAPE", "row": 0, "col": 0, "section": "tone", "y": 32 },
+        { "kind": "valueLabel", "param": "WAV Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
       ],
       "NOISE": [
-        { "kind": "filmStrip", "art": "ledLcd", "param": "NOI On", "colour": "noi", "row": 0, "col": 0, "x": 16, "y": 66 },
-        { "kind": "filmStrip", "art": "envTime", "param": "NOI Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "x": 346, "y": 32 },
-        { "kind": "filmStrip", "art": "envDir", "param": "NOI Env Dir", "row": 0, "col": 0, "x": 522, "y": 32 },
-        { "kind": "valueLabel", "param": "NOI Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "x": 586, "y": 30, "w": 316, "h": 40 }
+        { "kind": "filmStrip", "art": "ledLcd", "param": "NOI On", "colour": "noi", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "envTime", "param": "NOI Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "section": "env", "y": 32 },
+        { "kind": "filmStrip", "art": "envDir", "param": "NOI Env Dir", "row": 0, "col": 0, "section": "env", "align": "right", "y": 32 },
+        { "kind": "valueLabel", "param": "NOI Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
       ],
       "TABLE": [
         { "kind": "valueLabel", "param": "Edit Row", "column": 0, "colour": "lcdCursorInk", "fontHeight": 24.0 },

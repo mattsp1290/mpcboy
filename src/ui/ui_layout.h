@@ -182,18 +182,25 @@ struct TableColumn
     int chars;  // characters of data
 };
 
+// The TABLE page LCD. textX / textY / charScale are the MPC art's text origin and scale (its header
+// row and printed command card); the Mac editor's live grid is positioned by gridLayout() from the
+// generated kGrid* constants below it.
 struct TableGrid
 {
     int page;             // index into kPages
     Rect panelBounds;     // tab coordinates of the LCD panel
-    int textX, textY;     // tab coordinates of the header row's first character cell
-    int charScale;        // design units per font pixel
-    int rowPitch;         // design units between text rows; data row r is at textY + (r + 1) * rowPitch
-    int visibleRows;
+    int textX, textY;     // tab coordinates of the MPC art's header row's first character cell
+    int charScale;        // MPC art: design units per font pixel
     const char* panelImage;
     const char* cursorImage;
     const TableColumn* columns;
     int numColumns;
+};
+
+// One section of the channel LCD: panel-relative x and width (design units).
+struct LcdSection
+{
+    int x, w;
 };
 
 struct PixelGlyph

@@ -134,9 +134,8 @@ Q-Link bank direction becomes **Row**, so one screen row is one bank. Section le
 - **Level fader (248×36):** 15 discrete pixel cells that match the 0..15 hardware steps. Lit cells are the page colour.
 - **Segments (2/3/4):**
   - Off: rubber `#4C4F61`.
-  - On: page-colour fill with a corner marker.
-  - Captions: one colour (gen_ui limitation). `#ECEAE4` reads on rubber (6.72), but on light fills such as Dandelion it needs a dark caption.
-  - Resolution: per-page kits pick the caption colour per page, or the selected fill keeps a dark inner plate. To be decided in implementation.
+  - On: **decided and built as an underline plus a corner LED on lighter rubber (`rubberSelected`), not a colour fill.** The selected segment keeps a rubber body one step lighter than Off, a page-colour bar along its bottom edge and a lit page-colour LED in the top-left corner.
+  - Captions: one colour (gen_ui limitation). `#ECEAE4` reads on both rubber states (6.72 on Off, higher on the lighter On rubber). A colour fill would have put it on light fills such as Dandelion, where it fails; keeping the body dark rubber resolves the open question of per-page caption colours, so every page uses the one caption colour.
 - **Toggle:** a rubber pill, filled with the page colour when on.
 - **Menu slider** (Table, Shape, Row Cmd, Table Rate): a navy "cartridge label" value window.
 - **Page art:**

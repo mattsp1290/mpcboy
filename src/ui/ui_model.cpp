@@ -11,11 +11,14 @@
 namespace mpcboy::ui {
 
 static_assert(kTableGrid.numColumns == 7, "the grid formats ROW VOL SEMI CMD VAL CMD VAL");
-static_assert(kTableGrid.visibleRows <= 16, "TableView holds at most 16 rows");
+static_assert(kGridHeaderHeight + 1 + kGridRows * kGridPitch <= kTableGrid.panelBounds.h - 2 * kGridFieldInset,
+              "the live grid (header + rows) must fit the LCD field");
+static_assert(kGridPitch >= kPixelFontHeight * kGridScale, "a row band holds its glyphs");
+static_assert(kGridRows == 16, "the editor's table has 16 rows");
+static_assert(sizeof(kLcdSections) / sizeof(kLcdSections[0]) == 5 && sizeof(kLcdDividers) / sizeof(kLcdDividers[0]) == 4,
+              "the channel LCD has five sections and four dividers");
 
 namespace {
-
-constexpr int kTableRows = 16;   // rows per LSDJ table
 
 int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -433,57 +436,9 @@ void formatCommand(std::uint8_t cmdByte, char* buf)
 
 void formatHex2(int value, char* buf) { std::snprintf(buf, 3, "%02X", clampi(value, 0, 255)); }
 
-int tableFirstRow(int cursorRow)
-{
-    const int visible = kTableGrid.visibleRows;
-    return clampi(clampi(cursorRow, 0, kTableRows - 1) - 3, 0, kTableRows - visible);
-}
-
-void buildTableView(const Content& content, int table, int cursorRow, TableView& out)
-{
-    const TableColumn* cols = kTableGrid.columns;
-    blank(out.header);
-    out.header.row = -1;
-    out.header.cursor = false;
-    for (int i = 0; i < kTableGrid.numColumns; ++i) put(out.header.text, cols[i].x, cols[i].title);
-    trimRight(out.header);
-
-    const rackboy::sav::RackboyTable& t = content.tables.tables[clampi(table, 0, kNumTables - 1)];
-    const int cursor = clampi(cursorRow, 0, kTableRows - 1);
-    const int first = tableFirstRow(cursor);
-    out.numRows = kTableGrid.visibleRows;
-    for (int i = 0; i < out.numRows; ++i)
-    {
-        const int r = first + i;
-        formatRowLine(t.rows[r], r, r == cursor, out.rows[i]);
-    }
-}
-
-int tableCharX(int charCol) { return kTableGrid.textX + charCol * kPixelFontAdvance * kTableGrid.charScale; }
-
-int tableLineY(int line) { return kTableGrid.textY + line * kTableGrid.rowPitch; }
-
-namespace {
-int innerWidth() { return kTableInnerWidth; }
-int bandHeight() { return kPixelFontHeight * kTableGrid.charScale + 2 * kTableBandPad; }
-}  // namespace
-
-Rect tableHeaderBand()
-{
-    return {kTableGrid.textX - kTableBandPad, kTableGrid.textY - kTableBandPad, innerWidth() + 2 * kTableBandPad, bandHeight()};
-}
-
-Rect tableCursorBand(int line)
-{
-    const int adv = kPixelFontAdvance * kTableGrid.charScale;
-    return {kTableGrid.textX + adv - kTableBandPad, tableLineY(line) - kTableBandPad, innerWidth() - adv + 2 * kTableBandPad,
-            bandHeight()};
-}
-
 // ---- TABLE page live grid ---------------------------------------------------------------
 namespace {
 constexpr int kGridAdvance = kPixelFontAdvance * kGridScale;
-constexpr int kGridLastChar = 30;   // the text uses character columns 0 .. 29
 int gridTextRight() { return gridCharX(kGridLastChar); }
 }  // namespace
 
@@ -581,20 +536,10 @@ ChannelLcdLayout channelLcdLayout(const Rect& panel)
     ChannelLcdLayout l;
     l.field = {panel.x + kLcdInset, panel.y + kLcdInset, panel.w - 2 * kLcdInset, panel.h - 2 * kLcdInset};
     const Rect& f = l.field;
-    // Section widths left to right; the table window takes what is left.
-    const int widths[4] = {96, 196, 182, 96};
+    // Panel-relative sections and dividers, generated from ui_art.LCD_SECTIONS / LCD_DIVIDERS.
     Rect* sections[5] = {&l.tag, &l.tone, &l.env, &l.note, &l.table};
-    int x = f.x + 6;
-    for (int i = 0; i < 5; ++i)
-    {
-        const int w = i < 4 ? widths[i] : f.x + f.w - 6 - x;
-        *sections[i] = {x, f.y, w, f.h};
-        if (i < 4)
-        {
-            l.dividers[i] = x + w + 4;
-            x += w + 10;
-        }
-    }
+    for (int i = 0; i < 5; ++i) *sections[i] = {panel.x + kLcdSections[i].x, f.y, kLcdSections[i].w, f.h};
+    for (int i = 0; i < 4; ++i) l.dividers[i] = panel.x + kLcdDividers[i];
     return l;
 }
 

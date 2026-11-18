@@ -45,8 +45,11 @@ private:
 
 // Offscreen render of the editor for tools and tests (no window): draws page `page` (0-based)
 // at `scale` device pixels per point into a bitmap and writes it as a PNG. Returns false on
-// any failure. Uses the same drawing code as the editor view.
+// any failure. Uses the same drawing code as the editor view. `tile` > 0 draws it the way the view
+// does after partial invalidation instead: tile x tile design-unit pieces, each clipped to its
+// rect and drawn with that rect as the dirty rect; the result must equal the untiled render
+// (a check of the dirty-rect culling, tools/render_editor.mm MPCBOY_RENDER_TILE).
 bool renderEditorPng(MpcBoyPlugin& plugin, int page, double scale, const std::string& artDir,
-                     const std::string& pngPath);
+                     const std::string& pngPath, int tile = 0);
 
 }  // namespace mpcboy

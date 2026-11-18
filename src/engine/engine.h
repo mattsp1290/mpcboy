@@ -115,6 +115,9 @@ public:
     // Live table playback per channel, for the UI thread (relaxed atomics, written at the end of
     // every render() and by reset()).
     const PlaybackState& playback() const { return playback_; }
+    // Audio thread: publish "nothing playing" (process() returns without rendering): the editor must
+    // not keep showing the last note and playhead.
+    void publishIdle();
 
 private:
     void renderChunk(const EngineBlock& block, int frames, int c0, int n, float* left, float* right);

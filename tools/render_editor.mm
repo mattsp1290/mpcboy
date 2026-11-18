@@ -70,6 +70,9 @@ int main(int argc, char** argv)
         }
         if (!reached) std::fprintf(stderr, "render_editor: the PU1 playhead never reached row 2\n");
 
+        // MPCBOY_RENDER_TILE=N: draw in N x N dirty-rect tiles (checks the view's partial redraw).
+        const char* tileEnv = std::getenv("MPCBOY_RENDER_TILE");
+        const int tile = tileEnv ? std::atoi(tileEnv) : 0;
         int failures = 0;
         for (int p = 0; p < mpcboy::ui::kNumPages; ++p)
         {
@@ -80,7 +83,7 @@ int main(int argc, char** argv)
                 char suffix[32] = "";
                 if (s != 1.0) std::snprintf(suffix, sizeof(suffix), "@%gx", s);
                 const std::string path = out + "/" + name + suffix + ".png";
-                const bool ok = mpcboy::renderEditorPng(plugin, p, s, art, path);
+                const bool ok = mpcboy::renderEditorPng(plugin, p, s, art, path, tile);
                 std::printf("%s %s\n", ok ? "wrote" : "FAILED", path.c_str());
                 if (!ok) ++failures;
             }

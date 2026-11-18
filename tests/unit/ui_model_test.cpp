@@ -495,63 +495,19 @@ TEST_CASE("ui: table cell text follows the plugin's formatValue rules")
     CHECK(std::string(b) == "-");
 }
 
-TEST_CASE("ui: table view - header plus 8 rows around the cursor, cursor row flagged")
+TEST_CASE("ui: TABLE grid constants come from the generated layout and fit the panel")
 {
-    Content c;
-    clearContent(c);
-    auto& row = c.tables.tables[2].rows[5];
-    row.has_vol = true;
-    row.vol = 0x1f;
-    row.transpose = -5;
-    row.cmd1 = 'K';
-    row.cmd1_param = 0xa0;
-    row.cmd2 = 'P';
-    row.cmd2_param = 0x03;
-
-    ui::TableView v;
-    ui::buildTableView(c, 2, 5, v);
-    CHECK(std::string(v.header.text) == " ROW VOL SEMI CMD  VAL CMD  VAL");
-    CHECK(v.header.row == -1);
-    REQUIRE(v.numRows == 8);
-    CHECK(v.rows[0].row == 2);
-    CHECK(v.rows[7].row == 9);
-    CHECK(v.rows[3].cursor);
-    int cursors = 0;
-    for (int i = 0; i < v.numRows; ++i) cursors += v.rows[i].cursor ? 1 : 0;
-    CHECK(cursors == 1);
-    CHECK(std::string(v.rows[3].text) == " 05  1F  -05  K    A0  P    03");
-    CHECK(std::string(v.rows[0].text) == " 02  --  +00  -    00  -    00");
-    // Column positions are the layout's character columns.
-    for (int k = 0; k < ui::kTableGrid.numColumns; ++k)
-        CHECK(v.header.text[ui::kTableGrid.columns[k].x] == ui::kTableGrid.columns[k].title[0]);
-
-    // The window clamps at both ends.
-    CHECK(ui::tableFirstRow(0) == 0);
-    CHECK(ui::tableFirstRow(3) == 0);
-    CHECK(ui::tableFirstRow(4) == 1);
-    CHECK(ui::tableFirstRow(15) == 8);
-    ui::buildTableView(c, 2, 15, v);
-    CHECK(v.rows[7].row == 15);
-    CHECK(v.rows[7].cursor);
-    ui::buildTableView(c, 99, -4, v);   // clamped table and row
-    CHECK(v.rows[0].row == 0);
-    CHECK(v.rows[0].cursor);
-}
-
-TEST_CASE("ui: table grid geometry matches the LCD panel art")
-{
+    // The live grid's numbers are generated (grid.live in ui/mpcboy_ui.json); ui_model.cpp
+    // static_asserts the fit, this pins the layout the editor relies on.
     const ui::Rect panel = ui::kTableGrid.panelBounds;
-    const ui::Rect hb = ui::tableHeaderBand();
-    CHECK(hb.x == ui::kTableGrid.textX - 2);
-    CHECK(hb.w == panel.w - 2 * (ui::kTableGrid.textX - panel.x) + 4);
-    CHECK(hb.h == ui::kPixelFontHeight * ui::kTableGrid.charScale + 4);
-    CHECK(hb.x + hb.w <= panel.x + panel.w);
-    const ui::Rect cb = ui::tableCursorBand(8);
-    CHECK(cb.y + cb.h <= panel.y + panel.h);
-    CHECK(ui::tableLineY(1) == ui::kTableGrid.textY + ui::kTableGrid.rowPitch);
-    CHECK(ui::tableCharX(1) == ui::kTableGrid.textX + 18);
-    // The longest line fits inside the panel.
-    CHECK(ui::tableCharX(30) <= panel.x + panel.w);
+    static_assert(ui::kGridRows == 16, "the editor's table has 16 rows");
+    CHECK(ui::kGridHeaderHeight + 1 + ui::kGridRows * ui::kGridPitch <= panel.h - 2 * ui::kGridFieldInset);
+    CHECK(ui::kGridPitch >= ui::kPixelFontHeight * ui::kGridScale);
+    // The longest text line fits inside the panel.
+    CHECK(ui::gridCharX(ui::kGridLastChar) <= panel.x + panel.w);
+    // The MPC art's text origin is inside the panel.
+    CHECK(ui::kTableGrid.textX > panel.x);
+    CHECK(ui::kTableGrid.textY > panel.y);
 }
 
 TEST_CASE("ui: redesign layout - MAIN mixer rows, channel-page grammar, TABLE LCD at columns 0-1")
@@ -917,6 +873,28 @@ TEST_CASE("ui: channel LCD - page channels, sections inside the panel, note name
             CHECK(secs[i]->x >= l.field.x);
             CHECK(secs[i]->x + secs[i]->w <= l.field.x + l.field.w);
             if (i > 0) CHECK(secs[i]->x > secs[i - 1]->x + secs[i - 1]->w);
+        }
+        // Sections are the generated ones (panel-relative), dividers sit between neighbouring sections.
+        for (int i = 0; i < 5; ++i)
+        {
+            CHECK(secs[i]->x == panel->bounds.x + ui::kLcdSections[i].x);
+            CHECK(secs[i]->w == ui::kLcdSections[i].w);
+        }
+        for (int i = 0; i < 4; ++i)
+        {
+            CHECK(l.dividers[i] == panel->bounds.x + ui::kLcdDividers[i]);
+            CHECK(l.dividers[i] > secs[i]->x + secs[i]->w);
+            CHECK(l.dividers[i] < secs[i + 1]->x);
+        }
+        // The MPC table label spans the note and table sections (same x as the Mac note section).
+        for (int i = 0; i < ui::page(p).numDynamics; ++i)
+        {
+            const ui::Dynamic& d = ui::page(p).dynamics[i];
+            if (d.kind == ui::DynamicKind::ValueLabel)
+            {
+                CHECK(d.bounds.x == l.note.x);
+                CHECK(d.bounds.x + d.bounds.w == l.table.x + l.table.w);
+            }
         }
         // The table window (+-3 rows at scale 1) fits the field height.
         CHECK(ui::kLcdTableRows * ui::kLcdTablePitch <= l.field.h);

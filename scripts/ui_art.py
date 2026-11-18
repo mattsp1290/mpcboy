@@ -592,9 +592,19 @@ def draw_cartridge(img, P, x, y, w, h, accent):
         img.rect(cx + r * 2, cy + r * 2, 10 - r * 4, 2, P.text_dim)
 
 
-def draw_legend(img, P, text, x, y, right, accent):
-    """A section legend in the page colour, then a rule to `right`."""
+def draw_slot_hint(img, P, text, x, y, w, h):
+    """A small static hint printed at the bottom of a conditionally visible control's slot plate
+    (shown while the control is hidden; the control draws over the slot when it is visible and
+    leaves this bottom strip clear)."""
+    draw_text(img, text, x + 15, y + h - 14, 1, P.text_dim)
+
+
+def draw_legend(img, P, text, x, y, right, accent, note=""):
+    """A section legend in the page colour, then a rule to `right`. `note`: a small cue in the dim
+    text colour right after the legend (e.g. "Q6 = TEMPO RATE")."""
     w = draw_text(img, text, x, y, LEGEND_SCALE, accent)
+    if note:
+        w += 12 + draw_text(img, note, x + w + 12, y + 7, 1, P.text_dim)
     rx = x + w + 12
     if right - rx > 8:
         img.rect(rx, y + 6, right - rx, 2, P.plate_hi)
@@ -763,7 +773,7 @@ def render_env_strip(P):
         _baseline(img, P, bot + 1)
         if k == 0:
             img.rect(2, 4, img.w - 4, 2, P.lcd_ink)
-            draw_text(img, "OFF", img.w - 22, 10, 1, P.lcd_dim)
+            draw_text(img, "OFF", img.w - 22, 10, 1, P.lcd_ink)   # lcd_ink: readable (dim greens are < 4.5:1)
         else:
             length = 12 + k * 10                       # art px for the 15 steps
             for x in range(length):
@@ -803,7 +813,7 @@ def render_led_strip(P, accent, with_text):
         if on:
             img.rect(lx + 2, ly + 2, 2, 2, lighter(accent, 0.6))
         if with_text:
-            draw_text(img, "ON" if on else "OFF", 12, 2, 1, P.lcd_ink if on else P.lcd_dim)
+            draw_text(img, "ON" if on else "OFF", 12, 2, 1, P.lcd_ink)   # OFF in lcd_ink too: lcd_dim is < 4.5:1 on the field
         frames.append(img.scaled())
     return frames
 
@@ -828,6 +838,39 @@ def draw_noise_motif(img, P, x, y, w, h):
         img.rect(x + i, bot + 2, 2, 2, P.lcd_dim)
 
 
+# Channel LCD sections, panel-relative x and width (design units): tag + LED, tone (duty / wave
+# shape / noise motif), envelope (strip + direction arrow), note + level, table window. The single
+# source: build_ui.py emits them as kLcdSections / kLcdDividers (src/ui/generated/ui_layout.inc) for
+# the Mac editor's live LCD, positions the MPC film strips and value labels from them
+# ("section" in ui/mpcboy_ui.json) and this module draws the printed LCD from them. The MPC has no
+# note / level readout: its table label spans the note and table sections.
+LCD_SECTIONS = (("tag", 16, 80), ("tone", 122, 212), ("env", 346, 204), ("note", 586, 96), ("table", 698, 204))
+LCD_DIVIDERS = (104, 340, 568, 690)   # dotted rules between the sections (panel-relative x)
+LCD_MPC_DIVIDERS = 3                  # the MPC draws the first three: its table label crosses the last
+
+
+def lcd_section(name):
+    """(x, width) of a channel LCD section, panel-relative."""
+    for n, x, w in LCD_SECTIONS:
+        if n == name:
+            return x, w
+    raise KeyError(name)
+
+
+def check_lcd_sections(panel_w):
+    """Raises ValueError unless the sections and dividers are ordered, disjoint and inside the field."""
+    end = LCD_INSET
+    for i, (n, x, w) in enumerate(LCD_SECTIONS):
+        if x < end or w <= 0:
+            raise ValueError("LCD section %r (x=%d, w=%d) overlaps the one before it or the panel edge" % (n, x, w))
+        end = x + w
+        if i < len(LCD_DIVIDERS) and not (end < LCD_DIVIDERS[i] < LCD_SECTIONS[i + 1][1]):
+            raise ValueError("LCD divider %d (x=%d) is not between sections %r and %r"
+                             % (i, LCD_DIVIDERS[i], n, LCD_SECTIONS[i + 1][0]))
+    if end > panel_w - LCD_INSET:
+        raise ValueError("the LCD sections end at x=%d, past the %d-wide panel field" % (end, panel_w - LCD_INSET))
+
+
 def draw_channel_lcd(img, P, bounds, tag, motif, static_fallbacks):
     """The channel monitor printed on a channel page's row-0 LCD (bounds: the panel, design).
 
@@ -835,17 +878,20 @@ def draw_channel_lcd(img, P, bounds, tag, motif, static_fallbacks):
     panel, _ = render_lcd_panel(P, bounds[2], bounds[3])
     img.blit(panel, bounds[0], bounds[1])
     x0, y0 = bounds[0], bounds[1]
-    draw_text(img, tag, x0 + 16, y0 + 14, 4, P.lcd_ink)
-    for dx in (104, 568):
+    tag_x, _ = lcd_section("tag")
+    tone_x, tone_w = lcd_section("tone")
+    env_x, env_w = lcd_section("env")
+    draw_text(img, tag, x0 + tag_x, y0 + 14, 4, P.lcd_ink)
+    for dx in LCD_DIVIDERS[:LCD_MPC_DIVIDERS]:
         for yy in range(y0 + 14, y0 + bounds[3] - 14, 4):
             img.rect(x0 + dx, yy, 2, 2, P.lcd_dim)
     if motif == "noise":
-        draw_lcd_caption(img, P, "NOISE", x0 + 122, y0 + 12)
-        draw_noise_motif(img, P, x0 + 122, y0 + 32, 200, 60)
+        draw_lcd_caption(img, P, "NOISE", x0 + tone_x, y0 + 12)
+        draw_noise_motif(img, P, x0 + tone_x, y0 + 32, tone_w - 12, 60)
     if motif == "wave":
-        draw_lcd_caption(img, P, "NO ENVELOPE", x0 + 346, y0 + 12)
-        for i in range(0, 200, 4):
-            img.rect(x0 + 346 + i, y0 + 62, 2, 2, P.lcd_dim)
+        draw_lcd_caption(img, P, "NO ENVELOPE", x0 + env_x, y0 + 12)
+        for i in range(0, env_w - 4, 4):
+            img.rect(x0 + env_x + i, y0 + 62, 2, 2, P.lcd_dim)
     for frame, fx, fy in static_fallbacks:
         img.blit(frame, fx, fy)
 

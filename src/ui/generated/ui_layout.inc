@@ -4,6 +4,12 @@
 
 inline constexpr Theme kTheme = {0xff1c1d27u, 0xffe8558au, 0xffeceae4u, 0xffa3a7b0u, 0xff2a2c3bu, 0xff343747u, 0xff4c4f61u, 0xffcbc6bbu, 0xffe8558au, 0xff0f380fu, 0xff9bbc0fu, 0xff9bbc0fu, 0xff0f380fu, 0xff2a5c2au, 0xffe0f8d0u, 0xff184818u, 0xff262a55u, 0xff1c1d27u};
 
+// MPC label font heights lowered to fit their boxes by the Nexa Bold width estimate (build_ui.py,
+// label_fit_height; floor 14.0). Label, widest text, box width: height before -> after.
+//   dyn Row Cmd1 label: 'R RETRIG' in 81: 20.4 -> 17.1
+//   dyn Row Cmd2 label: 'R RETRIG' in 81: 20.4 -> 17.1
+//   knobUni name label: 'PU2 ENV TIME' in 156: 22.1 -> 21.3
+
 inline constexpr Asset kAssets[] = {
     {"bg_main.png", 1280, 628, 1},
     {"bg_noise.png", 1280, 628, 1},
@@ -182,31 +188,31 @@ inline constexpr ChildDef kComponent18Children[] = {  // toggle_noi
 inline constexpr ChildDef kComponent19Children[] = {  // knobUni_dmg
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
     {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_dmg.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 21.3f, Justify::Left},
     {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
 };
 inline constexpr ChildDef kComponent20Children[] = {  // knobUni_pu1
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
     {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_pu1.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 21.3f, Justify::Left},
     {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
 };
 inline constexpr ChildDef kComponent21Children[] = {  // knobUni_pu2
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
     {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_pu2.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 21.3f, Justify::Left},
     {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
 };
 inline constexpr ChildDef kComponent22Children[] = {  // knobUni_wav
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
     {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_wav.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 21.3f, Justify::Left},
     {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
 };
 inline constexpr ChildDef kComponent23Children[] = {  // knobUni_noi
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
     {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_noi.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 21.3f, Justify::Left},
     {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
 };
 inline constexpr ChildDef kComponent24Children[] = {  // knobBi_pu1
@@ -435,9 +441,9 @@ inline constexpr Dynamic kPage5Dynamics[] = {
     {DynamicKind::ValueLabel, 52, "Edit Row", {53, 81, 63, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
     {DynamicKind::ValueLabel, 53, "Row Vol", {125, 81, 63, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
     {DynamicKind::ValueLabel, 54, "Row Semi", {197, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
-    {DynamicKind::ValueLabel, 55, "Row Cmd1", {287, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 55, "Row Cmd1", {287, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 17.1f, Justify::Left, false},
     {DynamicKind::ValueLabel, 56, "Row Val1", {377, 81, 63, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
-    {DynamicKind::ValueLabel, 57, "Row Cmd2", {449, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 57, "Row Cmd2", {449, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 17.1f, Justify::Left, false},
     {DynamicKind::ValueLabel, 58, "Row Val2", {539, 81, 70, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
 };
 inline constexpr Page kPages[] = {
@@ -469,10 +475,18 @@ inline constexpr int kContentY = 0;  // tab content origin inside the editor win
 
 inline constexpr TableColumn kTableColumns[] = {{"ROW", 1, 2}, {"VOL", 5, 2}, {"SEMI", 9, 3}, {"CMD", 14, 1}, {"VAL", 19, 2}, {"CMD", 23, 1}, {"VAL", 28, 2}};
 inline constexpr int kTableLineChars = 31;   // font cells per text line (the LCD text area)
-inline constexpr int kTableInnerWidth = 574;   // text area width, design units
-inline constexpr int kTableBandPad = 2;      // highlight bands extend this far around the text cells
-// Text grid of the TABLE page LCD (tab coordinates): header row, then visibleRows rows.
-inline constexpr TableGrid kTableGrid = {5, {23, 45, 598, 258}, 35, 57, 3, 26, 8, "lcd_table_panel.png", "cursor.png", kTableColumns, 7};
+// The TABLE page LCD (tab coordinates): panel, the MPC art's text origin and scale, columns.
+inline constexpr TableGrid kTableGrid = {5, {23, 45, 598, 258}, 35, 57, 3, "lcd_table_panel.png", "cursor.png", kTableColumns, 7};
+// The Mac editor's live grid inside that panel (from "grid.live" in ui/mpcboy_ui.json): all 16 rows, one
+// band per row. static_asserted against the panel in ui_model.cpp.
+inline constexpr int kGridRows = 16;
+inline constexpr int kGridScale = 2;         // row glyphs: font cell scale
+inline constexpr int kGridPitch = 15;         // row band height
+inline constexpr int kGridHeaderScale = 1;
+inline constexpr int kGridHeaderHeight = 11;  // header band height
+inline constexpr int kGridFieldInset = 3;    // panel edge to the LCD field
+inline constexpr int kGridMarkerStep = 5;    // channel '>' markers stack this far apart
+inline constexpr int kGridLastChar = 30;      // the text uses character columns 0 .. kGridLastChar - 1
 
 // Top band and LCD panels, as ui_art draws them (the editor's breadcrumb and live LCDs).
 inline constexpr int kTitleX = 28;           // page title: left edge and font scale
@@ -481,6 +495,11 @@ inline constexpr int kBandRuleGap = 20;      // title end to the band rule
 inline constexpr int kBandTextY = 15;        // band legends: top edge and font scale
 inline constexpr int kBandTextScale = 2;
 inline constexpr int kLcdInset = 8;         // LCD panel edge to its field
+// Channel LCD sections (panel-relative x, width), left to right: tag + LED, tone, envelope, note + level, table
+// window; and the dotted rules between them. The MPC film strips and value labels are placed from the same
+// values (ui_art.LCD_SECTIONS); its table label spans the note and table sections.
+inline constexpr LcdSection kLcdSections[] = {{16, 80}, {122, 212}, {346, 204}, {586, 96}, {698, 204}};
+inline constexpr int kLcdDividers[] = {104, 340, 568, 690};
 
 // Text sizes (shared by the previews and the editor).
 inline constexpr float kLabelScaleThreshold = 24.0f;   // font height below this: 2x font pixels, else 3x

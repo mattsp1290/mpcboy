@@ -398,7 +398,13 @@ TEST_CASE("plugin 2: agreed terms - names are at most 12 characters, every value
             const std::string t = valueText(p, i, static_cast<float>(v));
             CAPTURE(t);
             CHECK(t.size() <= 8);
-            if (q.kind == mpc::Param::Kind::Int) CHECK(t == valueText(p, i, static_cast<float>(v)));   // pure function of the value
+            if (q.kind == mpc::Param::Kind::Int && q.max > q.min)
+            {
+                // Pure function of the value: format another value in between, then this one again.
+                const int other = v < static_cast<int>(q.max) ? v + 1 : v - 1;
+                (void)valueText(p, i, static_cast<float>(other));
+                CHECK(valueText(p, i, static_cast<float>(v)) == t);
+            }
         }
     }
 }

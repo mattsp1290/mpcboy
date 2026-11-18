@@ -367,6 +367,7 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
     if (ctx.numOutputs < 1 || ctx.outputs == nullptr || ctx.outputs[0] == nullptr)
     {
         drainEarly();   // editor edits still land and are published
+        engine_->publishIdle();
         return;
     }
     if (silent_ || ctx.numOutputs < 2 || ctx.outputs[1] == nullptr)
@@ -374,6 +375,7 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
         drainEarly();
         for (int c = 0; c < ctx.numOutputs; ++c)
             if (ctx.outputs[c]) std::memset(ctx.outputs[c], 0, sizeof(float) * static_cast<size_t>(ctx.numFrames));
+        engine_->publishIdle();
         return;
     }
 
