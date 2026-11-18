@@ -1,5 +1,6 @@
 // UI WP2: the Mac editor's platform-free interaction model (src/ui/ui_model.h) and the
 // parameter name / index agreement between the generated layout and the plugin (design step 10).
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -88,8 +89,17 @@ TEST_CASE("ui 10: every control's parameter index has the name the plugin report
             }
             ++checked;
         }
+        // Dynamics (film strips, value labels) are bound by index too.
+        for (int i = 0; i < p.numDynamics; ++i)
+        {
+            const ui::Dynamic& d = p.dynamics[i];
+            CAPTURE(d.paramName);
+            REQUIRE(d.param >= 0);
+            REQUIRE(d.param < kNumParams);
+            CHECK(params()[static_cast<size_t>(d.param)].name == d.paramName);
+        }
     }
-    CHECK(checked == 67);
+    CHECK(checked == 71);
 }
 
 TEST_CASE("ui: layout access - pages, components, child rects, assets, tab buttons")
@@ -101,8 +111,8 @@ TEST_CASE("ui: layout access - pages, components, child rects, assets, tab butto
     const ui::ChildDef* fader = ui::findChild(vol, ui::ChildType::Knob);
     REQUIRE(fader != nullptr);
     const ui::Rect r = ui::childRect(vol, *fader);
-    CHECK(r.x == 23 + 15);
-    CHECK(r.y == 45 + 54);
+    CHECK(r.x == 23 + 15);    // MAIN row 3 (MASTER), column 0
+    CHECK(r.y == 497 + 54);
     CHECK(r.w == 248);
     CHECK(r.h == 36);
     const ui::Asset* a = ui::findAsset(fader->image);
@@ -218,24 +228,25 @@ TEST_CASE("ui: hit-testing per widget kind uses the component child bounds; hidd
     const ui::Rect s0 = ui::childRect(ret, *ui::findChild(ret, ui::ChildType::Button, 0));
     CHECK(ui::hitTest(0, s0.x + s0.w + 1, s0.y + 5, v.data(), n).part == ui::Part::None);
 
-    // Toggle.
-    const ui::Control& p1 = main.controls[controlOf(0, P1_On)];
+    // Toggle (PU1 On lives on PULSE 1, row 0 column 3).
+    const ui::Control& p1 = ui::page(1).controls[controlOf(1, P1_On)];
     p = centreOf(ui::childRect(p1, *ui::findChild(p1, ui::ChildType::Button)));
-    CHECK(ui::hitTest(0, p.x, p.y, v.data(), n).part == ui::Part::Toggle);
+    CHECK(ui::hitTest(1, p.x, p.y, v.data(), n).part == ui::Part::Toggle);
 
-    // Slider (menu) visible in Sync only; Free Hz shares nothing with it.
+    // Slider (menu) visible in Tempo only; in Free its slot belongs to Free Rate (shared slot).
     const ui::Control& rate = main.controls[controlOf(0, P_TblRate)];
     p = centreOf(ui::childRect(rate, *ui::findChild(rate, ui::ChildType::Slider)));
     v[P_TblClock] = 0.0f;
     CHECK(ui::hitTest(0, p.x, p.y, v.data(), n).part == ui::Part::Slider);
     v[P_TblClock] = 1.0f;
-    CHECK(ui::hitTest(0, p.x, p.y, v.data(), n).part == ui::Part::None);
+    CHECK(ui::hitTest(0, p.x, p.y, v.data(), n).control != controlOf(0, P_TblRate));
     const ui::Control& fh = main.controls[controlOf(0, P_FreeHz)];
     p = centreOf(ui::childRect(fh, *ui::findChild(fh, ui::ChildType::Knob)));
     CHECK(ui::hitTest(0, p.x, p.y, v.data(), n).part == ui::Part::Knob);
 
-    // Empty slot and outside the page.
-    CHECK(ui::hitTest(0, 1100, 550, v.data(), n).control == -1);
+    // The row-0 LCD of a channel page, a blank slot, and outside the slots.
+    CHECK(ui::hitTest(1, 300, 100, v.data(), n).control == -1);
+    CHECK(ui::hitTest(2, 100, 550, v.data(), n).control == -1);   // PULSE 2: SWEEP: PU1 ONLY
     CHECK(ui::hitTest(0, 5, 5, v.data(), n).control == -1);
 }
 
@@ -332,8 +343,8 @@ TEST_CASE("ui: fader gesture - absolute horizontal, fine is relative")
 
 TEST_CASE("ui: toggle flips on click; segments pick their choice; both are discrete")
 {
-    const int idx = controlOf(0, P1_On);
-    const ui::Control& c = ui::page(0).controls[idx];
+    const int idx = controlOf(1, P1_On);
+    const ui::Control& c = ui::page(1).controls[idx];
     ui::Gesture g;
     float out = -1;
     REQUIRE(g.press(c, {idx, ui::Part::Toggle, -1}, 0, 0, false, 0.0f, infoOf(P1_On), out));
@@ -496,7 +507,7 @@ TEST_CASE("ui: table view - header plus 8 rows around the cursor, cursor row fla
 
     ui::TableView v;
     ui::buildTableView(c, 2, 5, v);
-    CHECK(std::string(v.header.text) == " ROW VOL TSP  CMD VAL  CMD VAL");
+    CHECK(std::string(v.header.text) == " ROW VOL SEMI CMD  VAL CMD  VAL");
     CHECK(v.header.row == -1);
     REQUIRE(v.numRows == 8);
     CHECK(v.rows[0].row == 2);
@@ -505,8 +516,8 @@ TEST_CASE("ui: table view - header plus 8 rows around the cursor, cursor row fla
     int cursors = 0;
     for (int i = 0; i < v.numRows; ++i) cursors += v.rows[i].cursor ? 1 : 0;
     CHECK(cursors == 1);
-    CHECK(std::string(v.rows[3].text) == " 05  1F  -05  K   A0   P   03");
-    CHECK(std::string(v.rows[0].text) == " 02  --  +00  -   00   -   00");
+    CHECK(std::string(v.rows[3].text) == " 05  1F  -05  K    A0  P    03");
+    CHECK(std::string(v.rows[0].text) == " 02  --  +00  -    00  -    00");
     // Column positions are the layout's character columns.
     for (int k = 0; k < ui::kTableGrid.numColumns; ++k)
         CHECK(v.header.text[ui::kTableGrid.columns[k].x] == ui::kTableGrid.columns[k].title[0]);
@@ -538,4 +549,220 @@ TEST_CASE("ui: table grid geometry matches the LCD panel art")
     CHECK(ui::tableCharX(1) == ui::kTableGrid.textX + 18);
     // The longest line fits inside the panel.
     CHECK(ui::tableCharX(30) <= panel.x + panel.w);
+}
+
+TEST_CASE("ui: redesign layout - MAIN mixer rows, channel-page grammar, TABLE LCD at columns 0-1")
+{
+    // MAIN: LEVEL / TABLES / TABLE CLOCK / MASTER, one row each.
+    const int levels[] = {P1_Vol, P2_Vol, WV_Level, NZ_Vol};
+    const int tables[] = {P1_Tbl, P2_Tbl, WV_Tbl, NZ_Tbl};
+    const int clock[] = {P_TblClock, P_TblRate, P_TblPhase, P_VelVol};
+    const int master[] = {P_Volume, P_BendRange, P_Retrigger, P_NoteOff};
+    const int* rows[] = {levels, tables, clock, master};
+    for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c)
+        {
+            const ui::Control& k = ui::page(0).controls[controlOf(0, rows[r][c])];
+            CHECK(k.slot.x == 23 + 320 * c);
+            CHECK(k.slot.y == (r == 0 ? 45 : r == 1 ? 196 : r == 2 ? 346 : 497));
+        }
+    // Channel pages: row 0 is the LCD (no controls in columns 0-2) and the On switch in column 3;
+    // column 3 is always On / Table / Length / Pan.
+    const int col3[4][4] = {{P1_On, P1_Tbl, P1_Len, P1_Pan}, {P2_On, P2_Tbl, P2_Len, P2_Pan},
+                            {WV_On, WV_Tbl, WV_Len, WV_Pan}, {NZ_On, NZ_Tbl, NZ_Len, NZ_Pan}};
+    for (int pg = 1; pg <= 4; ++pg)
+    {
+        const ui::Page& p = ui::page(pg);
+        CAPTURE(p.name);
+        REQUIRE(p.numPanels == 1);
+        CHECK(p.panels[0].kind == ui::PanelKind::LcdChannel);
+        CHECK(p.panels[0].bounds.x == 23);
+        CHECK(p.panels[0].bounds.w == 983 - 23 - 42);   // columns 0-2
+        for (int i = 0; i < p.numControls; ++i)
+            CHECK_FALSE((p.controls[i].slot.y == 45 && p.controls[i].slot.x < 983));
+        for (int r = 0; r < 4; ++r)
+        {
+            const ui::Control& k = p.controls[controlOf(pg, col3[pg - 1][r])];
+            CHECK(k.slot.x == 983);
+            CHECK(k.slot.y == (r == 0 ? 45 : r == 1 ? 196 : r == 2 ? 346 : 497));
+        }
+    }
+    // TABLE: the LCD covers columns 0-1 of rows 0-1, left of the Q-Link sidebar (x >= 1025).
+    const ui::Page& t = ui::page(5);
+    CHECK(ui::kTableGrid.page == 5);
+    CHECK(ui::kTableGrid.panelBounds.x == 23);
+    CHECK(ui::kTableGrid.panelBounds.y == 45);
+    CHECK(ui::kTableGrid.panelBounds.x + ui::kTableGrid.panelBounds.w < 1025);
+    for (int i = 0; i < t.numControls; ++i)
+        CHECK_FALSE(ui::contains(ui::kTableGrid.panelBounds, t.controls[i].slot.x + 1, t.controls[i].slot.y + 1));
+    CHECK(t.controls[controlOf(5, ED_Table)].slot.x == 663);
+    CHECK(t.controls[controlOf(5, ED_Row)].slot.x == 983);
+    CHECK(t.controls[controlOf(5, Imp_File)].slot.y == 497);
+}
+
+TEST_CASE("ui: overlapped slot - Table Rate and Free Rate share one slot with complementary visibleWhen")
+{
+    std::vector<float> v = defaults();
+    const int n = static_cast<int>(v.size());
+    const int ri = controlOf(0, P_TblRate), fi = controlOf(0, P_FreeHz);
+    const ui::Control& rate = ui::page(0).controls[ri];
+    const ui::Control& free = ui::page(0).controls[fi];
+    CHECK(rate.slot.x == free.slot.x);
+    CHECK(rate.slot.y == free.slot.y);
+    CHECK(rate.slot.w == free.slot.w);
+    CHECK(rate.slot.h == free.slot.h);
+    CHECK(rate.visibleWhen.param == P_TblClock);
+    CHECK(free.visibleWhen.param == P_TblClock);
+    CHECK(rate.visibleWhen.choice != free.visibleWhen.choice);
+    const ui::Point c = centreOf(rate.slot);
+    for (int sync = 0; sync < 2; ++sync)
+    {
+        v[P_TblClock] = static_cast<float>(sync);
+        // Exactly one of the two is visible, and a click in the slot reaches that one.
+        CHECK(ui::isVisible(rate, v.data(), n) != ui::isVisible(free, v.data(), n));
+        const ui::Point k = centreOf(ui::childRect(free, *ui::findChild(free, ui::ChildType::Knob)));
+        const ui::Hit hk = ui::hitTest(0, k.x, k.y, v.data(), n);
+        const ui::Point s = centreOf(ui::childRect(rate, *ui::findChild(rate, ui::ChildType::Slider)));
+        const ui::Hit hs = ui::hitTest(0, s.x, s.y, v.data(), n);
+        if (sync == 0)
+        {
+            CHECK(hs.control == ri);
+            CHECK(hs.part == ui::Part::Slider);
+            CHECK(hk.control != fi);
+        }
+        else
+        {
+            CHECK(hk.control == fi);
+            CHECK(hk.part == ui::Part::Knob);
+            CHECK(hs.control != ri);
+        }
+        CHECK(ui::hitTest(0, c.x, c.y, v.data(), n).control != (sync == 0 ? fi : ri));
+    }
+}
+
+TEST_CASE("ui: Q-Links bank by screen row; badges follow slot_qlink; focus rectangles wrap one row each")
+{
+    CHECK(ui::kQLinkBankDirection == ui::BankDirection::Row);
+    // Bank order for "Row" is bottom row first (ui-reference 8.3): kQLinkBounds[b] wraps screen row 3 - b.
+    for (int b = 0; b < 4; ++b)
+    {
+        const ui::Rect q = ui::kQLinkBounds[b];
+        const int row = 3 - b;
+        const int ys[] = {45, 196, 346, 497};
+        CHECK(q.y < ys[row]);
+        CHECK(q.y + q.h > ys[row] + 107);
+        CHECK(q.x < 23);
+        CHECK(q.x + q.w > 983 + 278);
+        if (b > 0) CHECK(q.y + q.h <= ui::kQLinkBounds[b - 1].y);   // no overlap between rows
+    }
+    for (int pg = 0; pg < ui::kNumPages; ++pg)
+    {
+        const ui::Page& p = ui::page(pg);
+        CAPTURE(p.name);
+        bool used[17] = {};
+        for (int i = 0; i < p.numControls; ++i)
+        {
+            const ui::Control& c = p.controls[i];
+            const int row = c.slot.y == 45 ? 0 : c.slot.y == 196 ? 1 : c.slot.y == 346 ? 2 : 3;
+            const int col = (c.slot.x - 23) / 320;
+            if (c.qlink == 0)
+            {
+                CHECK(c.visibleWhen.param >= 0);   // only an overlapped control gives up its Q-Link
+                continue;
+            }
+            CHECK(c.qlink == 13 + col - 4 * row);
+            CHECK_FALSE(used[c.qlink]);
+            used[c.qlink] = true;
+            // The control's row rectangle is the one for its bank.
+            const ui::Rect q = ui::kQLinkBounds[(c.qlink - 1) / 4];
+            CHECK(ui::contains(q, c.slot.x, c.slot.y));
+            CHECK(ui::contains(q, c.slot.x + c.slot.w - 1, c.slot.y + c.slot.h - 1));
+        }
+    }
+    CHECK(ui::page(0).controls[controlOf(0, P_TblRate)].qlink == 6);
+    CHECK(ui::page(0).controls[controlOf(0, P_FreeHz)].qlink == 0);
+}
+
+TEST_CASE("ui: per-page kit variants and accents")
+{
+    const ui::Page& main = ui::page(0);
+    CHECK(main.accent == ui::page(5).accent);   // MAIN and TABLE: the DMG accent
+    for (int a = 1; a <= 4; ++a)
+        for (int b = a + 1; b <= 4; ++b) CHECK(ui::page(a).accent != ui::page(b).accent);
+    // MAIN's channel strips carry their channel colour; the rest of MAIN the page colour.
+    const int levels[] = {P1_Vol, P2_Vol, WV_Level, NZ_Vol};
+    for (int ch = 0; ch < 4; ++ch) CHECK(main.controls[controlOf(0, levels[ch])].accent == ui::page(1 + ch).accent);
+    CHECK(main.controls[controlOf(0, P_Volume)].accent == main.accent);
+    // Each page's kit images are its colour's variants (knob_uni_pu1.png ...).
+    const char* suffix[] = {"_dmg.png", "_pu1.png", "_pu2.png", "_wav.png", "_noi.png", "_dmg.png"};
+    for (int pg = 1; pg < ui::kNumPages; ++pg)
+    {
+        const ui::Page& p = ui::page(pg);
+        for (int i = 0; i < p.numControls; ++i)
+        {
+            const ui::ComponentDef& d = ui::componentOf(p.controls[i]);
+            for (int k = 0; k < d.numChildren; ++k)
+            {
+                const ui::ChildDef& ch = d.children[k];
+                if (ch.type != ui::ChildType::Knob && ch.type != ui::ChildType::Button) continue;
+                const std::string img = ch.image;
+                CAPTURE(img);
+                CHECK(img.size() > 8);
+                CHECK(img.compare(img.size() - 8, 8, suffix[pg]) == 0);
+                const ui::Asset* a = ui::findAsset(ch.image);
+                REQUIRE(a != nullptr);
+                if (ch.offImage != nullptr) CHECK(ui::findAsset(ch.offImage) != nullptr);
+            }
+        }
+    }
+}
+
+TEST_CASE("ui: MPC dynamics - film strips match their parameter's steps; TABLE labels are left to the live grid")
+{
+    int strips = 0, labels = 0;
+    for (int pg = 0; pg < ui::kNumPages; ++pg)
+    {
+        const ui::Page& p = ui::page(pg);
+        for (int i = 0; i < p.numDynamics; ++i)
+        {
+            const ui::Dynamic& d = p.dynamics[i];
+            CAPTURE(d.paramName);
+            CHECK(d.bounds.x >= 0);
+            CHECK(d.bounds.y >= 0);
+            CHECK(d.bounds.x + d.bounds.w <= ui::kTabWidth);
+            CHECK(d.bounds.y + d.bounds.h <= ui::kTabHeight);
+            if (d.kind == ui::DynamicKind::FilmStrip)
+            {
+                ++strips;
+                const ui::Asset* a = ui::findAsset(d.image);
+                REQUIRE(a != nullptr);
+                CHECK(a->frames == d.frames);
+                CHECK(a->width == d.bounds.w);
+                CHECK(a->height == d.bounds.h);
+                CHECK(infoOf(d.param).steps == d.frames);   // every value has its own frame
+                for (int s = 0; s < d.frames; ++s) CHECK(ui::filmFrame(ui::normOfStep(s, d.frames), d.frames) == s);
+                CHECK(d.editor);
+            }
+            else
+            {
+                ++labels;
+                CHECK(d.editor == (pg != ui::kTableGrid.page));
+                if (!d.editor) CHECK(ui::contains(ui::kTableGrid.panelBounds, d.bounds.x, d.bounds.y));
+            }
+        }
+    }
+    CHECK(strips == 4 + 4 + 4 + 2 + 3);   // MAIN LEDs; PU1, PU2: LED, duty, env, dir; WAV: LED, shape; NOI: LED, env, dir
+    CHECK(labels == 4 + 7);               // the channel LCDs' table names; TABLE's cursor row
+}
+
+TEST_CASE("ui: the level fader's 15 cells - every level 0..15 lands on a frame that lights that many cells")
+{
+    CHECK(ui::kFaderCells == 15);
+    const ui::ParamInfo lvl = infoOf(P1_Vol);
+    REQUIRE(lvl.steps == 16);
+    for (int k = 0; k < lvl.steps; ++k)
+    {
+        const int f = ui::filmFrame(ui::normOfStep(k, lvl.steps), 127);
+        CHECK(static_cast<int>(std::floor(f / 126.0 * ui::kFaderCells + 0.5)) == k);
+    }
 }

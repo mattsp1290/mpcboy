@@ -125,15 +125,23 @@ Both builds share one Game Boy–inspired UI (design:
 - `"mpc"`: the pages, controls, widgets and `visibleWhen` rules, in the SDK's
   `ui.json` format (validated by the SDK's `gen_ui.py`; no `kit` key, the art is
   ours), plus the skin `style` colours.
-- `"gb"`: the Game Boy palette, page titles, the wordmark, decorative panels
-  (the `TABLE` page's LCD grid over rows 0–1, columns 2–3) and the Mac editor's
-  tab bar.
+- `"gb"`: the "Handheld Mixer" palette (`.agents/plans/mpcboy-gb-ui/01-redesign-proposal.md`),
+  the accent colour per page (channel colours; MAIN and TABLE use the DMG green)
+  and per control (MAIN's channel strips), page titles, the wordmark, section
+  legends, blank-slot decals, LCD panels (each channel page's row-0 channel
+  monitor; the `TABLE` page's LCD over rows 0–1, columns 0–1), shared slots
+  (`Table Rate` / `Free Rate` on one slot with complementary `visibleWhen`),
+  the Q-Link bank direction (`Row`), the device-gated MPC dynamics
+  (`mpcDynamics`: parameter-bound film strips and Value labels, see
+  `docs/EDITOR.md` G-EDIT) and the Mac editor's tab bar.
 
 `scripts/build_ui.py` (standard library only) turns it into:
 
-- `ui/art/*.png`: the pixel-art kit (knobs, faders, toggles, segments; same
-  names, sizes and frame counts as the SDK kit), one background per page, and
-  the editor-only art (tab bar and buttons, LCD table panel, row cursor);
+- `ui/art/*.png`: the pixel-art kit (knobs, faders, toggles, segments; the SDK
+  kit's sizes and frame counts), rendered once per accent colour
+  (`knob_uni_pu1.png` ...; each page's component definitions are cloned to use
+  its colour), the LCD film strips, one background per page, and the
+  editor-only art (tab bar and buttons, LCD table panel, row cursor);
 - `src/ui/generated/ui_layout.inc` and `pixel_font.inc`: the layout and the
   5 × 7 pixel font as C++ tables (structs in `src/ui/ui_layout.h`), walked from
   the same component tree as the MPC `TUI.json`;
@@ -158,8 +166,9 @@ byte-reproducible; `scripts/check.sh` regenerates them and fails if anything in
 `git add`) the regenerated files with the change. `package_mpc.py` generates
 the skin into the plugin folder without touching the tree, and fails on any
 `WARNING`/`NOTE` line from the generator. On the MPC, labels use Nexa Bold in
-upper case (names `8bac0f`, values `9bbc0f`); the knob and menu overlays are
-drawn by the firmware on the dark `style.background` and cannot be themed.
+upper case (names `a3a7b0`, values `eceae4`); the knob and menu overlays are
+drawn by the firmware on the dark `style.background` (`1c1d27`) and cannot be
+themed.
 
 For the CPU probe used on the device, see `docs/BENCH.md`.
 

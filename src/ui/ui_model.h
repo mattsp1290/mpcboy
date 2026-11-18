@@ -73,10 +73,8 @@ Hit hitTest(int pageIndex, int x, int y, const float* norms, int numNorms);
 // Window coordinates: the tab button under the point, or -1.
 int hitTab(int x, int y);
 
-// Fader travel inside the fader child (design units, from ui_art.render_fader: art columns 4..119
-// at 2 design units per art pixel, measured at pixel centres).
-constexpr int kFaderTravelX0 = 9;
-constexpr int kFaderTravelLen = 230;
+// Fader travel inside the fader child: kFaderTravelX0 / kFaderTravelLen (generated from
+// ui_art.render_fader's 15 cells, see ui_layout.inc).
 constexpr int kKnobDragRange = 200;   // design units of vertical drag for the full range
 constexpr int kFineDivisor = 10;      // fine mode (shift) divides the drag speed
 constexpr int kSliderStepPx = 16;     // horizontal drag per step on a slider

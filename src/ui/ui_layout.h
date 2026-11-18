@@ -51,15 +51,19 @@ enum class ChildType : std::uint8_t
 enum class LabelKind : std::uint8_t { None, Name, Value, Text };
 enum class Justify : std::uint8_t { Left, Right, Centre };
 enum class Drag : std::uint8_t { None, Vertical, Horizontal };
-enum class PanelKind : std::uint8_t { LcdTable };
+enum class PanelKind : std::uint8_t { LcdTable, LcdChannel };
+enum class DynamicKind : std::uint8_t { FilmStrip, ValueLabel };
+// Q-Links.json "Bank Direction" (ui-reference 8.3).
+enum class BankDirection : std::uint8_t { Column, ColumnBottomUp, Row, RowTopDown };
 
 struct Theme
 {
-    // From the "mpc" style (also used by the MPC skin).
+    // From the "mpc" style (also used by the MPC skin): overlay field, focus, values, names.
     std::uint32_t background, accent, text, muted;
-    // The Game Boy palette ("gb.palette").
-    std::uint32_t lcdDarkest, lcdDark, lcdLight, lcdLightest, lcdPanel;
-    std::uint32_t shellLight, shellDark, labelAccent, magenta, caption;
+    // Roles from the Game Boy palette ("gb.palette").
+    std::uint32_t bezel, plate, rubber, shell, magenta;
+    std::uint32_t lcdField, lcdInk, lcdCursor, lcdCursorInk, lcdPlayhead, lcdPlayheadInk, lcdBeat;
+    std::uint32_t cartridge, tabOnText;
 };
 
 struct Asset
@@ -119,6 +123,8 @@ struct Control
     VisibleWhen visibleWhen;
     const Caption* captions;
     int numCaptions;
+    std::uint32_t accent;    // the control's kit colour (page colour, or its own on MAIN's strips)
+    int qlink;               // hardware Q-Link 1..16 on this tab, 0 when the Q-Link drives another control
 };
 
 struct Panel
@@ -128,15 +134,34 @@ struct Panel
     const char* image;
 };
 
+// A parameter-bound decoration (MPC: Image FilmStrip or Label type Value, device-gated by
+// "gb.mpcDynamics"; the editor draws them from the same data).
+struct Dynamic
+{
+    DynamicKind kind;
+    int param;               // parameter index
+    const char* paramName;   // the name the plugin reports for that index (drift check)
+    Rect bounds;             // tab coordinates
+    const char* image;       // FilmStrip: the strip; nullptr for a label
+    int frames;              // FilmStrip frames (= the parameter's steps)
+    std::uint32_t colour;    // ValueLabel colour
+    float fontHeight;        // ValueLabel font height (selects the editor's font scale)
+    Justify justify;
+    bool editor;             // false: inside the TABLE LCD, where the editor draws its live grid
+};
+
 struct Page
 {
     const char* name;        // MPC tab name
     const char* title;       // page title drawn in the background art and the editor tab
     const char* background;  // full-tab background image
-    const Control* controls;
+    const Control* controls; // overlapped slots (complementary visibleWhen) appear as two controls
     int numControls;
     const Panel* panels;
     int numPanels;
+    std::uint32_t accent;    // page colour (channel colour; MAIN and TABLE: the DMG accent)
+    const Dynamic* dynamics;
+    int numDynamics;
 };
 
 struct TabBar

@@ -10,7 +10,7 @@
 
 namespace mpcboy::ui {
 
-static_assert(kTableGrid.numColumns == 7, "the grid formats ROW VOL TSP CMD VAL CMD VAL");
+static_assert(kTableGrid.numColumns == 7, "the grid formats ROW VOL SEMI CMD VAL CMD VAL");
 static_assert(kTableGrid.visibleRows <= 16, "TableView holds at most 16 rows");
 
 namespace {

@@ -249,24 +249,25 @@ void drawTableGrid(CGContextRef ctx, Art& art, const Snapshot& s, int oy)
     if (CGImageRef panel = art.frame(g.panelImage, 0)) drawImage(ctx, panel, pb.x, pb.y + oy);
     else
     {
-        fillRect(ctx, pb.x, pb.y + oy, pb.w, pb.h, t.labelAccent);
-        fillRect(ctx, pb.x + 6, pb.y + oy + 6, pb.w - 12, pb.h - 12, t.lcdLightest);
+        fillRect(ctx, pb.x, pb.y + oy, pb.w, pb.h, t.plate);
+        fillRect(ctx, pb.x + 8, pb.y + oy + 8, pb.w - 16, pb.h - 16, t.lcdField);
     }
+    // Negative DMG: ink on the dark field; the header on a beat-row band; the cursor row inverted.
     const ui::Rect hb = ui::tableHeaderBand();
-    fillRect(ctx, hb.x, hb.y + oy, hb.w, hb.h, t.lcdLight);
-    drawTextAt(ctx, s.table.header.text, ui::tableCharX(0), ui::tableLineY(0) + oy, g.charScale, t.lcdDarkest);
+    fillRect(ctx, hb.x, hb.y + oy, hb.w, hb.h, t.lcdBeat);
+    drawTextAt(ctx, s.table.header.text, ui::tableCharX(0), ui::tableLineY(0) + oy, g.charScale, t.lcdInk);
     for (int i = 0; i < s.table.numRows; ++i)
     {
         const ui::TableLine& l = s.table.rows[i];
         const int y = ui::tableLineY(i + 1) + oy;
-        std::uint32_t ink = t.lcdDarkest;
+        std::uint32_t ink = t.lcdInk;
         if (l.cursor)
         {
             const ui::Rect cb = ui::tableCursorBand(i + 1);
-            fillRect(ctx, cb.x, cb.y + oy, cb.w, cb.h, t.lcdDarkest);
-            ink = t.lcdLightest;
+            fillRect(ctx, cb.x, cb.y + oy, cb.w, cb.h, t.lcdCursor);
+            ink = t.lcdCursorInk;
             if (CGImageRef cur = art.frame(g.cursorImage, 0)) drawImage(ctx, cur, ui::tableCharX(0), y);
-            else drawTextAt(ctx, ">", ui::tableCharX(0), y, g.charScale, t.lcdDarkest);
+            else drawTextAt(ctx, ">", ui::tableCharX(0), y, g.charScale, t.lcdInk);
         }
         drawTextAt(ctx, l.text, ui::tableCharX(0), y, g.charScale, ink);
     }
@@ -294,8 +295,8 @@ void drawControl(CGContextRef ctx, Art& art, const Snapshot& s, const ui::Contro
                 if (CGImageRef f = art.frame(ch.image, ui::filmFrame(v, frames))) drawImage(ctx, f, r.x, r.y);
                 else
                 {
-                    fillRect(ctx, r.x, r.y, r.w, r.h, t.lcdDark);
-                    fillRect(ctx, r.x, r.y + r.h - 6, static_cast<int>(std::lround(r.w * v)), 6, t.lcdLightest);
+                    fillRect(ctx, r.x, r.y, r.w, r.h, t.rubber);
+                    fillRect(ctx, r.x, r.y + r.h - 6, static_cast<int>(std::lround(r.w * v)), 6, c.accent);
                 }
                 break;
             }
@@ -310,7 +311,7 @@ void drawControl(CGContextRef ctx, Art& art, const Snapshot& s, const ui::Contro
                 else
                 {
                     const int w = a ? a->width : r.w, h = a ? a->height : r.h;
-                    fillRect(ctx, r.x + (r.w - w) / 2, r.y + (r.h - h) / 2, w, h, lit ? t.lcdDarkest : t.lcdDark);
+                    fillRect(ctx, r.x + (r.w - w) / 2, r.y + (r.h - h) / 2, w, h, lit ? c.accent : t.rubber);
                 }
                 break;
             }
@@ -330,7 +331,7 @@ void drawControl(CGContextRef ctx, Art& art, const Snapshot& s, const ui::Contro
                          ui::labelScale(ui::kSliderValueFontHeight), ui::Justify::Left, t.text);
                 frameRect(ctx, r.x, r.y + r.h - ui::kSliderBarBottom, r.w, ui::kSliderBarHeight, t.muted);
                 fillRect(ctx, r.x + 1, r.y + r.h - ui::kSliderBarBottom + 1, static_cast<int>((r.w - 2) * v),
-                         ui::kSliderBarHeight - 2, t.text);
+                         ui::kSliderBarHeight - 2, c.accent);
                 break;
             }
             default:
@@ -341,8 +342,27 @@ void drawControl(CGContextRef ctx, Art& art, const Snapshot& s, const ui::Contro
     {
         ui::Rect r = c.captions[k].bounds;
         r.y += oy;
-        drawText(ctx, upper(c.captions[k].text), r, ui::labelScale(c.captions[k].fontHeight), ui::Justify::Centre, t.caption);
+        drawText(ctx, upper(c.captions[k].text), r, ui::labelScale(c.captions[k].fontHeight), ui::Justify::Centre, t.text);
     }
+}
+
+// The MPC's parameter-bound decorations (film strips, value labels), drawn from the same data.
+// Those inside the TABLE LCD are skipped: the editor draws its live grid there instead.
+void drawDynamic(CGContextRef ctx, Art& art, const Snapshot& s, const ui::Dynamic& d, int oy)
+{
+    if (!d.editor || d.param >= s.numParams) return;
+    const float v = s.norm[d.param];
+    if (d.kind == ui::DynamicKind::FilmStrip)
+    {
+        const ui::Asset* a = ui::findAsset(d.image);
+        const int frames = a ? a->frames : d.frames;
+        if (CGImageRef f = art.frame(d.image, ui::filmFrame(v, frames))) drawImage(ctx, f, d.bounds.x, d.bounds.y + oy);
+        else fillRect(ctx, d.bounds.x, d.bounds.y + oy, d.bounds.w, d.bounds.h, ui::kTheme.lcdField);
+        return;
+    }
+    ui::Rect r = d.bounds;
+    r.y += oy;
+    drawText(ctx, upper(s.value[d.param]), r, ui::labelScale(d.fontHeight), d.justify, d.colour);
 }
 
 void drawTabBar(CGContextRef ctx, Art& art, int page)
@@ -350,14 +370,14 @@ void drawTabBar(CGContextRef ctx, Art& art, int page)
     const ui::Theme& t = ui::kTheme;
     const ui::TabBar& tb = ui::kTabBar;
     if (CGImageRef bar = art.frame(tb.background, 0)) drawImage(ctx, bar, tb.bounds.x, tb.bounds.y);
-    else fillRect(ctx, tb.bounds.x, tb.bounds.y, tb.bounds.w, tb.bounds.h, t.shellLight);
+    else fillRect(ctx, tb.bounds.x, tb.bounds.y, tb.bounds.w, tb.bounds.h, t.shell);
     for (int i = 0; i < ui::kNumPages; ++i)
     {
         const bool on = i == page;
         const ui::Rect b = ui::tabButtonRect(i);
         if (CGImageRef f = art.frame(on ? tb.onImage : tb.offImage, 0)) drawImage(ctx, f, b.x, b.y);
-        else fillRect(ctx, b.x, b.y, b.w, b.h, on ? t.magenta : t.labelAccent);
-        drawText(ctx, ui::page(i).title, b, ui::labelScale(ui::kTabTitleFontHeight), ui::Justify::Centre, on ? t.caption : t.shellLight);
+        else fillRect(ctx, b.x, b.y, b.w, b.h, on ? t.magenta : t.rubber);
+        drawText(ctx, ui::page(i).title, b, ui::labelScale(ui::kTabTitleFontHeight), ui::Justify::Centre, on ? t.tabOnText : t.text);
     }
 }
 
@@ -374,6 +394,7 @@ void drawEditor(CGContextRef ctx, Art& art, const Snapshot& s)
     if (CGImageRef bg = art.frame(pg.background, 0)) drawImage(ctx, bg, content.x, oy);
     else fillRect(ctx, content.x, content.y, content.w, content.h, ui::kTheme.background);
     if (s.hasTable) drawTableGrid(ctx, art, s, oy);
+    for (int i = 0; i < pg.numDynamics; ++i) drawDynamic(ctx, art, s, pg.dynamics[i], oy);
     for (int i = 0; i < pg.numControls; ++i)
     {
         const ui::Control& c = pg.controls[i];
@@ -565,6 +586,14 @@ std::string defaultArtDir() { return mpc::pluginFolder() + "/ui"; }
             const bool changed = a.norm[p] != b.norm[p] || a.value[p] != b.value[p] ||
                                  ui::isVisible(c, a.norm, a.numParams) != ui::isVisible(c, b.norm, b.numParams);
             if (changed) [self setNeedsDisplayInRect:NSMakeRect(c.slot.x, c.slot.y + oy, c.slot.w, c.slot.h)];
+        }
+        for (int i = 0; i < pg.numDynamics; ++i)
+        {
+            const ui::Dynamic& d = pg.dynamics[i];
+            const int p = d.param;
+            if (!d.editor || p >= b.numParams) continue;
+            if (a.norm[p] != b.norm[p] || a.value[p] != b.value[p])
+                [self setNeedsDisplayInRect:NSMakeRect(d.bounds.x, d.bounds.y + oy, d.bounds.w, d.bounds.h)];
         }
         if (b.hasTable && (!a.hasTable || !sameTable(a.table, b.table)))
         {

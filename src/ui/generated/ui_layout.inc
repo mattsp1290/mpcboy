@@ -2,7 +2,7 @@
 // Included by src/ui/ui_layout.h inside namespace mpcboy::ui. All bounds are in design units
 // (1280 x 628 per tab; one design unit = one point in the Mac editor).
 
-inline constexpr Theme kTheme = {0xff0f380fu, 0xff9bbc0fu, 0xff9bbc0fu, 0xff8bac0fu, 0xff0f380fu, 0xff306230u, 0xff8bac0fu, 0xff9bbc0fu, 0xff1b4a1bu, 0xffc4c0b8u, 0xff8b8680u, 0xff5c5a6eu, 0xff8e1c4fu, 0xffe0f8d0u};
+inline constexpr Theme kTheme = {0xff1c1d27u, 0xffe8558au, 0xffeceae4u, 0xffa3a7b0u, 0xff2a2c3bu, 0xff343747u, 0xff4c4f61u, 0xffcbc6bbu, 0xffe8558au, 0xff0f380fu, 0xff9bbc0fu, 0xff9bbc0fu, 0xff0f380fu, 0xff2a5c2au, 0xffe0f8d0u, 0xff184818u, 0xff262a55u, 0xff1c1d27u};
 
 inline constexpr Asset kAssets[] = {
     {"bg_main.png", 1280, 628, 1},
@@ -12,203 +12,451 @@ inline constexpr Asset kAssets[] = {
     {"bg_table.png", 1280, 628, 1},
     {"bg_wave.png", 1280, 628, 1},
     {"cursor.png", 15, 21, 1},
-    {"fader_h_bi.png", 248, 36, 127},
-    {"fader_h_uni.png", 248, 36, 127},
-    {"knob_bi.png", 90, 90, 127},
-    {"knob_uni.png", 90, 90, 127},
+    {"fader_h_uni_dmg.png", 248, 36, 127},
+    {"fader_h_uni_noi.png", 248, 36, 127},
+    {"fader_h_uni_pu1.png", 248, 36, 127},
+    {"fader_h_uni_pu2.png", 248, 36, 127},
+    {"knob_bi_dmg.png", 90, 90, 127},
+    {"knob_bi_noi.png", 90, 90, 127},
+    {"knob_bi_pu1.png", 90, 90, 127},
+    {"knob_bi_pu2.png", 90, 90, 127},
+    {"knob_bi_wav.png", 90, 90, 127},
+    {"knob_uni_dmg.png", 90, 90, 127},
+    {"knob_uni_noi.png", 90, 90, 127},
+    {"knob_uni_pu1.png", 90, 90, 127},
+    {"knob_uni_pu2.png", 90, 90, 127},
+    {"knob_uni_wav.png", 90, 90, 127},
+    {"lcd_duty.png", 200, 60, 4},
+    {"lcd_env.png", 168, 60, 8},
+    {"lcd_envdir.png", 28, 60, 2},
     {"lcd_table_panel.png", 598, 258, 1},
+    {"lcd_wave.png", 200, 60, 16},
+    {"led_noi_lcd.png", 60, 20, 2},
+    {"led_noi_plate.png", 20, 16, 2},
+    {"led_pu1_lcd.png", 60, 20, 2},
+    {"led_pu1_plate.png", 20, 16, 2},
+    {"led_pu2_lcd.png", 60, 20, 2},
+    {"led_pu2_plate.png", 20, 16, 2},
+    {"led_wav_lcd.png", 60, 20, 2},
+    {"led_wav_plate.png", 20, 16, 2},
     {"seg2_off.png", 122, 40, 1},
-    {"seg2_on.png", 122, 40, 1},
-    {"seg3_off.png", 80, 40, 1},
-    {"seg3_on.png", 80, 40, 1},
+    {"seg2_on_dmg.png", 122, 40, 1},
+    {"seg2_on_noi.png", 122, 40, 1},
+    {"seg2_on_pu1.png", 122, 40, 1},
+    {"seg2_on_pu2.png", 122, 40, 1},
     {"seg4_off.png", 58, 40, 1},
-    {"seg4_on.png", 58, 40, 1},
+    {"seg4_on_noi.png", 58, 40, 1},
+    {"seg4_on_pu1.png", 58, 40, 1},
+    {"seg4_on_pu2.png", 58, 40, 1},
+    {"seg4_on_wav.png", 58, 40, 1},
     {"tab_bar.png", 1280, 76, 1},
     {"tab_off.png", 200, 52, 1},
     {"tab_on.png", 200, 52, 1},
     {"toggle_off.png", 64, 32, 1},
-    {"toggle_on.png", 64, 32, 1},
+    {"toggle_on_dmg.png", 64, 32, 1},
+    {"toggle_on_noi.png", 64, 32, 1},
+    {"toggle_on_pu1.png", 64, 32, 1},
+    {"toggle_on_pu2.png", 64, 32, 1},
+    {"toggle_on_wav.png", 64, 32, 1},
 };
-inline constexpr int kNumAssets = 23;
+inline constexpr int kNumAssets = 53;
 
-inline constexpr ChildDef kComponent0Children[] = {  // faderUni
-    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {15, 8, 135, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xff8bac0fu, 20.4f, Justify::Left},
-    {"value", ChildType::Label, {150, 8, 113, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xff9bbc0fu, 22.1f, Justify::Right},
-    {"fader", ChildType::Knob, {15, 54, 248, 36}, false, "fader_h_uni.png", nullptr, 127, Drag::Horizontal, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-};
-inline constexpr ChildDef kComponent1Children[] = {  // knobUni
-    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xff8bac0fu, 22.1f, Justify::Left},
-    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xff9bbc0fu, 25.5f, Justify::Left},
-};
-inline constexpr ChildDef kComponent2Children[] = {  // radio2
-    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xff8bac0fu, 20.4f, Justify::Left},
-    {"seg 0", ChildType::Button, {15, 54, 122, 40}, false, "seg2_on.png", "seg2_off.png", 1, Drag::None, 0, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"seg 1", ChildType::Button, {141, 54, 122, 40}, false, "seg2_on.png", "seg2_off.png", 1, Drag::None, 1, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-};
-inline constexpr ChildDef kComponent3Children[] = {  // toggle
-    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {15, 12, 170, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xff8bac0fu, 22.1f, Justify::Left},
-    {"value", ChildType::Label, {15, 52, 170, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xff9bbc0fu, 25.5f, Justify::Left},
-    {"toggle", ChildType::Button, {186, 20, 84, 68}, false, "toggle_on.png", "toggle_off.png", 1, Drag::None, 1, 1, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-};
-inline constexpr ChildDef kComponent4Children[] = {  // sliderWithFocusMenu
+inline constexpr ChildDef kComponent0Children[] = {  // sliderWithFocus
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
     {"slider", ChildType::Slider, {15, 15, 248, 77}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
 };
-inline constexpr ChildDef kComponent5Children[] = {  // radio4
+inline constexpr ChildDef kComponent1Children[] = {  // faderUni_pu1
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xff8bac0fu, 20.4f, Justify::Left},
-    {"seg 0", ChildType::Button, {15, 54, 58, 40}, false, "seg4_on.png", "seg4_off.png", 1, Drag::None, 0, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"seg 1", ChildType::Button, {77, 54, 58, 40}, false, "seg4_on.png", "seg4_off.png", 1, Drag::None, 1, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"seg 2", ChildType::Button, {139, 54, 58, 40}, false, "seg4_on.png", "seg4_off.png", 1, Drag::None, 2, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"seg 3", ChildType::Button, {201, 54, 58, 40}, false, "seg4_on.png", "seg4_off.png", 1, Drag::None, 3, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 135, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"value", ChildType::Label, {150, 8, 113, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 22.1f, Justify::Right},
+    {"fader", ChildType::Knob, {15, 54, 248, 36}, false, "fader_h_uni_pu1.png", nullptr, 127, Drag::Horizontal, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
 };
-inline constexpr ChildDef kComponent6Children[] = {  // knobBi
+inline constexpr ChildDef kComponent2Children[] = {  // faderUni_pu2
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_bi.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
-    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xff8bac0fu, 22.1f, Justify::Left},
-    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xff9bbc0fu, 25.5f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 135, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"value", ChildType::Label, {150, 8, 113, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 22.1f, Justify::Right},
+    {"fader", ChildType::Knob, {15, 54, 248, 36}, false, "fader_h_uni_pu2.png", nullptr, 127, Drag::Horizontal, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
 };
-inline constexpr ChildDef kComponent7Children[] = {  // sliderWithFocus
+inline constexpr ChildDef kComponent3Children[] = {  // faderUni_noi
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 135, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"value", ChildType::Label, {150, 8, 113, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 22.1f, Justify::Right},
+    {"fader", ChildType::Knob, {15, 54, 248, 36}, false, "fader_h_uni_noi.png", nullptr, 127, Drag::Horizontal, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent4Children[] = {  // faderUni_dmg
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 135, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"value", ChildType::Label, {150, 8, 113, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 22.1f, Justify::Right},
+    {"fader", ChildType::Knob, {15, 54, 248, 36}, false, "fader_h_uni_dmg.png", nullptr, 127, Drag::Horizontal, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent5Children[] = {  // radio4_wav
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 58, 40}, false, "seg4_on_wav.png", "seg4_off.png", 1, Drag::None, 0, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {77, 54, 58, 40}, false, "seg4_on_wav.png", "seg4_off.png", 1, Drag::None, 1, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 2", ChildType::Button, {139, 54, 58, 40}, false, "seg4_on_wav.png", "seg4_off.png", 1, Drag::None, 2, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 3", ChildType::Button, {201, 54, 58, 40}, false, "seg4_on_wav.png", "seg4_off.png", 1, Drag::None, 3, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent6Children[] = {  // radio4_pu1
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 58, 40}, false, "seg4_on_pu1.png", "seg4_off.png", 1, Drag::None, 0, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {77, 54, 58, 40}, false, "seg4_on_pu1.png", "seg4_off.png", 1, Drag::None, 1, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 2", ChildType::Button, {139, 54, 58, 40}, false, "seg4_on_pu1.png", "seg4_off.png", 1, Drag::None, 2, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 3", ChildType::Button, {201, 54, 58, 40}, false, "seg4_on_pu1.png", "seg4_off.png", 1, Drag::None, 3, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent7Children[] = {  // radio4_pu2
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 58, 40}, false, "seg4_on_pu2.png", "seg4_off.png", 1, Drag::None, 0, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {77, 54, 58, 40}, false, "seg4_on_pu2.png", "seg4_off.png", 1, Drag::None, 1, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 2", ChildType::Button, {139, 54, 58, 40}, false, "seg4_on_pu2.png", "seg4_off.png", 1, Drag::None, 2, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 3", ChildType::Button, {201, 54, 58, 40}, false, "seg4_on_pu2.png", "seg4_off.png", 1, Drag::None, 3, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent8Children[] = {  // radio4_noi
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 58, 40}, false, "seg4_on_noi.png", "seg4_off.png", 1, Drag::None, 0, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {77, 54, 58, 40}, false, "seg4_on_noi.png", "seg4_off.png", 1, Drag::None, 1, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 2", ChildType::Button, {139, 54, 58, 40}, false, "seg4_on_noi.png", "seg4_off.png", 1, Drag::None, 2, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 3", ChildType::Button, {201, 54, 58, 40}, false, "seg4_on_noi.png", "seg4_off.png", 1, Drag::None, 3, 4, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent9Children[] = {  // sliderWithFocusMenu
     {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
     {"slider", ChildType::Slider, {15, 15, 248, 77}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
 };
-inline constexpr ChildDef kComponent8Children[] = {  // knob overlay
+inline constexpr ChildDef kComponent10Children[] = {  // radio2_dmg
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 122, 40}, false, "seg2_on_dmg.png", "seg2_off.png", 1, Drag::None, 0, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {141, 54, 122, 40}, false, "seg2_on_dmg.png", "seg2_off.png", 1, Drag::None, 1, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent11Children[] = {  // radio2_pu1
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 122, 40}, false, "seg2_on_pu1.png", "seg2_off.png", 1, Drag::None, 0, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {141, 54, 122, 40}, false, "seg2_on_pu1.png", "seg2_off.png", 1, Drag::None, 1, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent12Children[] = {  // radio2_pu2
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 122, 40}, false, "seg2_on_pu2.png", "seg2_off.png", 1, Drag::None, 0, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {141, 54, 122, 40}, false, "seg2_on_pu2.png", "seg2_off.png", 1, Drag::None, 1, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent13Children[] = {  // radio2_noi
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 8, 248, 34}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 20.4f, Justify::Left},
+    {"seg 0", ChildType::Button, {15, 54, 122, 40}, false, "seg2_on_noi.png", "seg2_off.png", 1, Drag::None, 0, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"seg 1", ChildType::Button, {141, 54, 122, 40}, false, "seg2_on_noi.png", "seg2_off.png", 1, Drag::None, 1, 2, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent14Children[] = {  // toggle_dmg
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 12, 170, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {15, 52, 170, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+    {"toggle", ChildType::Button, {186, 20, 84, 68}, false, "toggle_on_dmg.png", "toggle_off.png", 1, Drag::None, 1, 1, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent15Children[] = {  // toggle_pu1
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 12, 170, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {15, 52, 170, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+    {"toggle", ChildType::Button, {186, 20, 84, 68}, false, "toggle_on_pu1.png", "toggle_off.png", 1, Drag::None, 1, 1, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent16Children[] = {  // toggle_pu2
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 12, 170, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {15, 52, 170, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+    {"toggle", ChildType::Button, {186, 20, 84, 68}, false, "toggle_on_pu2.png", "toggle_off.png", 1, Drag::None, 1, 1, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent17Children[] = {  // toggle_wav
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 12, 170, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {15, 52, 170, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+    {"toggle", ChildType::Button, {186, 20, 84, 68}, false, "toggle_on_wav.png", "toggle_off.png", 1, Drag::None, 1, 1, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent18Children[] = {  // toggle_noi
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {15, 12, 170, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {15, 52, 170, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+    {"toggle", ChildType::Button, {186, 20, 84, 68}, false, "toggle_on_noi.png", "toggle_off.png", 1, Drag::None, 1, 1, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+};
+inline constexpr ChildDef kComponent19Children[] = {  // knobUni_dmg
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_dmg.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent20Children[] = {  // knobUni_pu1
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_pu1.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent21Children[] = {  // knobUni_pu2
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_pu2.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent22Children[] = {  // knobUni_wav
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_wav.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent23Children[] = {  // knobUni_noi
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_uni_noi.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent24Children[] = {  // knobBi_pu1
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_bi_pu1.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent25Children[] = {  // knobBi_pu2
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_bi_pu2.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent26Children[] = {  // knobBi_wav
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_bi_wav.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent27Children[] = {  // knobBi_noi
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_bi_noi.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent28Children[] = {  // knobBi_dmg
+    {"focus", ChildType::Focus, {0, 0, 278, 107}, true, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"knob", ChildType::Knob, {8, 8, 90, 90}, false, "knob_bi_dmg.png", nullptr, 127, Drag::Vertical, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
+    {"name", ChildType::Label, {110, 12, 156, 36}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Name, 0xffa3a7b0u, 22.1f, Justify::Left},
+    {"value", ChildType::Label, {110, 52, 156, 42}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::Value, 0xffeceae4u, 25.5f, Justify::Left},
+};
+inline constexpr ChildDef kComponent29Children[] = {  // knob overlay
     {"overlay", ChildType::KnobOverlay, {0, 0, 1280, 800}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
 };
-inline constexpr ChildDef kComponent9Children[] = {  // knob overlay bipolar
+inline constexpr ChildDef kComponent30Children[] = {  // knob overlay bipolar
     {"overlay", ChildType::KnobOverlay, {0, 0, 1280, 800}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
 };
-inline constexpr ChildDef kComponent10Children[] = {  // menu overlay
+inline constexpr ChildDef kComponent31Children[] = {  // menu overlay
     {"overlay", ChildType::MenuOverlay, {0, 0, 1280, 800}, false, nullptr, nullptr, 1, Drag::None, 0, 0, LabelKind::None, 0x00000000u, 0.0f, Justify::Left},
 };
 inline constexpr ComponentDef kComponents[] = {
-    {"faderUni", kComponent0Children, 4},
-    {"knobUni", kComponent1Children, 4},
-    {"radio2", kComponent2Children, 4},
-    {"toggle", kComponent3Children, 4},
-    {"sliderWithFocusMenu", kComponent4Children, 2},
-    {"radio4", kComponent5Children, 6},
-    {"knobBi", kComponent6Children, 4},
-    {"sliderWithFocus", kComponent7Children, 2},
-    {"knob overlay", kComponent8Children, 1},
-    {"knob overlay bipolar", kComponent9Children, 1},
-    {"menu overlay", kComponent10Children, 1},
+    {"sliderWithFocus", kComponent0Children, 2},
+    {"faderUni_pu1", kComponent1Children, 4},
+    {"faderUni_pu2", kComponent2Children, 4},
+    {"faderUni_noi", kComponent3Children, 4},
+    {"faderUni_dmg", kComponent4Children, 4},
+    {"radio4_wav", kComponent5Children, 6},
+    {"radio4_pu1", kComponent6Children, 6},
+    {"radio4_pu2", kComponent7Children, 6},
+    {"radio4_noi", kComponent8Children, 6},
+    {"sliderWithFocusMenu", kComponent9Children, 2},
+    {"radio2_dmg", kComponent10Children, 4},
+    {"radio2_pu1", kComponent11Children, 4},
+    {"radio2_pu2", kComponent12Children, 4},
+    {"radio2_noi", kComponent13Children, 4},
+    {"toggle_dmg", kComponent14Children, 4},
+    {"toggle_pu1", kComponent15Children, 4},
+    {"toggle_pu2", kComponent16Children, 4},
+    {"toggle_wav", kComponent17Children, 4},
+    {"toggle_noi", kComponent18Children, 4},
+    {"knobUni_dmg", kComponent19Children, 4},
+    {"knobUni_pu1", kComponent20Children, 4},
+    {"knobUni_pu2", kComponent21Children, 4},
+    {"knobUni_wav", kComponent22Children, 4},
+    {"knobUni_noi", kComponent23Children, 4},
+    {"knobBi_pu1", kComponent24Children, 4},
+    {"knobBi_pu2", kComponent25Children, 4},
+    {"knobBi_wav", kComponent26Children, 4},
+    {"knobBi_noi", kComponent27Children, 4},
+    {"knobBi_dmg", kComponent28Children, 4},
+    {"knob overlay", kComponent29Children, 1},
+    {"knob overlay bipolar", kComponent30Children, 1},
+    {"menu overlay", kComponent31Children, 1},
 };
-inline constexpr int kNumComponents = 11;
+inline constexpr int kNumComponents = 32;
 
-inline constexpr Caption kPage0Control2Captions[] = {{"Always", {678, 99, 122, 40}, 18.7f}, {"Legato", {804, 99, 122, 40}, 18.7f}};
-inline constexpr Caption kPage0Control3Captions[] = {{"Cut", {998, 99, 122, 40}, 18.7f}, {"Hold", {1124, 99, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control2Captions[] = {{"Mute", {678, 99, 58, 40}, 18.7f}, {"25%", {740, 99, 58, 40}, 18.7f}, {"50%", {802, 99, 58, 40}, 18.7f}, {"100%", {864, 99, 58, 40}, 18.7f}};
 inline constexpr Caption kPage0Control8Captions[] = {{"Tempo", {38, 400, 122, 40}, 18.7f}, {"Free", {164, 400, 122, 40}, 18.7f}};
-inline constexpr Caption kPage0Control10Captions[] = {{"Note", {678, 400, 122, 40}, 18.7f}, {"Grid", {804, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control11Captions[] = {{"Note", {678, 400, 122, 40}, 18.7f}, {"Grid", {804, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control15Captions[] = {{"Always", {678, 551, 122, 40}, 18.7f}, {"Legato", {804, 551, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control16Captions[] = {{"Cut", {998, 551, 122, 40}, 18.7f}, {"Hold", {1124, 551, 122, 40}, 18.7f}};
 inline constexpr Control kPage0Controls[] = {  // MAIN
-    {1, "Volume", WidgetKind::FaderUni, false, 0, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {0, "Bend Range", WidgetKind::KnobUni, false, 1, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {2, "Retrigger", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage0Control2Captions, 2},
-    {3, "Note Off", WidgetKind::Radio2, false, 2, {983, 45, 278, 107}, {-1, 0, 0}, kPage0Control3Captions, 2},
-    {9, "PU1 On", WidgetKind::Toggle, false, 3, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {22, "PU2 On", WidgetKind::Toggle, false, 3, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {32, "WAV On", WidgetKind::Toggle, false, 3, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {40, "NOI On", WidgetKind::Toggle, false, 3, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {5, "Table Sync", WidgetKind::Radio2, false, 2, {23, 346, 278, 107}, {-1, 0, 0}, kPage0Control8Captions, 2},
-    {6, "Table Rate", WidgetKind::SliderWithFocus, true, 4, {343, 346, 278, 107}, {5, 0, 2}, nullptr, 0},
-    {7, "Table Start", WidgetKind::Radio2, false, 2, {663, 346, 278, 107}, {5, 0, 2}, kPage0Control10Captions, 2},
-    {8, "Free Rate", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {5, 1, 2}, nullptr, 0},
-    {4, "Vel to Level", WidgetKind::Toggle, false, 3, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {10, "PU1 Level", WidgetKind::FaderUni, false, 1, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 13},
+    {23, "PU2 Level", WidgetKind::FaderUni, false, 2, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 14},
+    {33, "WAV Level", WidgetKind::Radio4, false, 5, {663, 45, 278, 107}, {-1, 0, 0}, kPage0Control2Captions, 4, 0xff35c9c1u, 15},
+    {41, "NOI Level", WidgetKind::FaderUni, false, 3, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 16},
+    {21, "PU1 Table", WidgetKind::SliderWithFocus, true, 9, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 9},
+    {31, "PU2 Table", WidgetKind::SliderWithFocus, true, 9, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 10},
+    {39, "WAV Table", WidgetKind::SliderWithFocus, true, 9, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 11},
+    {50, "NOI Table", WidgetKind::SliderWithFocus, true, 9, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 12},
+    {5, "Table Sync", WidgetKind::Radio2, false, 10, {23, 346, 278, 107}, {-1, 0, 0}, kPage0Control8Captions, 2, 0xff9bbc0fu, 5},
+    {6, "Table Rate", WidgetKind::SliderWithFocus, true, 9, {343, 346, 278, 107}, {5, 0, 2}, nullptr, 0, 0xff9bbc0fu, 6},
+    {8, "Free Rate", WidgetKind::KnobUni, false, 19, {343, 346, 278, 107}, {5, 1, 2}, nullptr, 0, 0xff9bbc0fu, 0},
+    {7, "Table Start", WidgetKind::Radio2, false, 10, {663, 346, 278, 107}, {5, 0, 2}, kPage0Control11Captions, 2, 0xff9bbc0fu, 7},
+    {4, "Vel to Level", WidgetKind::Toggle, false, 14, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 8},
+    {1, "Volume", WidgetKind::FaderUni, false, 4, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 1},
+    {0, "Bend Range", WidgetKind::KnobUni, false, 19, {343, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 2},
+    {2, "Retrigger", WidgetKind::Radio2, false, 10, {663, 497, 278, 107}, {-1, 0, 0}, kPage0Control15Captions, 2, 0xff9bbc0fu, 3},
+    {3, "Note Off", WidgetKind::Radio2, false, 10, {983, 497, 278, 107}, {-1, 0, 0}, kPage0Control16Captions, 2, 0xff9bbc0fu, 4},
 };
-inline constexpr Caption kPage1Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
-inline constexpr Caption kPage1Control4Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
-inline constexpr Caption kPage1Control7Captions[] = {{"Mute", {998, 250, 58, 40}, 18.7f}, {"Left", {1060, 250, 58, 40}, 18.7f}, {"Both", {1122, 250, 58, 40}, 18.7f}, {"Right", {1184, 250, 58, 40}, 18.7f}};
-inline constexpr Caption kPage1Control9Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
+inline constexpr Dynamic kPage0Dynamics[] = {
+    {DynamicKind::FilmStrip, 9, "PU1 On", {275, 49, 20, 16}, "led_pu1_plate.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 22, "PU2 On", {595, 49, 20, 16}, "led_pu2_plate.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 32, "WAV On", {915, 49, 20, 16}, "led_wav_plate.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 40, "NOI On", {1235, 49, 20, 16}, "led_noi_plate.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+};
+inline constexpr Caption kPage1Control1Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage1Control6Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage1Control10Captions[] = {{"Down", {358, 551, 122, 40}, 18.7f}, {"Up", {484, 551, 122, 40}, 18.7f}};
+inline constexpr Caption kPage1Control12Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
 inline constexpr Control kPage1Controls[] = {  // PULSE1
-    {9, "PU1 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {10, "PU1 Level", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {11, "PU1 Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage1Control2Captions, 2},
-    {12, "PU1 Env Time", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {13, "PU1 Duty", WidgetKind::Radio4, false, 5, {23, 196, 278, 107}, {-1, 0, 0}, kPage1Control4Captions, 4},
-    {14, "PU1 Semi", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {15, "PU1 Fine", WidgetKind::KnobBi, false, 6, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {16, "PU1 Pan", WidgetKind::Radio4, false, 5, {983, 196, 278, 107}, {-1, 0, 0}, kPage1Control7Captions, 4},
-    {18, "PU1 Swp Time", WidgetKind::KnobUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {19, "PU1 Swp Dir", WidgetKind::Radio2, false, 2, {343, 346, 278, 107}, {-1, 0, 0}, kPage1Control9Captions, 2},
-    {20, "PU1 Swp Amt", WidgetKind::KnobUni, false, 1, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {17, "PU1 Length", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {21, "PU1 Table", WidgetKind::SliderWithFocus, true, 4, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {9, "PU1 On", WidgetKind::Toggle, false, 15, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 16},
+    {13, "PU1 Duty", WidgetKind::Radio4, false, 6, {23, 196, 278, 107}, {-1, 0, 0}, kPage1Control1Captions, 4, 0xffff5a7eu, 9},
+    {14, "PU1 Semi", WidgetKind::KnobBi, false, 24, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 10},
+    {15, "PU1 Fine", WidgetKind::KnobBi, false, 24, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 11},
+    {21, "PU1 Table", WidgetKind::SliderWithFocus, true, 9, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 12},
+    {10, "PU1 Level", WidgetKind::FaderUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 5},
+    {11, "PU1 Env Dir", WidgetKind::Radio2, false, 11, {343, 346, 278, 107}, {-1, 0, 0}, kPage1Control6Captions, 2, 0xffff5a7eu, 6},
+    {12, "PU1 Env Time", WidgetKind::KnobUni, false, 20, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 7},
+    {17, "PU1 Length", WidgetKind::KnobUni, false, 20, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 8},
+    {18, "PU1 Swp Time", WidgetKind::KnobUni, false, 20, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 1},
+    {19, "PU1 Swp Dir", WidgetKind::Radio2, false, 11, {343, 497, 278, 107}, {-1, 0, 0}, kPage1Control10Captions, 2, 0xffff5a7eu, 2},
+    {20, "PU1 Swp Amt", WidgetKind::KnobUni, false, 20, {663, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xffff5a7eu, 3},
+    {16, "PU1 Pan", WidgetKind::Radio4, false, 6, {983, 497, 278, 107}, {-1, 0, 0}, kPage1Control12Captions, 4, 0xffff5a7eu, 4},
 };
-inline constexpr Caption kPage2Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
-inline constexpr Caption kPage2Control4Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
-inline constexpr Caption kPage2Control7Captions[] = {{"Mute", {998, 250, 58, 40}, 18.7f}, {"Left", {1060, 250, 58, 40}, 18.7f}, {"Both", {1122, 250, 58, 40}, 18.7f}, {"Right", {1184, 250, 58, 40}, 18.7f}};
+inline constexpr Panel kPage1Panels[] = {
+    {PanelKind::LcdChannel, {23, 45, 918, 107}, nullptr},
+};
+inline constexpr Dynamic kPage1Dynamics[] = {
+    {DynamicKind::FilmStrip, 9, "PU1 On", {39, 111, 60, 20}, "led_pu1_lcd.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 13, "PU1 Duty", {145, 77, 200, 60}, "lcd_duty.png", 4, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 12, "PU1 Env Time", {369, 77, 168, 60}, "lcd_env.png", 8, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 11, "PU1 Env Dir", {545, 77, 28, 60}, "lcd_envdir.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::ValueLabel, 21, "PU1 Table", {609, 75, 316, 40}, nullptr, 1, 0xff9bbc0fu, 25.5f, Justify::Left, true},
+};
+inline constexpr Caption kPage2Control1Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage2Control6Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage2Control9Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
 inline constexpr Control kPage2Controls[] = {  // PULSE2
-    {22, "PU2 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {23, "PU2 Level", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {24, "PU2 Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage2Control2Captions, 2},
-    {25, "PU2 Env Time", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {26, "PU2 Duty", WidgetKind::Radio4, false, 5, {23, 196, 278, 107}, {-1, 0, 0}, kPage2Control4Captions, 4},
-    {27, "PU2 Semi", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {28, "PU2 Fine", WidgetKind::KnobBi, false, 6, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {29, "PU2 Pan", WidgetKind::Radio4, false, 5, {983, 196, 278, 107}, {-1, 0, 0}, kPage2Control7Captions, 4},
-    {30, "PU2 Length", WidgetKind::KnobUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {31, "PU2 Table", WidgetKind::SliderWithFocus, true, 4, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {22, "PU2 On", WidgetKind::Toggle, false, 16, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 16},
+    {26, "PU2 Duty", WidgetKind::Radio4, false, 7, {23, 196, 278, 107}, {-1, 0, 0}, kPage2Control1Captions, 4, 0xfff5c542u, 9},
+    {27, "PU2 Semi", WidgetKind::KnobBi, false, 25, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 10},
+    {28, "PU2 Fine", WidgetKind::KnobBi, false, 25, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 11},
+    {31, "PU2 Table", WidgetKind::SliderWithFocus, true, 9, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 12},
+    {23, "PU2 Level", WidgetKind::FaderUni, false, 2, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 5},
+    {24, "PU2 Env Dir", WidgetKind::Radio2, false, 12, {343, 346, 278, 107}, {-1, 0, 0}, kPage2Control6Captions, 2, 0xfff5c542u, 6},
+    {25, "PU2 Env Time", WidgetKind::KnobUni, false, 21, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 7},
+    {30, "PU2 Length", WidgetKind::KnobUni, false, 21, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xfff5c542u, 8},
+    {29, "PU2 Pan", WidgetKind::Radio4, false, 7, {983, 497, 278, 107}, {-1, 0, 0}, kPage2Control9Captions, 4, 0xfff5c542u, 4},
 };
-inline constexpr Caption kPage3Control1Captions[] = {{"Mute", {358, 99, 58, 40}, 18.7f}, {"25%", {420, 99, 58, 40}, 18.7f}, {"50%", {482, 99, 58, 40}, 18.7f}, {"100%", {544, 99, 58, 40}, 18.7f}};
-inline constexpr Caption kPage3Control3Captions[] = {{"Mute", {998, 99, 58, 40}, 18.7f}, {"Left", {1060, 99, 58, 40}, 18.7f}, {"Both", {1122, 99, 58, 40}, 18.7f}, {"Right", {1184, 99, 58, 40}, 18.7f}};
+inline constexpr Panel kPage2Panels[] = {
+    {PanelKind::LcdChannel, {23, 45, 918, 107}, nullptr},
+};
+inline constexpr Dynamic kPage2Dynamics[] = {
+    {DynamicKind::FilmStrip, 22, "PU2 On", {39, 111, 60, 20}, "led_pu2_lcd.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 26, "PU2 Duty", {145, 77, 200, 60}, "lcd_duty.png", 4, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 25, "PU2 Env Time", {369, 77, 168, 60}, "lcd_env.png", 8, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 24, "PU2 Env Dir", {545, 77, 28, 60}, "lcd_envdir.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::ValueLabel, 31, "PU2 Table", {609, 75, 316, 40}, nullptr, 1, 0xff9bbc0fu, 25.5f, Justify::Left, true},
+};
+inline constexpr Caption kPage3Control5Captions[] = {{"Mute", {38, 400, 58, 40}, 18.7f}, {"25%", {100, 400, 58, 40}, 18.7f}, {"50%", {162, 400, 58, 40}, 18.7f}, {"100%", {224, 400, 58, 40}, 18.7f}};
+inline constexpr Caption kPage3Control7Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
 inline constexpr Control kPage3Controls[] = {  // WAVE
-    {32, "WAV On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {33, "WAV Level", WidgetKind::Radio4, false, 5, {343, 45, 278, 107}, {-1, 0, 0}, kPage3Control1Captions, 4},
-    {34, "WAV Shape", WidgetKind::SliderWithFocus, false, 7, {663, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {37, "WAV Pan", WidgetKind::Radio4, false, 5, {983, 45, 278, 107}, {-1, 0, 0}, kPage3Control3Captions, 4},
-    {35, "WAV Semi", WidgetKind::KnobBi, false, 6, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {36, "WAV Fine", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {38, "WAV Length", WidgetKind::KnobUni, false, 1, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {39, "WAV Table", WidgetKind::SliderWithFocus, true, 4, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {32, "WAV On", WidgetKind::Toggle, false, 17, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 16},
+    {34, "WAV Shape", WidgetKind::SliderWithFocus, true, 9, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 9},
+    {35, "WAV Semi", WidgetKind::KnobBi, false, 26, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 10},
+    {36, "WAV Fine", WidgetKind::KnobBi, false, 26, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 11},
+    {39, "WAV Table", WidgetKind::SliderWithFocus, true, 9, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 12},
+    {33, "WAV Level", WidgetKind::Radio4, false, 5, {23, 346, 278, 107}, {-1, 0, 0}, kPage3Control5Captions, 4, 0xff35c9c1u, 5},
+    {38, "WAV Length", WidgetKind::KnobUni, false, 22, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff35c9c1u, 8},
+    {37, "WAV Pan", WidgetKind::Radio4, false, 5, {983, 497, 278, 107}, {-1, 0, 0}, kPage3Control7Captions, 4, 0xff35c9c1u, 4},
 };
-inline constexpr Caption kPage4Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
-inline constexpr Caption kPage4Control4Captions[] = {{"Hiss 15", {38, 250, 122, 40}, 18.7f}, {"Buzz 7", {164, 250, 122, 40}, 18.7f}};
-inline constexpr Caption kPage4Control5Captions[] = {{"Track", {358, 250, 122, 40}, 18.7f}, {"Fixed", {484, 250, 122, 40}, 18.7f}};
-inline constexpr Caption kPage4Control8Captions[] = {{"Mute", {38, 400, 58, 40}, 18.7f}, {"Left", {100, 400, 58, 40}, 18.7f}, {"Both", {162, 400, 58, 40}, 18.7f}, {"Right", {224, 400, 58, 40}, 18.7f}};
+inline constexpr Panel kPage3Panels[] = {
+    {PanelKind::LcdChannel, {23, 45, 918, 107}, nullptr},
+};
+inline constexpr Dynamic kPage3Dynamics[] = {
+    {DynamicKind::FilmStrip, 32, "WAV On", {39, 111, 60, 20}, "led_wav_lcd.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 34, "WAV Shape", {145, 77, 200, 60}, "lcd_wave.png", 16, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::ValueLabel, 39, "WAV Table", {609, 75, 316, 40}, nullptr, 1, 0xff9bbc0fu, 25.5f, Justify::Left, true},
+};
+inline constexpr Caption kPage4Control1Captions[] = {{"Hiss 15", {38, 250, 122, 40}, 18.7f}, {"Buzz 7", {164, 250, 122, 40}, 18.7f}};
+inline constexpr Caption kPage4Control3Captions[] = {{"Track", {678, 250, 122, 40}, 18.7f}, {"Fixed", {804, 250, 122, 40}, 18.7f}};
+inline constexpr Caption kPage4Control6Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage4Control10Captions[] = {{"Mute", {998, 551, 58, 40}, 18.7f}, {"Left", {1060, 551, 58, 40}, 18.7f}, {"Both", {1122, 551, 58, 40}, 18.7f}, {"Right", {1184, 551, 58, 40}, 18.7f}};
 inline constexpr Control kPage4Controls[] = {  // NOISE
-    {40, "NOI On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {41, "NOI Level", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {42, "NOI Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage4Control2Captions, 2},
-    {43, "NOI Env Time", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {44, "NOI Mode", WidgetKind::Radio2, false, 2, {23, 196, 278, 107}, {-1, 0, 0}, kPage4Control4Captions, 2},
-    {45, "NOI Pitch", WidgetKind::Radio2, false, 2, {343, 196, 278, 107}, {-1, 0, 0}, kPage4Control5Captions, 2},
-    {46, "NOI FixPitch", WidgetKind::KnobUni, false, 1, {663, 196, 278, 107}, {45, 1, 2}, nullptr, 0},
-    {47, "NOI Semi", WidgetKind::KnobBi, false, 6, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {48, "NOI Pan", WidgetKind::Radio4, false, 5, {23, 346, 278, 107}, {-1, 0, 0}, kPage4Control8Captions, 4},
-    {49, "NOI Length", WidgetKind::KnobUni, false, 1, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {50, "NOI Table", WidgetKind::SliderWithFocus, true, 4, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {40, "NOI On", WidgetKind::Toggle, false, 18, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 16},
+    {44, "NOI Mode", WidgetKind::Radio2, false, 13, {23, 196, 278, 107}, {-1, 0, 0}, kPage4Control1Captions, 2, 0xff9d8cffu, 9},
+    {47, "NOI Semi", WidgetKind::KnobBi, false, 27, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 10},
+    {45, "NOI Pitch", WidgetKind::Radio2, false, 13, {663, 196, 278, 107}, {-1, 0, 0}, kPage4Control3Captions, 2, 0xff9d8cffu, 11},
+    {50, "NOI Table", WidgetKind::SliderWithFocus, true, 9, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 12},
+    {41, "NOI Level", WidgetKind::FaderUni, false, 3, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 5},
+    {42, "NOI Env Dir", WidgetKind::Radio2, false, 13, {343, 346, 278, 107}, {-1, 0, 0}, kPage4Control6Captions, 2, 0xff9d8cffu, 6},
+    {43, "NOI Env Time", WidgetKind::KnobUni, false, 23, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 7},
+    {49, "NOI Length", WidgetKind::KnobUni, false, 23, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9d8cffu, 8},
+    {46, "NOI FixPitch", WidgetKind::KnobUni, false, 23, {343, 497, 278, 107}, {45, 1, 2}, nullptr, 0, 0xff9d8cffu, 2},
+    {48, "NOI Pan", WidgetKind::Radio4, false, 8, {983, 497, 278, 107}, {-1, 0, 0}, kPage4Control10Captions, 4, 0xff9d8cffu, 4},
+};
+inline constexpr Panel kPage4Panels[] = {
+    {PanelKind::LcdChannel, {23, 45, 918, 107}, nullptr},
+};
+inline constexpr Dynamic kPage4Dynamics[] = {
+    {DynamicKind::FilmStrip, 40, "NOI On", {39, 111, 60, 20}, "led_noi_lcd.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 43, "NOI Env Time", {369, 77, 168, 60}, "lcd_env.png", 8, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::FilmStrip, 42, "NOI Env Dir", {545, 77, 28, 60}, "lcd_envdir.png", 2, 0x00000000u, 0.0f, Justify::Left, true},
+    {DynamicKind::ValueLabel, 50, "NOI Table", {609, 75, 316, 40}, nullptr, 1, 0xff9bbc0fu, 25.5f, Justify::Left, true},
 };
 inline constexpr Control kPage5Controls[] = {  // TABLE
-    {51, "Edit Table", WidgetKind::KnobUni, false, 1, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {52, "Edit Row", WidgetKind::KnobUni, false, 1, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {53, "Row Vol", WidgetKind::KnobUni, false, 1, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {54, "Row Semi", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {55, "Row Cmd1", WidgetKind::SliderWithFocus, true, 4, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {56, "Row Val1", WidgetKind::KnobUni, false, 1, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {57, "Row Cmd2", WidgetKind::SliderWithFocus, true, 4, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {58, "Row Val2", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {59, "Import File", WidgetKind::KnobUni, false, 1, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {60, "Import Now", WidgetKind::Toggle, false, 3, {343, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {61, "Import Undo", WidgetKind::Toggle, false, 3, {663, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {62, "Import Scan", WidgetKind::Toggle, false, 3, {983, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {51, "Edit Table", WidgetKind::KnobUni, false, 19, {663, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 15},
+    {52, "Edit Row", WidgetKind::KnobUni, false, 19, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 16},
+    {53, "Row Vol", WidgetKind::KnobUni, false, 19, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 11},
+    {54, "Row Semi", WidgetKind::KnobBi, false, 28, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 12},
+    {55, "Row Cmd1", WidgetKind::SliderWithFocus, true, 9, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 5},
+    {56, "Row Val1", WidgetKind::KnobUni, false, 19, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 6},
+    {57, "Row Cmd2", WidgetKind::SliderWithFocus, true, 9, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 7},
+    {58, "Row Val2", WidgetKind::KnobUni, false, 19, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 8},
+    {59, "Import File", WidgetKind::KnobUni, false, 19, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 1},
+    {60, "Import Now", WidgetKind::Toggle, false, 14, {343, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 2},
+    {61, "Import Undo", WidgetKind::Toggle, false, 14, {663, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 3},
+    {62, "Import Scan", WidgetKind::Toggle, false, 14, {983, 497, 278, 107}, {-1, 0, 0}, nullptr, 0, 0xff9bbc0fu, 4},
 };
 inline constexpr Panel kPage5Panels[] = {
-    {PanelKind::LcdTable, {663, 45, 598, 258}, "lcd_table_panel.png"},
+    {PanelKind::LcdTable, {23, 45, 598, 258}, "lcd_table_panel.png"},
+};
+inline constexpr Dynamic kPage5Dynamics[] = {
+    {DynamicKind::ValueLabel, 52, "Edit Row", {53, 81, 63, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 53, "Row Vol", {125, 81, 63, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 54, "Row Semi", {197, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 55, "Row Cmd1", {287, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 56, "Row Val1", {377, 81, 63, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 57, "Row Cmd2", {449, 81, 81, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
+    {DynamicKind::ValueLabel, 58, "Row Val2", {539, 81, 70, 25}, nullptr, 1, 0xff0f380fu, 20.4f, Justify::Left, false},
 };
 inline constexpr Page kPages[] = {
-    {"MAIN", "MAIN", "bg_main.png", kPage0Controls, 13, nullptr, 0},
-    {"PULSE1", "PULSE 1", "bg_pulse1.png", kPage1Controls, 13, nullptr, 0},
-    {"PULSE2", "PULSE 2", "bg_pulse2.png", kPage2Controls, 10, nullptr, 0},
-    {"WAVE", "WAVE", "bg_wave.png", kPage3Controls, 8, nullptr, 0},
-    {"NOISE", "NOISE", "bg_noise.png", kPage4Controls, 11, nullptr, 0},
-    {"TABLE", "TABLE", "bg_table.png", kPage5Controls, 12, kPage5Panels, 1},
+    {"MAIN", "MAIN", "bg_main.png", kPage0Controls, 17, nullptr, 0, 0xff9bbc0fu, kPage0Dynamics, 4},
+    {"PULSE1", "PULSE 1", "bg_pulse1.png", kPage1Controls, 13, kPage1Panels, 1, 0xffff5a7eu, kPage1Dynamics, 5},
+    {"PULSE2", "PULSE 2", "bg_pulse2.png", kPage2Controls, 10, kPage2Panels, 1, 0xfff5c542u, kPage2Dynamics, 5},
+    {"WAVE", "WAVE", "bg_wave.png", kPage3Controls, 8, kPage3Panels, 1, 0xff35c9c1u, kPage3Dynamics, 3},
+    {"NOISE", "NOISE", "bg_noise.png", kPage4Controls, 11, kPage4Panels, 1, 0xff9d8cffu, kPage4Dynamics, 4},
+    {"TABLE", "TABLE", "bg_table.png", kPage5Controls, 12, kPage5Panels, 1, 0xff9bbc0fu, kPage5Dynamics, 7},
 };
 inline constexpr int kNumPages = 6;
+
+// Q-Links: one bank per screen row; the focus rectangles (qlinkBoundsData) in bank order.
+inline constexpr BankDirection kQLinkBankDirection = BankDirection::Row;
+inline constexpr Rect kQLinkBounds[] = {{15, 491, 1254, 119}, {15, 340, 1254, 119}, {15, 190, 1254, 119}, {15, 39, 1254, 119}};
+// Level fader travel inside the fader child: left edge of cell 1 .. right edge of cell 15.
+inline constexpr int kFaderTravelX0 = 6;
+inline constexpr int kFaderTravelLen = 238;
+inline constexpr int kFaderCells = 15;
 
 // Editor tab bar (bottom of the window): one button per page.
 inline constexpr TabBar kTabBar = {{0, 628, 1280, 76}, "tab_bar.png", "tab_on.png", "tab_off.png", 10, 12, 212};
@@ -219,12 +467,12 @@ inline constexpr int kEditorWidth = 1280;
 inline constexpr int kEditorHeight = 704;
 inline constexpr int kContentY = 0;  // tab content origin inside the editor window
 
-inline constexpr TableColumn kTableColumns[] = {{"ROW", 1, 2}, {"VOL", 5, 2}, {"TSP", 9, 3}, {"CMD", 14, 1}, {"VAL", 18, 2}, {"CMD", 23, 1}, {"VAL", 27, 2}};
+inline constexpr TableColumn kTableColumns[] = {{"ROW", 1, 2}, {"VOL", 5, 2}, {"SEMI", 9, 3}, {"CMD", 14, 1}, {"VAL", 19, 2}, {"CMD", 23, 1}, {"VAL", 28, 2}};
 inline constexpr int kTableLineChars = 31;   // font cells per text line (the LCD text area)
 inline constexpr int kTableInnerWidth = 574;   // text area width, design units
 inline constexpr int kTableBandPad = 2;      // highlight bands extend this far around the text cells
 // Text grid of the TABLE page LCD (tab coordinates): header row, then visibleRows rows.
-inline constexpr TableGrid kTableGrid = {5, {663, 45, 598, 258}, 675, 57, 3, 26, 8, "lcd_table_panel.png", "cursor.png", kTableColumns, 7};
+inline constexpr TableGrid kTableGrid = {5, {23, 45, 598, 258}, 35, 57, 3, 26, 8, "lcd_table_panel.png", "cursor.png", kTableColumns, 7};
 
 // Text sizes (shared by the previews and the editor).
 inline constexpr float kLabelScaleThreshold = 24.0f;   // font height below this: 2x font pixels, else 3x
