@@ -38,7 +38,7 @@ Command letters and length timing were checked against the code:
 | Wave `Wave` 1..16 | `WAV Shape` | the wave name (Saw, Square, Triangle, Sine, Pulse25, Pulse12, HalfSine, Organ), user slots `Wave 09` |
 | Noise `Width` | `NOI Mode` | `Hiss 15` / `Buzz 7` |
 | Noise `PitchMd` | `NOI Pitch` | Track / Fixed |
-| Noise `Shape` 0..111 | `NOI FixPitch` | 0..111, oriented so higher = higher pitch |
+| Noise `Shape` 0..111 | `NOI FixPitch` | pitch-sorted values 0..N-1 (duplicate NR43 frequencies collapsed), strictly higher value = higher pitch |
 | channel `Table` | `Table` (kept) | Off or the table name (MajArp, MinArp, Octave, Vibrato, KickDrop, Fade, Rise, Hat; user `Table 09`) |
 | `Tbl Clock` Sync/Free | `Table Sync` | Tempo / Free |
 | `Tbl Rate` | `Table Rate` | `96/beat` … `24/beat` … `3/beat`. The default 24/beat is noted as "LSDJ timing" in the manual, not in the value text. |
@@ -49,7 +49,7 @@ Command letters and length timing were checked against the code:
 | `Row Transp` | `Row Semi` | `+12 st` |
 | `Row Cmd1/2` | `Row Cmd1/2` | letter plus word, 8 characters or fewer: `-`, `D Delay`, `E Env`, `H Hop`, `K Kill`, `L Slide`, `N Noise`, `P Pitch`, `R Retrig`, `S Sweep`, `V Vib`, `W Wave` |
 | `Row Val1/2` | kept | hex |
-| `Imp File/Go/Undo/Rescan` | `Import File` / `Import Now` / `Import Undo` / `Import Scan` | triggers show `Press` |
+| `Imp File/Go/Undo/Rescan` | `Import File` / `Import Now` / `Import Undo` / `Import Scan` | triggers stay Off/On toggles. Note: "Press" was dropped because it turned triggers into 2-way segments. |
 
 ## Kept
 `Duty` (12.5%/25%/50%/75%), `Retrigger` (Always/Legato), `Bend Range`, master `Volume` (dB), `Edit Table`, `Edit Row`, `PU1 On` etc., and the page names MAIN / PULSE 1 / PULSE 2 / WAVE / NOISE / TABLE.

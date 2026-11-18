@@ -26,25 +26,25 @@ validator, but has not been tested on a Gen 1 device.**
 
 ## Using it
 
-Six pages: `MAIN` (volume, retrigger, channel on/off switches, table clock),
+Six pages: `MAIN` (volume, retrigger, channel on/off switches, table clock); channel parameters carry the prefix `PU1`, `PU2`, `WAV` or `NOI`,
 `PULSE1`, `PULSE2`, `WAVE`, `NOISE` (per-channel settings and the table to
 run), and `TABLE` (the table editor, see `docs/EDITOR.md`).
 
 - **Note range:** the played note sets the base pitch, then the channel
-  `Transp`/`Fine` controls and each table row offset it. The Pulse channels
+  `Semi`/`Fine` controls and each table row offset it. The Pulse channels
   reach down to about MIDI note 36 (about 64 Hz) and the Wave channel one
-  octave lower (about MIDI note 24, the Wave channel's `Transp` defaults to -12);
+  octave lower (about MIDI note 24, the Wave channel's `WAV Semi` defaults to -12);
   lower notes clamp to that pitch instead of wrapping. There is no useful upper
   limit short of ultrasonic frequencies. The Noise channel follows the note in
-  `Track` mode or stays at `NZ Shape` in `Fixed` mode.
-- **Length units:** `Length` is the Game Boy length counter: 0 = off, 1-64
-  counts of 1/256 s for the pulse and noise channels, and 4/256 s per count
-  for the wave channel.
-- **Table clock:** `Sync` ticks `Tbl Rate` times per quarter note of the host
-  tempo (default `24/beat LSDJ`, LSDJ's tick at its default groove); `Tbl Phase
-  = Note` counts from note-on, `Grid` aligns ticks to the host beat grid while
-  the transport plays. `Free` ticks at a fixed `Free Hz` (default 59.73, the
-  Game Boy frame rate).
+  `Track` mode or stays at `NOI FixPitch` in `Fixed` mode (a pitch-sorted range, a higher value is a strictly higher pitch).
+- **Length units:** `Length` is the Game Boy length counter: `Off`, then 1-64
+  counts of 1/256 s for the pulse and noise channels (shown as 4 ms to 250 ms),
+  and 4/256 s per count for the wave channel (16 ms to 1000 ms).
+- **Table clock:** `Table Sync = Tempo` ticks `Table Rate` times per quarter
+  note of the host tempo (default `24/beat`, LSDJ's tick at its default
+  groove); `Table Start = Note` counts from note-on, `Grid` aligns ticks to the
+  host beat grid while the transport plays. `Free` ticks at a fixed `Free Rate`
+  (default 59.73Hz, the Game Boy frame rate).
 - **Latency:** the output is delayed by about 3 ms. The 48 kHz APU is resampled
   to 44.1 kHz through a polyphase filter that adds about 2.7 ms (117.6 frames),
   and the APU adds roughly 30 more frames (measured: a table tick is audible
@@ -73,18 +73,18 @@ VST - mpcboy/Content/Import/`): up to 64 files, directly in that folder (no
 sub-folders; symbolic links and names starting with `.` are skipped). On the
 `TABLE` page:
 
-- `Imp File` picks a file (the text is its name without `.sav`, cut at 8
+- `Import File` picks a file (the text is its name without `.sav`, cut at 8
   characters, `-` when the folder is empty or the index is past the list, and
   `ERR <code>` after a failed import until the next scan). The list is read when
-  the plugin loads and again with `Imp Rescan`; the file you imported last is
+  the plugin loads and again with `Import Scan`; the file you imported last is
   remembered by name in the project and selected again after a scan.
-- `Imp Go` imports it: the first 16 allocated tables become tables 1-16 (in the
+- `Import Now` imports it: the first 16 allocated tables become tables 1-16 (in the
   order LSDJ allocated them; missing ones are cleared) and waves 0-15 become
   waves 1-16, replacing all 16 tables and all 16 waves at once. Instruments,
-  chains, phrases and songs are ignored. `Imp Go`, `Imp Undo` and `Imp Rescan` are
+  chains, phrases and songs are ignored. `Import Now`, `Import Undo` and `Import Scan` are
   buttons: they act on the 0 to 1 edge, ignore a second press within 250 ms and
   switch themselves back off.
-- `Imp Undo` brings back the content from just before the last import (one
+- `Import Undo` brings back the content from just before the last import (one
   level; pressing it again re-applies the import, it is a swap). The undo copy
   is not saved with the project.
 
@@ -198,7 +198,7 @@ Caveats:
   drag vertically (Shift for fine, double-click resets), faders follow the mouse,
   segments and toggles are clicked, menu sliders step on click (Shift steps back)
   or drag. Edits of parameters 0-50 are recorded as automation; the table cursor,
-  cells and `Imp *` buttons are not automatable. The TABLE page shows the edit
+  cells and `Import *` buttons are not automatable. The TABLE page shows the edit
   table as a live LSDJ-style grid (it updates while Live processes audio). Art is
   read from `Contents/Resources/ui/`. `build/mac-vst/render_editor ui/art
   build/editor-preview 2` renders every page to PNG without a DAW.

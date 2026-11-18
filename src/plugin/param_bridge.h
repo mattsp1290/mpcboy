@@ -80,6 +80,13 @@ EngineSettings proposedSettings(const float* plain);
 // Linear gain of the Volume parameter (dB).
 float volumeToGain(float db);
 
+// NOI FixPitch: N values, 0..N-1, sorted by noise clock frequency ascending with duplicate
+// frequencies collapsed (strictly increasing pitch). Register index = NR43 shift * 8 + divisor code.
+int noiseFixPitchCount();
+int noiseFixPitchRegIndex(int value);
+double noiseFixPitchHz(int value);
+int noiseFixPitchValueNear(int regIndex);   // the value closest in frequency to a register index
+
 // Pure function of the value (no cell lookups). Returns false for parameters
 // that use the default formatting.
 bool formatParamValue(int index, float plain, std::string& out);

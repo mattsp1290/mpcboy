@@ -102,100 +102,100 @@ inline constexpr ComponentDef kComponents[] = {
 inline constexpr int kNumComponents = 11;
 
 inline constexpr Caption kPage0Control2Captions[] = {{"Always", {678, 99, 122, 40}, 18.7f}, {"Legato", {804, 99, 122, 40}, 18.7f}};
-inline constexpr Caption kPage0Control3Captions[] = {{"Cut", {998, 99, 122, 40}, 18.7f}, {"Ring", {1124, 99, 122, 40}, 18.7f}};
-inline constexpr Caption kPage0Control8Captions[] = {{"Sync", {38, 400, 122, 40}, 18.7f}, {"Free", {164, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control3Captions[] = {{"Cut", {998, 99, 122, 40}, 18.7f}, {"Hold", {1124, 99, 122, 40}, 18.7f}};
+inline constexpr Caption kPage0Control8Captions[] = {{"Tempo", {38, 400, 122, 40}, 18.7f}, {"Free", {164, 400, 122, 40}, 18.7f}};
 inline constexpr Caption kPage0Control10Captions[] = {{"Note", {678, 400, 122, 40}, 18.7f}, {"Grid", {804, 400, 122, 40}, 18.7f}};
 inline constexpr Control kPage0Controls[] = {  // MAIN
     {1, "Volume", WidgetKind::FaderUni, false, 0, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {0, "Bend Range", WidgetKind::KnobUni, false, 1, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {2, "Retrigger", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage0Control2Captions, 2},
     {3, "Note Off", WidgetKind::Radio2, false, 2, {983, 45, 278, 107}, {-1, 0, 0}, kPage0Control3Captions, 2},
-    {9, "P1 On", WidgetKind::Toggle, false, 3, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {22, "P2 On", WidgetKind::Toggle, false, 3, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {32, "WV On", WidgetKind::Toggle, false, 3, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {40, "NZ On", WidgetKind::Toggle, false, 3, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {5, "Tbl Clock", WidgetKind::Radio2, false, 2, {23, 346, 278, 107}, {-1, 0, 0}, kPage0Control8Captions, 2},
-    {6, "Tbl Rate", WidgetKind::SliderWithFocus, true, 4, {343, 346, 278, 107}, {5, 0, 2}, nullptr, 0},
-    {7, "Tbl Phase", WidgetKind::Radio2, false, 2, {663, 346, 278, 107}, {5, 0, 2}, kPage0Control10Captions, 2},
-    {8, "Free Hz", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {5, 1, 2}, nullptr, 0},
-    {4, "Vel>Vol", WidgetKind::Toggle, false, 3, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {9, "PU1 On", WidgetKind::Toggle, false, 3, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {22, "PU2 On", WidgetKind::Toggle, false, 3, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {32, "WAV On", WidgetKind::Toggle, false, 3, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {40, "NOI On", WidgetKind::Toggle, false, 3, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {5, "Table Sync", WidgetKind::Radio2, false, 2, {23, 346, 278, 107}, {-1, 0, 0}, kPage0Control8Captions, 2},
+    {6, "Table Rate", WidgetKind::SliderWithFocus, true, 4, {343, 346, 278, 107}, {5, 0, 2}, nullptr, 0},
+    {7, "Table Start", WidgetKind::Radio2, false, 2, {663, 346, 278, 107}, {5, 0, 2}, kPage0Control10Captions, 2},
+    {8, "Free Rate", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {5, 1, 2}, nullptr, 0},
+    {4, "Vel to Level", WidgetKind::Toggle, false, 3, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
 inline constexpr Caption kPage1Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
 inline constexpr Caption kPage1Control4Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
-inline constexpr Caption kPage1Control7Captions[] = {{"Off", {998, 250, 58, 40}, 18.7f}, {"L", {1060, 250, 58, 40}, 18.7f}, {"C", {1122, 250, 58, 40}, 18.7f}, {"R", {1184, 250, 58, 40}, 18.7f}};
-inline constexpr Caption kPage1Control9Captions[] = {{"Up", {358, 400, 122, 40}, 18.7f}, {"Down", {484, 400, 122, 40}, 18.7f}};
+inline constexpr Caption kPage1Control7Captions[] = {{"Mute", {998, 250, 58, 40}, 18.7f}, {"Left", {1060, 250, 58, 40}, 18.7f}, {"Both", {1122, 250, 58, 40}, 18.7f}, {"Right", {1184, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage1Control9Captions[] = {{"Down", {358, 400, 122, 40}, 18.7f}, {"Up", {484, 400, 122, 40}, 18.7f}};
 inline constexpr Control kPage1Controls[] = {  // PULSE1
-    {9, "P1 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {10, "P1 Volume", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {11, "P1 Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage1Control2Captions, 2},
-    {12, "P1 Env Spd", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {13, "P1 Duty", WidgetKind::Radio4, false, 5, {23, 196, 278, 107}, {-1, 0, 0}, kPage1Control4Captions, 4},
-    {14, "P1 Transp", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {15, "P1 Fine", WidgetKind::KnobBi, false, 6, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {16, "P1 Pan", WidgetKind::Radio4, false, 5, {983, 196, 278, 107}, {-1, 0, 0}, kPage1Control7Captions, 4},
-    {18, "P1 SwpTime", WidgetKind::KnobUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {19, "P1 SwpDir", WidgetKind::Radio2, false, 2, {343, 346, 278, 107}, {-1, 0, 0}, kPage1Control9Captions, 2},
-    {20, "P1 SwpShift", WidgetKind::KnobUni, false, 1, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {17, "P1 Length", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {21, "P1 Table", WidgetKind::SliderWithFocus, true, 4, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {9, "PU1 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {10, "PU1 Level", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {11, "PU1 Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage1Control2Captions, 2},
+    {12, "PU1 Env Time", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {13, "PU1 Duty", WidgetKind::Radio4, false, 5, {23, 196, 278, 107}, {-1, 0, 0}, kPage1Control4Captions, 4},
+    {14, "PU1 Semi", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {15, "PU1 Fine", WidgetKind::KnobBi, false, 6, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {16, "PU1 Pan", WidgetKind::Radio4, false, 5, {983, 196, 278, 107}, {-1, 0, 0}, kPage1Control7Captions, 4},
+    {18, "PU1 Swp Time", WidgetKind::KnobUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {19, "PU1 Swp Dir", WidgetKind::Radio2, false, 2, {343, 346, 278, 107}, {-1, 0, 0}, kPage1Control9Captions, 2},
+    {20, "PU1 Swp Amt", WidgetKind::KnobUni, false, 1, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {17, "PU1 Length", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {21, "PU1 Table", WidgetKind::SliderWithFocus, true, 4, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
 inline constexpr Caption kPage2Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
 inline constexpr Caption kPage2Control4Captions[] = {{"12.5%", {38, 250, 58, 40}, 18.7f}, {"25%", {100, 250, 58, 40}, 18.7f}, {"50%", {162, 250, 58, 40}, 18.7f}, {"75%", {224, 250, 58, 40}, 18.7f}};
-inline constexpr Caption kPage2Control7Captions[] = {{"Off", {998, 250, 58, 40}, 18.7f}, {"L", {1060, 250, 58, 40}, 18.7f}, {"C", {1122, 250, 58, 40}, 18.7f}, {"R", {1184, 250, 58, 40}, 18.7f}};
+inline constexpr Caption kPage2Control7Captions[] = {{"Mute", {998, 250, 58, 40}, 18.7f}, {"Left", {1060, 250, 58, 40}, 18.7f}, {"Both", {1122, 250, 58, 40}, 18.7f}, {"Right", {1184, 250, 58, 40}, 18.7f}};
 inline constexpr Control kPage2Controls[] = {  // PULSE2
-    {22, "P2 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {23, "P2 Volume", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {24, "P2 Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage2Control2Captions, 2},
-    {25, "P2 Env Spd", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {26, "P2 Duty", WidgetKind::Radio4, false, 5, {23, 196, 278, 107}, {-1, 0, 0}, kPage2Control4Captions, 4},
-    {27, "P2 Transp", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {28, "P2 Fine", WidgetKind::KnobBi, false, 6, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {29, "P2 Pan", WidgetKind::Radio4, false, 5, {983, 196, 278, 107}, {-1, 0, 0}, kPage2Control7Captions, 4},
-    {30, "P2 Length", WidgetKind::KnobUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {31, "P2 Table", WidgetKind::SliderWithFocus, true, 4, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {22, "PU2 On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {23, "PU2 Level", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {24, "PU2 Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage2Control2Captions, 2},
+    {25, "PU2 Env Time", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {26, "PU2 Duty", WidgetKind::Radio4, false, 5, {23, 196, 278, 107}, {-1, 0, 0}, kPage2Control4Captions, 4},
+    {27, "PU2 Semi", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {28, "PU2 Fine", WidgetKind::KnobBi, false, 6, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {29, "PU2 Pan", WidgetKind::Radio4, false, 5, {983, 196, 278, 107}, {-1, 0, 0}, kPage2Control7Captions, 4},
+    {30, "PU2 Length", WidgetKind::KnobUni, false, 1, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {31, "PU2 Table", WidgetKind::SliderWithFocus, true, 4, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
-inline constexpr Caption kPage3Control1Captions[] = {{"0%", {358, 99, 58, 40}, 18.7f}, {"25%", {420, 99, 58, 40}, 18.7f}, {"50%", {482, 99, 58, 40}, 18.7f}, {"100%", {544, 99, 58, 40}, 18.7f}};
-inline constexpr Caption kPage3Control3Captions[] = {{"Off", {998, 99, 58, 40}, 18.7f}, {"L", {1060, 99, 58, 40}, 18.7f}, {"C", {1122, 99, 58, 40}, 18.7f}, {"R", {1184, 99, 58, 40}, 18.7f}};
+inline constexpr Caption kPage3Control1Captions[] = {{"Mute", {358, 99, 58, 40}, 18.7f}, {"25%", {420, 99, 58, 40}, 18.7f}, {"50%", {482, 99, 58, 40}, 18.7f}, {"100%", {544, 99, 58, 40}, 18.7f}};
+inline constexpr Caption kPage3Control3Captions[] = {{"Mute", {998, 99, 58, 40}, 18.7f}, {"Left", {1060, 99, 58, 40}, 18.7f}, {"Both", {1122, 99, 58, 40}, 18.7f}, {"Right", {1184, 99, 58, 40}, 18.7f}};
 inline constexpr Control kPage3Controls[] = {  // WAVE
-    {32, "WV On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {33, "WV Level", WidgetKind::Radio4, false, 5, {343, 45, 278, 107}, {-1, 0, 0}, kPage3Control1Captions, 4},
-    {34, "WV Wave", WidgetKind::SliderWithFocus, false, 7, {663, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {37, "WV Pan", WidgetKind::Radio4, false, 5, {983, 45, 278, 107}, {-1, 0, 0}, kPage3Control3Captions, 4},
-    {35, "WV Transp", WidgetKind::KnobBi, false, 6, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {36, "WV Fine", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {38, "WV Length", WidgetKind::KnobUni, false, 1, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {39, "WV Table", WidgetKind::SliderWithFocus, true, 4, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {32, "WAV On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {33, "WAV Level", WidgetKind::Radio4, false, 5, {343, 45, 278, 107}, {-1, 0, 0}, kPage3Control1Captions, 4},
+    {34, "WAV Shape", WidgetKind::SliderWithFocus, false, 7, {663, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {37, "WAV Pan", WidgetKind::Radio4, false, 5, {983, 45, 278, 107}, {-1, 0, 0}, kPage3Control3Captions, 4},
+    {35, "WAV Semi", WidgetKind::KnobBi, false, 6, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {36, "WAV Fine", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {38, "WAV Length", WidgetKind::KnobUni, false, 1, {663, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {39, "WAV Table", WidgetKind::SliderWithFocus, true, 4, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
 inline constexpr Caption kPage4Control2Captions[] = {{"Down", {678, 99, 122, 40}, 18.7f}, {"Up", {804, 99, 122, 40}, 18.7f}};
-inline constexpr Caption kPage4Control4Captions[] = {{"15-bit", {38, 250, 122, 40}, 18.7f}, {"7-bit", {164, 250, 122, 40}, 18.7f}};
+inline constexpr Caption kPage4Control4Captions[] = {{"Hiss 15", {38, 250, 122, 40}, 18.7f}, {"Buzz 7", {164, 250, 122, 40}, 18.7f}};
 inline constexpr Caption kPage4Control5Captions[] = {{"Track", {358, 250, 122, 40}, 18.7f}, {"Fixed", {484, 250, 122, 40}, 18.7f}};
-inline constexpr Caption kPage4Control8Captions[] = {{"Off", {38, 400, 58, 40}, 18.7f}, {"L", {100, 400, 58, 40}, 18.7f}, {"C", {162, 400, 58, 40}, 18.7f}, {"R", {224, 400, 58, 40}, 18.7f}};
+inline constexpr Caption kPage4Control8Captions[] = {{"Mute", {38, 400, 58, 40}, 18.7f}, {"Left", {100, 400, 58, 40}, 18.7f}, {"Both", {162, 400, 58, 40}, 18.7f}, {"Right", {224, 400, 58, 40}, 18.7f}};
 inline constexpr Control kPage4Controls[] = {  // NOISE
-    {40, "NZ On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {41, "NZ Volume", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {42, "NZ Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage4Control2Captions, 2},
-    {43, "NZ Env Spd", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {44, "NZ Width", WidgetKind::Radio2, false, 2, {23, 196, 278, 107}, {-1, 0, 0}, kPage4Control4Captions, 2},
-    {45, "NZ PitchMd", WidgetKind::Radio2, false, 2, {343, 196, 278, 107}, {-1, 0, 0}, kPage4Control5Captions, 2},
-    {46, "NZ Shape", WidgetKind::KnobUni, false, 1, {663, 196, 278, 107}, {45, 1, 2}, nullptr, 0},
-    {47, "NZ Transp", WidgetKind::KnobBi, false, 6, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {48, "NZ Pan", WidgetKind::Radio4, false, 5, {23, 346, 278, 107}, {-1, 0, 0}, kPage4Control8Captions, 4},
-    {49, "NZ Length", WidgetKind::KnobUni, false, 1, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {50, "NZ Table", WidgetKind::SliderWithFocus, true, 4, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {40, "NOI On", WidgetKind::Toggle, false, 3, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {41, "NOI Level", WidgetKind::FaderUni, false, 0, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {42, "NOI Env Dir", WidgetKind::Radio2, false, 2, {663, 45, 278, 107}, {-1, 0, 0}, kPage4Control2Captions, 2},
+    {43, "NOI Env Time", WidgetKind::KnobUni, false, 1, {983, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {44, "NOI Mode", WidgetKind::Radio2, false, 2, {23, 196, 278, 107}, {-1, 0, 0}, kPage4Control4Captions, 2},
+    {45, "NOI Pitch", WidgetKind::Radio2, false, 2, {343, 196, 278, 107}, {-1, 0, 0}, kPage4Control5Captions, 2},
+    {46, "NOI FixPitch", WidgetKind::KnobUni, false, 1, {663, 196, 278, 107}, {45, 1, 2}, nullptr, 0},
+    {47, "NOI Semi", WidgetKind::KnobBi, false, 6, {983, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {48, "NOI Pan", WidgetKind::Radio4, false, 5, {23, 346, 278, 107}, {-1, 0, 0}, kPage4Control8Captions, 4},
+    {49, "NOI Length", WidgetKind::KnobUni, false, 1, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {50, "NOI Table", WidgetKind::SliderWithFocus, true, 4, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
 inline constexpr Control kPage5Controls[] = {  // TABLE
     {51, "Edit Table", WidgetKind::KnobUni, false, 1, {23, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {52, "Edit Row", WidgetKind::KnobUni, false, 1, {343, 45, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {53, "Row Vol", WidgetKind::KnobUni, false, 1, {23, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {54, "Row Transp", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {54, "Row Semi", WidgetKind::KnobBi, false, 6, {343, 196, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {55, "Row Cmd1", WidgetKind::SliderWithFocus, true, 4, {23, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {56, "Row Val1", WidgetKind::KnobUni, false, 1, {343, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {57, "Row Cmd2", WidgetKind::SliderWithFocus, true, 4, {663, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
     {58, "Row Val2", WidgetKind::KnobUni, false, 1, {983, 346, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {59, "Imp File", WidgetKind::KnobUni, false, 1, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {60, "Imp Go", WidgetKind::Toggle, false, 3, {343, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {61, "Imp Undo", WidgetKind::Toggle, false, 3, {663, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
-    {62, "Imp Rescan", WidgetKind::Toggle, false, 3, {983, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {59, "Import File", WidgetKind::KnobUni, false, 1, {23, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {60, "Import Now", WidgetKind::Toggle, false, 3, {343, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {61, "Import Undo", WidgetKind::Toggle, false, 3, {663, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
+    {62, "Import Scan", WidgetKind::Toggle, false, 3, {983, 497, 278, 107}, {-1, 0, 0}, nullptr, 0},
 };
 inline constexpr Panel kPage5Panels[] = {
     {PanelKind::LcdTable, {663, 45, 598, 258}, "lcd_table_panel.png"},

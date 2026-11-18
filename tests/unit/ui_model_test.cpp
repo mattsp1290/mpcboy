@@ -450,8 +450,9 @@ TEST_CASE("ui: table cell text follows the plugin's formatValue rules")
     std::string fv;
     ui::formatVolume(false, 0x33, b);
     CHECK(std::string(b) == "--");
+    // The grid keeps "--"; the Row Vol parameter reads "Keep" for the same "no volume column" state.
     REQUIRE(formatParamValue(ED_Vol, -1.0f, fv));
-    CHECK(fv == "--");
+    CHECK(fv == "Keep");
     for (int v : {0, 1, 0x0f, 0x10, 0x7f, 0xa0, 0xff})
     {
         ui::formatVolume(true, v, b);
@@ -469,12 +470,12 @@ TEST_CASE("ui: table cell text follows the plugin's formatValue rules")
     CHECK(std::string(b) == "+12");
     ui::formatTranspose(-100, b);
     CHECK(std::string(b) == "-48");
-    // Command letters: the Row Cmd parameter's choices, unknown bytes as '-'.
+    // Command letters: the Row Cmd choices are the letter plus a word ("D Delay"); the grid shows the letter.
     const mpc::Param& cmd = params()[ED_Cmd1];
     for (int i = 0; i < kNumCmdChoices; ++i)
     {
         ui::formatCommand(cmdByteFromIndex(i), b);
-        CHECK(cmd.choices[static_cast<size_t>(i)] == b);
+        CHECK(cmd.choices[static_cast<size_t>(i)].substr(0, 1) == b);
     }
     ui::formatCommand('Z', b);
     CHECK(std::string(b) == "-");

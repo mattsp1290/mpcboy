@@ -14,6 +14,7 @@ enum class NoisePitchMode : uint8_t { Track = 0, Fixed = 1 };
 
 enum class RetriggerMode : uint8_t { Always = 0, Legato = 1 };
 
+// Ring is shown as "Hold" ("Note Off": Cut / Hold).
 enum class NoteOffMode : uint8_t { Cut = 0, Ring = 1 };
 
 // Wave output level as shown to the user (NR32 bits 6-5 codes are not
@@ -29,9 +30,9 @@ enum class TickPhase : uint8_t { Note = 0, Grid = 1 };
 constexpr int kNumTickChoices = 10;
 constexpr int kTicksPerBeatChoices[kNumTickChoices] = {96, 48, 32, 24, 16, 12, 8, 6, 4, 3};
 constexpr const char* kTickChoiceLabels[kNumTickChoices] = {
-    "96/beat", "48/beat", "32/beat", "24/beat LSDJ", "16/beat",
-    "12/beat", "8/beat",  "6/beat",  "4/beat",       "3/beat"};
-constexpr int kDefaultTickChoice = 3;   // 24/beat LSDJ
+    "96/beat", "48/beat", "32/beat", "24/beat", "16/beat",
+    "12/beat", "8/beat",  "6/beat",  "4/beat",  "3/beat"};
+constexpr int kDefaultTickChoice = 3;   // 24/beat (LSDJ timing; the value text does not say so)
 
 struct TickSettings
 {
@@ -65,7 +66,8 @@ struct ChannelSettings
     // Noise
     bool noiseWidth7 = false;   // 7-bit LFSR (NR43 bit 3)
     NoisePitchMode noisePitchMode = NoisePitchMode::Track;
-    uint8_t noiseFixedShape = 0;   // 0..111: shift = idx / 8 (0..13), divisor code = idx % 8
+    uint8_t noiseFixedShape = 0;   // 0..111: shift = idx / 8 (0..13), divisor code = idx % 8 (register order: a higher idx
+                                   // is a lower pitch; the NOI FixPitch parameter is 111 - idx)
     // Table
     int8_t tableSlot = -1;      // -1 = off, 0..15
 };

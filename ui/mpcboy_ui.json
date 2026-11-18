@@ -15,17 +15,17 @@
           { "param": "Retrigger",  "widget": "switch" },
           { "param": "Note Off",   "widget": "switch" },
 
-          { "param": "P1 On", "widget": "switch" },
-          { "param": "P2 On", "widget": "switch" },
-          { "param": "WV On", "widget": "switch" },
-          { "param": "NZ On", "widget": "switch" },
+          { "param": "PU1 On", "widget": "switch" },
+          { "param": "PU2 On", "widget": "switch" },
+          { "param": "WAV On", "widget": "switch" },
+          { "param": "NOI On", "widget": "switch" },
 
-          { "param": "Tbl Clock", "widget": "switch" },
-          { "param": "Tbl Rate",  "widget": "slider", "overlay": "menu", "visibleWhen": { "param": "Tbl Clock", "choice": "Sync" } },
-          { "param": "Tbl Phase", "widget": "switch", "visibleWhen": { "param": "Tbl Clock", "choice": "Sync" } },
-          { "param": "Free Hz",   "widget": "knob",   "polarity": "unipolar", "visibleWhen": { "param": "Tbl Clock", "choice": "Free" } },
+          { "param": "Table Sync", "widget": "switch" },
+          { "param": "Table Rate",  "widget": "slider", "overlay": "menu", "visibleWhen": { "param": "Table Sync", "choice": "Tempo" } },
+          { "param": "Table Start", "widget": "switch", "visibleWhen": { "param": "Table Sync", "choice": "Tempo" } },
+          { "param": "Free Rate",   "widget": "knob",   "polarity": "unipolar", "visibleWhen": { "param": "Table Sync", "choice": "Free" } },
 
-          { "param": "Vel>Vol", "widget": "switch" },
+          { "param": "Vel to Level", "widget": "switch" },
           "empty",
           "empty",
           "empty"
@@ -34,22 +34,22 @@
       {
         "name": "PULSE1",
         "controls": [
-          { "param": "P1 On",      "widget": "switch" },
-          { "param": "P1 Volume",  "widget": "fader", "polarity": "unipolar" },
-          { "param": "P1 Env Dir", "widget": "switch" },
-          { "param": "P1 Env Spd", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "PU1 On",      "widget": "switch" },
+          { "param": "PU1 Level",  "widget": "fader", "polarity": "unipolar" },
+          { "param": "PU1 Env Dir", "widget": "switch" },
+          { "param": "PU1 Env Time", "widget": "knob",  "polarity": "unipolar" },
 
-          { "param": "P1 Duty",   "widget": "switch" },
-          { "param": "P1 Transp", "widget": "knob", "polarity": "bipolar" },
-          { "param": "P1 Fine",   "widget": "knob", "polarity": "bipolar" },
-          { "param": "P1 Pan",    "widget": "switch" },
+          { "param": "PU1 Duty",   "widget": "switch" },
+          { "param": "PU1 Semi", "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU1 Fine",   "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU1 Pan",    "widget": "switch" },
 
-          { "param": "P1 SwpTime",  "widget": "knob",   "polarity": "unipolar" },
-          { "param": "P1 SwpDir",   "widget": "switch" },
-          { "param": "P1 SwpShift", "widget": "knob",   "polarity": "unipolar" },
-          { "param": "P1 Length",   "widget": "knob",   "polarity": "unipolar" },
+          { "param": "PU1 Swp Time",  "widget": "knob",   "polarity": "unipolar" },
+          { "param": "PU1 Swp Dir",   "widget": "switch" },
+          { "param": "PU1 Swp Amt", "widget": "knob",   "polarity": "unipolar" },
+          { "param": "PU1 Length",   "widget": "knob",   "polarity": "unipolar" },
 
-          { "param": "P1 Table", "widget": "slider", "overlay": "menu" },
+          { "param": "PU1 Table", "widget": "slider", "overlay": "menu" },
           "empty",
           "empty",
           "empty"
@@ -58,18 +58,18 @@
       {
         "name": "PULSE2",
         "controls": [
-          { "param": "P2 On",      "widget": "switch" },
-          { "param": "P2 Volume",  "widget": "fader", "polarity": "unipolar" },
-          { "param": "P2 Env Dir", "widget": "switch" },
-          { "param": "P2 Env Spd", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "PU2 On",      "widget": "switch" },
+          { "param": "PU2 Level",  "widget": "fader", "polarity": "unipolar" },
+          { "param": "PU2 Env Dir", "widget": "switch" },
+          { "param": "PU2 Env Time", "widget": "knob",  "polarity": "unipolar" },
 
-          { "param": "P2 Duty",   "widget": "switch" },
-          { "param": "P2 Transp", "widget": "knob", "polarity": "bipolar" },
-          { "param": "P2 Fine",   "widget": "knob", "polarity": "bipolar" },
-          { "param": "P2 Pan",    "widget": "switch" },
+          { "param": "PU2 Duty",   "widget": "switch" },
+          { "param": "PU2 Semi", "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU2 Fine",   "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU2 Pan",    "widget": "switch" },
 
-          { "param": "P2 Length", "widget": "knob", "polarity": "unipolar" },
-          { "param": "P2 Table",  "widget": "slider", "overlay": "menu" },
+          { "param": "PU2 Length", "widget": "knob", "polarity": "unipolar" },
+          { "param": "PU2 Table",  "widget": "slider", "overlay": "menu" },
           "empty",
           "empty"
         ]
@@ -77,33 +77,33 @@
       {
         "name": "WAVE",
         "controls": [
-          { "param": "WV On",    "widget": "switch" },
-          { "param": "WV Level", "widget": "switch" },
-          { "param": "WV Wave",  "widget": "slider" },
-          { "param": "WV Pan",   "widget": "switch" },
+          { "param": "WAV On",    "widget": "switch" },
+          { "param": "WAV Level", "widget": "switch" },
+          { "param": "WAV Shape",  "widget": "slider" },
+          { "param": "WAV Pan",   "widget": "switch" },
 
-          { "param": "WV Transp", "widget": "knob", "polarity": "bipolar" },
-          { "param": "WV Fine",   "widget": "knob", "polarity": "bipolar" },
-          { "param": "WV Length", "widget": "knob", "polarity": "unipolar" },
-          { "param": "WV Table",  "widget": "slider", "overlay": "menu" }
+          { "param": "WAV Semi", "widget": "knob", "polarity": "bipolar" },
+          { "param": "WAV Fine",   "widget": "knob", "polarity": "bipolar" },
+          { "param": "WAV Length", "widget": "knob", "polarity": "unipolar" },
+          { "param": "WAV Table",  "widget": "slider", "overlay": "menu" }
         ]
       },
       {
         "name": "NOISE",
         "controls": [
-          { "param": "NZ On",      "widget": "switch" },
-          { "param": "NZ Volume",  "widget": "fader", "polarity": "unipolar" },
-          { "param": "NZ Env Dir", "widget": "switch" },
-          { "param": "NZ Env Spd", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "NOI On",      "widget": "switch" },
+          { "param": "NOI Level",  "widget": "fader", "polarity": "unipolar" },
+          { "param": "NOI Env Dir", "widget": "switch" },
+          { "param": "NOI Env Time", "widget": "knob",  "polarity": "unipolar" },
 
-          { "param": "NZ Width",   "widget": "switch" },
-          { "param": "NZ PitchMd", "widget": "switch" },
-          { "param": "NZ Shape",   "widget": "knob", "polarity": "unipolar", "visibleWhen": { "param": "NZ PitchMd", "choice": "Fixed" } },
-          { "param": "NZ Transp",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "NOI Mode",   "widget": "switch" },
+          { "param": "NOI Pitch", "widget": "switch" },
+          { "param": "NOI FixPitch",   "widget": "knob", "polarity": "unipolar", "visibleWhen": { "param": "NOI Pitch", "choice": "Fixed" } },
+          { "param": "NOI Semi",  "widget": "knob", "polarity": "bipolar" },
 
-          { "param": "NZ Pan",    "widget": "switch" },
-          { "param": "NZ Length", "widget": "knob", "polarity": "unipolar" },
-          { "param": "NZ Table",  "widget": "slider", "overlay": "menu" },
+          { "param": "NOI Pan",    "widget": "switch" },
+          { "param": "NOI Length", "widget": "knob", "polarity": "unipolar" },
+          { "param": "NOI Table",  "widget": "slider", "overlay": "menu" },
           "empty"
         ]
       },
@@ -116,7 +116,7 @@
           "empty",
 
           { "param": "Row Vol",    "widget": "knob", "polarity": "unipolar" },
-          { "param": "Row Transp", "widget": "knob", "polarity": "bipolar" },
+          { "param": "Row Semi", "widget": "knob", "polarity": "bipolar" },
           "empty",
           "empty",
 
@@ -125,10 +125,10 @@
           { "param": "Row Cmd2", "widget": "slider", "overlay": "menu" },
           { "param": "Row Val2", "widget": "knob", "polarity": "unipolar" },
 
-          { "param": "Imp File",   "widget": "knob", "polarity": "unipolar" },
-          { "param": "Imp Go",     "widget": "switch" },
-          { "param": "Imp Undo",   "widget": "switch" },
-          { "param": "Imp Rescan", "widget": "switch" }
+          { "param": "Import File",   "widget": "knob", "polarity": "unipolar" },
+          { "param": "Import Now",     "widget": "switch" },
+          { "param": "Import Undo",   "widget": "switch" },
+          { "param": "Import Scan", "widget": "switch" }
         ]
       }
     ]
