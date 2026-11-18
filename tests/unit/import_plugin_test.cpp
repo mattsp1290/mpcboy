@@ -486,3 +486,58 @@ TEST_CASE("import: the saved import name follows the live content (undo, a load 
     CHECK(liveName(*r.p) == "");
     clearImportDir();
 }
+
+TEST_CASE("import: Imp Go from the Mac editor (main thread) starts an import; the debounce still applies")
+{
+    clearImportDir();
+    const std::vector<uint8_t> fx = fixtureSav();
+    writeFile(g_folder.importDir, "ed.sav", savFromSong(makeTableSong(fixtureSong(fx), 9).song));
+    PluginRig r(&fakeNow);
+    r.block();
+    r.rescan();
+    REQUIRE(r.p->importer().fileCount() == 1);
+    advanceMs(300);
+
+    // The editor runs on another thread: its setNormalised(1) alone would be an off-thread edge
+    // (ignored); the editor slot makes process() accept it.
+    std::thread([&] { r.p->editorSet(Imp_Go, 1.0f); }).join();
+    CHECK(r.p->getInt(Imp_Go) == 1);   // shown on ...
+    r.block();   // drained: accepted (process() acts on it in the next block)
+    r.block();
+    REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 1; }));
+    r.block();
+    CHECK(r.p->getInt(Imp_Go) == 0);   // ... and written back to 0
+    r.block();
+    CHECK(liveName(*r.p) == "ed.sav");
+
+    // A second editor press within 250 ms is debounced.
+    advanceMs(100);
+    std::thread([&] { r.p->editorSet(Imp_Go, 1.0f); }).join();
+    r.block();
+    r.block();
+    CHECK_FALSE(r.p->importer().busy());
+    CHECK(r.p->importer().importsDone() == 1);
+    CHECK(r.p->getInt(Imp_Go) == 0);
+
+    // Later, while the parameter is still high from a host write that was never an edge, the
+    // editor press is still accepted (the edge state does not swallow it).
+    advanceMs(300);
+    std::thread([&] { r.p->set(Imp_Go, 1.0f); }).join();   // off-thread: ignored, stays high
+    std::thread([&] { r.p->editorSet(Imp_Go, 1.0f); }).join();
+    r.block();
+    r.block();
+    REQUIRE(waitFor([&] { return r.p->importer().importsDone() == 2; }));
+
+    // Imp Undo through the editor swaps back.
+    r.block();
+    r.block();
+    advanceMs(300);
+    CHECK(liveName(*r.p) == "ed.sav");
+    std::thread([&] { r.p->editorSet(Imp_Undo, 1.0f); }).join();
+    r.block();
+    r.block();
+    r.block();
+    CHECK(r.p->getInt(Imp_Undo) == 0);
+    CHECK(liveName(*r.p) == "ed.sav");   // undo of the second import of the same file: same name
+    clearImportDir();
+}

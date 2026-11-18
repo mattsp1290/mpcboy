@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 //
-// process(): reset -> staged content -> editor cursor resync -> settings
+// process(): reset -> staged content -> Mac editor edits -> editor cursor resync -> settings
 // snapshot -> Engine::render -> master volume (10 ms smoother) -> host refresh.
 //
 // With -DMPCBOY_CPU_PROBE=ON (debug only) the plugin additionally runs the CPU
@@ -15,6 +15,8 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <pthread.h>
+#include <type_traits>
 
 #include "factory_content.h"
 #include "mpc_resources.h"
@@ -23,6 +25,21 @@
 using namespace mpcboy;
 
 namespace {
+
+// pthread_self() as an integer (as ContentStore does: no TLS, no allocation).
+template <typename T>
+uintptr_t toId(T t, std::true_type) { return reinterpret_cast<uintptr_t>(t); }
+template <typename T>
+uintptr_t toId(T t, std::false_type) { return static_cast<uintptr_t>(t); }
+uintptr_t selfId() { return toId(pthread_self(), std::is_pointer<pthread_t>()); }
+
+constexpr uint64_t kCellValid = 1ull << 63;
+
+uint64_t packCell(int table, int row, int value)
+{
+    return kCellValid | (static_cast<uint64_t>(static_cast<uint8_t>(row)) << 40) |
+           (static_cast<uint64_t>(static_cast<uint8_t>(table)) << 32) | static_cast<uint32_t>(value);
+}
 
 // 10 ms one-pole smoother at the given host rate (44.1 kHz: the original constant).
 float gainCoefFor(int sampleRate)
@@ -98,6 +115,7 @@ void MpcBoyPlugin::parameterChanged(int index, float plainValue)
     }
     else if (index >= ED_Vol && index <= ED_Val2)
     {
+        if (editorWriter_.load(std::memory_order_relaxed) == selfId()) return;   // the drain applies it
         editor_.onCellParam(index - ED_Vol, static_cast<int>(std::lround(plainValue)),
                             getInt(ED_Table) - 1, getInt(ED_Row), *store_);
     }
@@ -109,6 +127,113 @@ void MpcBoyPlugin::parameterChanged(int index, float plainValue)
 }
 
 void MpcBoyPlugin::setClockForTest(NowFn fn) { triggers_.setClock(fn); }
+
+// ---- editor edits (main thread) ---------------------------------------------------------------
+void MpcBoyPlugin::sendHost(int opcode, int index, float opt)
+{
+    if (host_ && effect_) host_(effect_, opcode, index, 0, nullptr, opt);
+}
+
+void MpcBoyPlugin::editorBeginEdit(int index)
+{
+    if (index < 0 || index >= numParams() || editOpen_[index]) return;
+    editOpen_[index] = true;
+    if (index < kNumEngineParams)
+    {
+        sendHost(audioMasterBeginEdit, index, 0.0f);
+    }
+    else if (index >= ED_Vol && index <= ED_Val2)
+    {
+        const int col = index - ED_Vol;
+        capTable_[col] = getInt(ED_Table) - 1;
+        capRow_[col] = getInt(ED_Row);
+        capValid_[col] = true;
+    }
+}
+
+void MpcBoyPlugin::editorSet(int index, float norm)
+{
+    if (index < 0 || index >= numParams()) return;
+    if (index < kNumEngineParams)
+    {
+        setNormalised(index, norm);
+        sendHost(audioMasterAutomate, index, getNormalised(index));
+    }
+    else if (index >= ED_Vol && index <= ED_Val2)
+    {
+        const int col = index - ED_Vol;
+        const int table = capValid_[col] ? capTable_[col] : getInt(ED_Table) - 1;
+        const int row = capValid_[col] ? capRow_[col] : getInt(ED_Row);
+        // The slot carries the value computed from the argument, not a read-back of the shared
+        // parameter (a concurrent host write could change it in between).
+        const float n = std::min(1.0f, std::max(0.0f, norm));
+        const int value = static_cast<int>(std::lround(param(index).toPlain(n)));
+        editorWriter_.store(selfId(), std::memory_order_relaxed);
+        setNormalised(index, n);   // display only
+        editorWriter_.store(0, std::memory_order_relaxed);
+        cellSlots_[col].store(packCell(table, row, value), std::memory_order_release);
+    }
+    else if (index >= Imp_Go && index <= Imp_Rescan)
+    {
+        if (norm < 0.5f)
+        {
+            setNormalised(index, 0.0f);
+            return;
+        }
+        setNormalised(index, 1.0f);   // shown on until process() writes it back to 0
+        triggerSlots_[index - Imp_Go].store(true, std::memory_order_release);
+    }
+    else
+    {
+        setNormalised(index, norm);   // Edit Table, Edit Row, Imp File: as a host write
+    }
+}
+
+void MpcBoyPlugin::editorEndEdit(int index)
+{
+    if (index < 0 || index >= numParams() || !editOpen_[index]) return;
+    editOpen_[index] = false;
+    if (index < kNumEngineParams) sendHost(audioMasterEndEdit, index, 0.0f);
+    else if (index >= ED_Vol && index <= ED_Val2) capValid_[index - ED_Vol] = false;
+}
+
+void MpcBoyPlugin::endAllEditorEdits()
+{
+    for (int i = 0; i < numParams(); ++i) editorEndEdit(i);
+}
+
+bool MpcBoyPlugin::editorEditOpen(int index) const
+{
+    return index >= 0 && index < numParams() && editOpen_[index];
+}
+
+// Audio thread: the editor's cell edits land on the cell captured at click time; its triggers
+// are accepted with the debounce. Then the cursor resyncs (the edit may have hit another row).
+void MpcBoyPlugin::drainEditor()
+{
+    for (int col = 0; col < kEditorCols; ++col)
+    {
+        const uint64_t v = cellSlots_[col].exchange(0, std::memory_order_acq_rel);
+        if (!(v & kCellValid)) continue;
+        const int table = static_cast<int>((v >> 32) & 0xff);
+        const int row = static_cast<int>((v >> 40) & 0xff);
+        const int value = static_cast<int32_t>(static_cast<uint32_t>(v & 0xffffffffu));
+        editor_.applyCell(col, value, table, row, *store_);
+        editor_.markCursorDirty();
+    }
+    for (int k = 0; k < kNumImportTriggers; ++k)
+        if (triggerSlots_[k].exchange(false, std::memory_order_acq_rel)) triggers_.acceptFromEditor(k);
+}
+
+// Early-return paths (no outputs, unsupported rate): beginBlock() first so staged content is
+// consumed before the edits apply (as in a full block), then again to publish the edits, so the
+// TABLE grid and saveExtraState see them.
+void MpcBoyPlugin::drainEarly()
+{
+    store_->beginBlock();
+    drainEditor();
+    store_->beginBlock();
+}
 
 // Audio thread: write the triggers back to 0, follow the worker's list and its
 // suggested selection, and ask for a host refresh (the existing <= 10 Hz path).
@@ -239,11 +364,18 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
 
     serviceImport();
 
-    if (ctx.numOutputs < 1 || ctx.outputs == nullptr || ctx.outputs[0] == nullptr) return;
+    if (ctx.numOutputs < 1 || ctx.outputs == nullptr || ctx.outputs[0] == nullptr)
+    {
+        drainEarly();   // editor edits still land and are published
+        engine_->publishIdle();
+        return;
+    }
     if (silent_ || ctx.numOutputs < 2 || ctx.outputs[1] == nullptr)
     {
+        drainEarly();
         for (int c = 0; c < ctx.numOutputs; ++c)
             if (ctx.outputs[c]) std::memset(ctx.outputs[c], 0, sizeof(float) * static_cast<size_t>(ctx.numFrames));
+        engine_->publishIdle();
         return;
     }
 
@@ -256,6 +388,7 @@ void MpcBoyPlugin::process(mpc::ProcessContext& ctx)
         seenBulkGen_ = store_->bulkGeneration();
         editor_.markCursorDirty();
     }
+    drainEditor();
     if (editor_.takeCursorDirty()) resyncCursor();
     snapshotSettings(forceSettings);
 

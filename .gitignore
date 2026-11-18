@@ -2,3 +2,4 @@ build/
 dist/
 .sdk-tools/
 .tools/
+__pycache__/

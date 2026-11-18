@@ -226,11 +226,11 @@ TEST_CASE("plugin 2: parameter table shape, names, ids and flags")
     for (int i = 0; i < ED_Table; ++i) CHECK(p[static_cast<size_t>(i)].automatable);
     CHECK(p[ED_Table].id == "ed_tbl");
     CHECK(p[ED_Val2].id == "ed_val2");
-    CHECK(p[P1_SwShift].name == "P1 SwpShift");
+    CHECK(p[P1_SwShift].name == "PU1 Swp Amt");
     CHECK(p[P1_Tbl].choices.size() == 17);
     CHECK(p[WV_Wave].choices.size() == 16);
     CHECK(p[P_TblRate].choices.size() == 10);
-    CHECK(p[P_TblRate].choices[3] == "24/beat LSDJ");
+    CHECK(p[P_TblRate].choices[3] == "24/beat");
     CHECK(p[ED_Cmd1].choices.size() == 12);
 #ifdef MPCBOY_CPU_PROBE
     CHECK(p.back().id == "dbg_us");
@@ -311,7 +311,7 @@ TEST_CASE("plugin 2: non-default values map to the right settings (choice order,
     float v[kNumEngineParams];
     for (int i = 0; i < kNumEngineParams; ++i) v[i] = p[static_cast<size_t>(i)].def;
     v[P_TblClock] = 1; v[P_TblRate] = 0; v[P_TblPhase] = 1; v[P_Retrigger] = 1; v[P_NoteOff] = 1; v[P_VelVol] = 1;
-    v[P1_EnvDir] = 1; v[P1_SwDir] = 1; v[P1_Pan] = 3; v[P1_Tbl] = 16; v[P2_Pan] = 1; v[P2_Tbl] = 1;
+    v[P1_EnvDir] = 1; v[P1_SwDir] = 0;   /* Swp Dir: Down, Up */ v[P1_Pan] = 3; v[P1_Tbl] = 16; v[P2_Pan] = 1; v[P2_Tbl] = 1;
     v[WV_Level] = 1; v[WV_Wave] = 15; v[WV_Pan] = 0; v[NZ_Width] = 1; v[NZ_PitchMode] = 1;
     const EngineSettings s = proposedSettings(v);
     CHECK(s.tick.mode == TickMode::Free);
@@ -329,15 +329,215 @@ TEST_CASE("plugin 2: non-default values map to the right settings (choice order,
 TEST_CASE("plugin 2: formatValue is a pure function of the value")
 {
     std::string s;
-    CHECK(formatParamValue(ED_Vol, -1, s)); CHECK(s == "--");
+    CHECK(formatParamValue(ED_Vol, -1, s)); CHECK(s == "Keep");
     CHECK(formatParamValue(ED_Vol, 0xA5, s)); CHECK(s == "A5");
     CHECK(formatParamValue(ED_Vol, 0, s)); CHECK(s == "00");
     CHECK(formatParamValue(ED_Val1, 255, s)); CHECK(s == "FF");
     CHECK(formatParamValue(ED_Val2, 10, s)); CHECK(s == "0A");
     CHECK(formatParamValue(P1_Len, 0, s)); CHECK(s == "Off");
-    CHECK(formatParamValue(NZ_Len, 17, s)); CHECK(s == "17");
+    CHECK(formatParamValue(NZ_Len, 17, s)); CHECK(s == "66ms");
     CHECK_FALSE(formatParamValue(P_Volume, -6, s));
-    CHECK_FALSE(formatParamValue(ED_Tsp, 5, s));
+    CHECK(formatParamValue(ED_Tsp, 5, s)); CHECK(s == "+5 st");
+}
+
+namespace {
+
+// Text the MPC shows for `plain`: formatParamValue, else the SDK's default formatting.
+std::string valueText(const std::vector<mpc::Param>& p, int index, float plain)
+{
+    std::string s;
+    if (!formatParamValue(index, plain, s)) s = p[static_cast<size_t>(index)].display(plain);
+    return s;
+}
+
+}  // namespace
+
+// Redesign step 1 (.agents/plans/mpcboy-gb-ui/redesign/agreed-terms.md).
+TEST_CASE("plugin 2: agreed terms - every display name, in index order")
+{
+    static const char* const kNames[] = {
+        "Bend Range", "Volume", "Retrigger", "Note Off", "Vel to Level", "Table Sync",
+        "Table Rate", "Table Start", "Free Rate",
+        "PU1 On", "PU1 Level", "PU1 Env Dir", "PU1 Env Time", "PU1 Duty", "PU1 Semi", "PU1 Fine", "PU1 Pan",
+        "PU1 Length", "PU1 Swp Time", "PU1 Swp Dir", "PU1 Swp Amt", "PU1 Table",
+        "PU2 On", "PU2 Level", "PU2 Env Dir", "PU2 Env Time", "PU2 Duty", "PU2 Semi", "PU2 Fine", "PU2 Pan",
+        "PU2 Length", "PU2 Table",
+        "WAV On", "WAV Level", "WAV Shape", "WAV Semi", "WAV Fine", "WAV Pan", "WAV Length", "WAV Table",
+        "NOI On", "NOI Level", "NOI Env Dir", "NOI Env Time", "NOI Mode", "NOI Pitch", "NOI FixPitch",
+        "NOI Semi", "NOI Pan", "NOI Length", "NOI Table",
+        "Edit Table", "Edit Row", "Row Vol", "Row Semi", "Row Cmd1", "Row Val1", "Row Cmd2", "Row Val2",
+        "Import File", "Import Now", "Import Undo", "Import Scan"};
+    static_assert(sizeof(kNames) / sizeof(kNames[0]) == 63, "63 names");
+    const std::vector<mpc::Param> p = buildParams();
+    REQUIRE(p.size() >= 63);
+    for (size_t i = 0; i < 63; ++i)
+    {
+        CAPTURE(i);
+        CHECK(p[i].name == kNames[i]);
+        CHECK(p[i].name.size() <= 12);
+    }
+}
+
+TEST_CASE("plugin 2: agreed terms - names are at most 12 characters, every value text at most 8")
+{
+    const std::vector<mpc::Param> p = buildParams();
+    for (int i = 0; i < kNumParams; ++i)
+    {
+        const mpc::Param& q = p[static_cast<size_t>(i)];
+        CAPTURE(q.name);
+        CHECK(q.name.size() <= 12);
+        if (i == Imp_File) continue;   // the plugin formats it from the scan: at most 8 bytes (import_worker)
+        for (const std::string& c : q.choices) { CAPTURE(c); CHECK(c.size() <= 8); }
+        if (q.kind == mpc::Param::Kind::Float)
+        {
+            for (float v : {q.min, q.def, q.max, 0.0f}) { const std::string t = valueText(p, i, v); CAPTURE(t); CHECK(t.size() <= 8); }
+            continue;
+        }
+        for (int v = static_cast<int>(q.min); v <= static_cast<int>(q.max); ++v)
+        {
+            const std::string t = valueText(p, i, static_cast<float>(v));
+            CAPTURE(t);
+            CHECK(t.size() <= 8);
+            if (q.kind == mpc::Param::Kind::Int && q.max > q.min)
+            {
+                // Pure function of the value: format another value in between, then this one again.
+                const int other = v < static_cast<int>(q.max) ? v + 1 : v - 1;
+                (void)valueText(p, i, static_cast<float>(other));
+                CHECK(valueText(p, i, static_cast<float>(v)) == t);
+            }
+        }
+    }
+}
+
+TEST_CASE("plugin 2: agreed terms - choice labels and value text")
+{
+    const std::vector<mpc::Param> p = buildParams();
+    auto labels = [&](int i) { return p[static_cast<size_t>(i)].choices; };
+    using V = std::vector<std::string>;
+    CHECK(labels(P1_Pan) == V{"Mute", "Left", "Both", "Right"});
+    CHECK(labels(NZ_Pan) == labels(P1_Pan));
+    CHECK(labels(WV_Level) == V{"Mute", "25%", "50%", "100%"});
+    CHECK(labels(P1_EnvDir) == V{"Down", "Up"});
+    CHECK(labels(P1_SwDir) == V{"Down", "Up"});
+    CHECK(labels(NZ_Width) == V{"Hiss 15", "Buzz 7"});
+    CHECK(labels(NZ_PitchMode) == V{"Track", "Fixed"});
+    CHECK(labels(P_TblClock) == V{"Tempo", "Free"});
+    CHECK(labels(P_TblPhase) == V{"Note", "Grid"});
+    CHECK(labels(P_NoteOff) == V{"Cut", "Hold"});
+    CHECK(labels(P_TblRate).front() == "96/beat");
+    CHECK(labels(P_TblRate).back() == "3/beat");
+    CHECK(labels(P1_Duty) == V{"12.5%", "25%", "50%", "75%"});
+    CHECK(labels(ED_Cmd1) == V{"-", "D Delay", "E Env", "H Hop", "K Kill", "L Slide", "N Noise", "P Pitch", "R Retrig", "S Sweep", "V Vib", "W Wave"});
+    CHECK(labels(ED_Cmd2) == labels(ED_Cmd1));
+    // Wave and table names, user slots numbered.
+    const V wave = labels(WV_Wave);
+    CHECK(wave[0] == "Saw"); CHECK(wave[7] == "Organ"); CHECK(wave[8] == "Wave 09"); CHECK(wave[15] == "Wave 16");
+    const V table = labels(P1_Tbl);
+    CHECK(table[0] == "Off"); CHECK(table[1] == "MajArp"); CHECK(table[8] == "Hat");
+    CHECK(table[9] == "Table 09"); CHECK(table[16] == "Table 16");
+    CHECK(labels(NZ_Tbl) == table);
+
+    CHECK(valueText(p, P1_EnvSpd, 0) == "Off"); CHECK(valueText(p, P1_EnvSpd, 7) == "7");
+    CHECK(valueText(p, NZ_EnvSpd, 0) == "Off");
+    CHECK(valueText(p, P1_SwTime, 0) == "Off"); CHECK(valueText(p, P1_SwTime, 3) == "3");
+    CHECK(valueText(p, P1_SwShift, 0) == "Off"); CHECK(valueText(p, P1_SwShift, 7) == "7");
+    CHECK(valueText(p, P1_Tsp, 12) == "+12 st"); CHECK(valueText(p, P1_Tsp, -24) == "-24 st"); CHECK(valueText(p, WV_Tsp, 0) == "0 st");
+    CHECK(valueText(p, P1_Fine, 25) == "+25 ct"); CHECK(valueText(p, P2_Fine, -50) == "-50 ct"); CHECK(valueText(p, WV_Fine, 0) == "0 ct");
+    CHECK(valueText(p, ED_Tsp, 48) == "+48 st");
+    CHECK(valueText(p, ED_Vol, -1) == "Keep"); CHECK(valueText(p, ED_Vol, 0x2A) == "2A");
+    CHECK(valueText(p, P_FreeHz, 59.73f) == "59.73Hz");
+    CHECK(valueText(p, Imp_Go, 0) == "Off"); CHECK(valueText(p, Imp_Undo, 1) == "On");   // triggers stay plain toggles
+    CHECK(p[Imp_Go].kind == mpc::Param::Kind::Bool);
+}
+
+TEST_CASE("plugin 2: agreed terms - Length text in milliseconds, per channel")
+{
+    const std::vector<mpc::Param> p = buildParams();
+    // Pulse and Noise count 1/256 s per step (1..64: 4..250 ms), Wave 4/256 s per step (16..1000 ms).
+    for (int idx : {P1_Len, P2_Len, NZ_Len})
+    {
+        CHECK(valueText(p, idx, 0) == "Off");
+        CHECK(valueText(p, idx, 1) == "4ms");
+        CHECK(valueText(p, idx, 2) == "8ms");
+        CHECK(valueText(p, idx, 32) == "125ms");
+        CHECK(valueText(p, idx, 64) == "250ms");
+    }
+    CHECK(valueText(p, WV_Len, 0) == "Off");
+    CHECK(valueText(p, WV_Len, 1) == "16ms");
+    CHECK(valueText(p, WV_Len, 2) == "31ms");
+    CHECK(valueText(p, WV_Len, 32) == "500ms");
+    CHECK(valueText(p, WV_Len, 64) == "1000ms");
+    // Increasing with the value, on every channel.
+    for (int idx : {P1_Len, WV_Len})
+    {
+        int prev = 0;
+        for (int v = 1; v <= 64; ++v)
+        {
+            const int ms = std::stoi(valueText(p, idx, static_cast<float>(v)));
+            CHECK(ms > prev);
+            prev = ms;
+        }
+    }
+}
+
+TEST_CASE("plugin 2: agreed terms - Swp Amt, Swp Dir and NOI FixPitch behaviour")
+{
+    const std::vector<mpc::Param> p = buildParams();
+    auto defaults = [&] {
+        std::vector<float> v(kNumEngineParams);
+        for (int i = 0; i < kNumEngineParams; ++i) v[static_cast<size_t>(i)] = p[static_cast<size_t>(i)].def;
+        return v;
+    };
+    // Swp Amt: Off, 1..7; the register shift is 8 - amt (Off: 0), so a higher amount is a bigger step.
+    for (int amt = 0; amt <= 7; ++amt)
+    {
+        std::vector<float> v = defaults();
+        v[P1_SwShift] = static_cast<float>(amt);
+        const EngineSettings s = proposedSettings(v.data());
+        CAPTURE(amt);
+        CHECK(s.ch[0].sweepShift == (amt == 0 ? 0 : 8 - amt));
+    }
+    // Swp Dir: Down first (0), Up second (1, the default); NR10 bit 3 is set for Down.
+    {
+        std::vector<float> v = defaults();
+        CHECK(p[P1_SwDir].def == 1.0f);
+        CHECK_FALSE(proposedSettings(v.data()).ch[0].sweepDown);
+        v[P1_SwDir] = 0;
+        CHECK(proposedSettings(v.data()).ch[0].sweepDown);
+        v[P1_SwDir] = 1;
+        CHECK_FALSE(proposedSettings(v.data()).ch[0].sweepDown);
+    }
+    // NOI FixPitch: pitch-sorted, strictly increasing frequency (262144 / (r * 2^(s+1)), r = 0.5 for code 0),
+    // duplicates collapsed. The engine setting keeps the register index shift * 8 + divisor code.
+    {
+        std::vector<float> v = defaults();
+        const int n = noiseFixPitchCount();
+        CHECK(p[NZ_Shape].max == static_cast<float>(n - 1));
+        CHECK(proposedSettings(v.data()).ch[3].noiseFixedShape == 40);   // the old default (8192 Hz)
+        CHECK(noiseFixPitchRegIndex(static_cast<int>(p[NZ_Shape].def)) == 40);
+        v[NZ_Shape] = static_cast<float>(n - 1);
+        CHECK(proposedSettings(v.data()).ch[3].noiseFixedShape == 0);    // shift 0, divisor code 0: the highest
+        v[NZ_Shape] = 0;
+        CHECK(proposedSettings(v.data()).ch[3].noiseFixedShape == 111);  // shift 13, divisor code 7: the lowest
+        auto hz = [](int idx) { const int s = idx / 8, r = idx % 8; return 262144.0 / ((r == 0 ? 0.5 : r) * (1 << (s + 1))); };
+        std::set<int> regs;
+        for (int k = 0; k < n; ++k)
+        {
+            const int idx = noiseFixPitchRegIndex(k);
+            CAPTURE(k);
+            CHECK(idx >= 0); CHECK(idx <= 111);
+            CHECK(noiseFixPitchHz(k) == doctest::Approx(hz(idx)));   // the table's frequency is the register's
+            if (k > 0) CHECK(noiseFixPitchHz(k) > noiseFixPitchHz(k - 1));   // strictly increasing
+            regs.insert(idx);
+        }
+        CHECK(static_cast<int>(regs.size()) == n);
+        // Every register frequency is represented.
+        std::set<double> freqs;
+        for (int i = 0; i < 112; ++i) freqs.insert(hz(i));
+        CHECK(static_cast<int>(freqs.size()) == n);
+        // The Hat program's old register index 12 keeps its frequency.
+        CHECK(noiseFixPitchHz(noiseFixPitchValueNear(12)) == doctest::Approx(hz(12)));
+    }
 }
 
 TEST_CASE("plugin 2: eight programs, values for 0..50 only, within range")

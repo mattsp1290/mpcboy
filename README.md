@@ -26,25 +26,25 @@ validator, but has not been tested on a Gen 1 device.**
 
 ## Using it
 
-Six pages: `MAIN` (volume, retrigger, channel on/off switches, table clock),
+Six pages: `MAIN` (volume, retrigger, channel on/off switches, table clock); channel parameters carry the prefix `PU1`, `PU2`, `WAV` or `NOI`,
 `PULSE1`, `PULSE2`, `WAVE`, `NOISE` (per-channel settings and the table to
 run), and `TABLE` (the table editor, see `docs/EDITOR.md`).
 
 - **Note range:** the played note sets the base pitch, then the channel
-  `Transp`/`Fine` controls and each table row offset it. The Pulse channels
+  `Semi`/`Fine` controls and each table row offset it. The Pulse channels
   reach down to about MIDI note 36 (about 64 Hz) and the Wave channel one
-  octave lower (about MIDI note 24, the Wave channel's `Transp` defaults to -12);
+  octave lower (about MIDI note 24, the Wave channel's `WAV Semi` defaults to -12);
   lower notes clamp to that pitch instead of wrapping. There is no useful upper
   limit short of ultrasonic frequencies. The Noise channel follows the note in
-  `Track` mode or stays at `NZ Shape` in `Fixed` mode.
-- **Length units:** `Length` is the Game Boy length counter: 0 = off, 1-64
-  counts of 1/256 s for the pulse and noise channels, and 4/256 s per count
-  for the wave channel.
-- **Table clock:** `Sync` ticks `Tbl Rate` times per quarter note of the host
-  tempo (default `24/beat LSDJ`, LSDJ's tick at its default groove); `Tbl Phase
-  = Note` counts from note-on, `Grid` aligns ticks to the host beat grid while
-  the transport plays. `Free` ticks at a fixed `Free Hz` (default 59.73, the
-  Game Boy frame rate).
+  `Track` mode or stays at `NOI FixPitch` in `Fixed` mode (a pitch-sorted range, a higher value is a strictly higher pitch).
+- **Length units:** `Length` is the Game Boy length counter: `Off`, then 1-64
+  counts of 1/256 s for the pulse and noise channels (shown as 4 ms to 250 ms),
+  and 4/256 s per count for the wave channel (16 ms to 1000 ms).
+- **Table clock:** `Table Sync = Tempo` ticks `Table Rate` times per quarter
+  note of the host tempo (default `24/beat`, LSDJ's tick at its default
+  groove); `Table Start = Note` counts from note-on, `Grid` aligns ticks to the
+  host beat grid while the transport plays. `Free` ticks at a fixed `Free Rate`
+  (default 59.73Hz, the Game Boy frame rate).
 - **Latency:** the output is delayed by about 3 ms. The 48 kHz APU is resampled
   to 44.1 kHz through a polyphase filter that adds about 2.7 ms (117.6 frames),
   and the APU adds roughly 30 more frames (measured: a table tick is audible
@@ -73,18 +73,18 @@ VST - mpcboy/Content/Import/`): up to 64 files, directly in that folder (no
 sub-folders; symbolic links and names starting with `.` are skipped). On the
 `TABLE` page:
 
-- `Imp File` picks a file (the text is its name without `.sav`, cut at 8
+- `Import File` picks a file (the text is its name without `.sav`, cut at 8
   characters, `-` when the folder is empty or the index is past the list, and
   `ERR <code>` after a failed import until the next scan). The list is read when
-  the plugin loads and again with `Imp Rescan`; the file you imported last is
+  the plugin loads and again with `Import Scan`; the file you imported last is
   remembered by name in the project and selected again after a scan.
-- `Imp Go` imports it: the first 16 allocated tables become tables 1-16 (in the
+- `Import Now` imports it: the first 16 allocated tables become tables 1-16 (in the
   order LSDJ allocated them; missing ones are cleared) and waves 0-15 become
   waves 1-16, replacing all 16 tables and all 16 waves at once. Instruments,
-  chains, phrases and songs are ignored. `Imp Go`, `Imp Undo` and `Imp Rescan` are
+  chains, phrases and songs are ignored. `Import Now`, `Import Undo` and `Import Scan` are
   buttons: they act on the 0 to 1 edge, ignore a second press within 250 ms and
   switch themselves back off.
-- `Imp Undo` brings back the content from just before the last import (one
+- `Import Undo` brings back the content from just before the last import (one
   level; pressing it again re-applies the import, it is a swap). The undo copy
   is not saved with the project.
 
@@ -112,8 +112,63 @@ python3 scripts/package_mpc.py         # dist/mpcboy-<version>.zip
 ```
 
 `package_mpc.py` runs the SDK host simulator (`host_sim dump`/`test` plus a
-WAV peak check), generates the skin from `plugin/ui.json`, runs the SDK
-validator in `--strict` mode and zips the folder with its SHA-256.
+WAV peak check), generates the skin from `ui/mpcboy_ui.json` with
+`scripts/build_ui.py`, runs the SDK validator in `--strict` mode and zips the
+folder with its SHA-256.
+
+## UI (MPC skin and Mac editor)
+
+Both builds share one Game Boy–inspired UI (design:
+`.agents/plans/mpcboy-gb-ui/00-design.md`). Everything comes from
+`ui/mpcboy_ui.json`:
+
+- `"mpc"`: the pages, controls, widgets and `visibleWhen` rules, in the SDK's
+  `ui.json` format (validated by the SDK's `gen_ui.py`; no `kit` key, the art is
+  ours), plus the skin `style` colours.
+- `"gb"`: the "Handheld Mixer" palette (`.agents/plans/mpcboy-gb-ui/01-redesign-proposal.md`),
+  the accent colour per page (channel colours; MAIN and TABLE use the DMG green)
+  and per control (MAIN's channel strips), page titles, the wordmark, section
+  legends, blank-slot decals, LCD panels (each channel page's row-0 channel
+  monitor; the `TABLE` page's LCD over rows 0–1, columns 0–1), shared slots
+  (`Table Rate` / `Free Rate` on one slot with complementary `visibleWhen`),
+  the Q-Link bank direction (`Row`), the device-gated MPC dynamics
+  (`mpcDynamics`: parameter-bound film strips and Value labels, see
+  `docs/EDITOR.md` G-EDIT) and the Mac editor's tab bar.
+
+`scripts/build_ui.py` (standard library only) turns it into:
+
+- `ui/art/*.png`: the pixel-art kit (knobs, faders, toggles, segments; the SDK
+  kit's sizes and frame counts), rendered once per accent colour
+  (`knob_uni_pu1.png` ...; each page's component definitions are cloned to use
+  its colour), the LCD film strips, one background per page, and the
+  editor-only art (tab bar and buttons, LCD table panel, row cursor);
+- `src/ui/generated/ui_layout.inc` and `pixel_font.inc`: the layout and the
+  5 × 7 pixel font as C++ tables (structs in `src/ui/ui_layout.h`), walked from
+  the same component tree as the MPC `TUI.json`;
+- `build/ui-preview/<page>.png` (and `tabbar.png`): previews of each MPC page
+  with the controls at their default values and approximate label text, so the
+  look can be reviewed without a device. Slider controls and fonts are drawn
+  by the firmware on the MPC, so they only approximate the real screen there.
+
+To change the UI, edit `ui/mpcboy_ui.json` (or the art code in
+`scripts/ui_art.py`), then regenerate and look at the previews:
+
+```sh
+cmake --preset native && cmake --build --preset native
+build/native/host_sim build/native/mpcboy.dylib dump > build/params.json   # mpcboy.so on Linux
+python3 scripts/build_ui.py            # rewrites ui/art and src/ui/generated, writes build/ui-preview
+python3 -m unittest discover -s tests/ui -v
+```
+
+The generated files are committed, so native builds need no Python. Output is
+byte-reproducible; `scripts/check.sh` regenerates them and fails if anything in
+`ui/art` or `src/ui/generated` changed or is not in git, so commit (or at least
+`git add`) the regenerated files with the change. `package_mpc.py` generates
+the skin into the plugin folder without touching the tree, and fails on any
+`WARNING`/`NOTE` line from the generator. On the MPC, labels use Nexa Bold in
+upper case (names `a3a7b0`, values `eceae4`); the knob and menu overlays are
+drawn by the firmware on the dark `style.background` (`1c1d27`) and cannot be
+themed.
 
 For the CPU probe used on the device, see `docs/BENCH.md`.
 
@@ -147,9 +202,15 @@ Caveats:
 
 - VST2 only. Live 12 still loads VST2, but only from the system folder with the
   setting above; there is no AU/VST3 build.
-- No custom editor: Live shows its generic parameter panel (use Configure to
-  pick parameters). The MPC skin is not used. The table editor cursor and the
-  `Imp *` parameters work as plain parameters.
+- The plugin has its own Game Boy editor window (1280 x 704 points): the same
+  pages, art and layout as the MPC skin, plus a tab bar to switch pages. Knobs
+  drag vertically (Shift for fine, double-click resets), faders follow the mouse,
+  segments and toggles are clicked, menu sliders step on click (Shift steps back)
+  or drag. Edits of parameters 0-50 are recorded as automation; the table cursor,
+  cells and `Import *` buttons are not automatable. The TABLE page shows the edit
+  table as a live LSDJ-style grid (it updates while Live processes audio). Art is
+  read from `Contents/Resources/ui/`. `build/mac-vst/render_editor ui/art
+  build/editor-preview 2` renders every page to PNG without a DAW.
 - Host rates 44.1, 48, 96 and 192 kHz work; at 88.2 kHz the plugin is silent.
   96 and 192 kHz use a table-driven polyphase resampler (L = 2 / 4 phases,
   same kernel as the vendored reference resampler, matching it to better than
@@ -190,7 +251,10 @@ state v2) but not yet run on a device.
 - `src/engine`: mono voice, tick clock, content store, factory tables, `.sav`
   import (`sav_import`).
 - `src/plugin`: the MPC plugin (parameters, state, editor cursor, import worker).
-- `plugin/`: `plugin.json` and `ui.json` for the skin.
+- `plugin/`: `plugin.json` and the import folder's README.
+- `ui/`: `mpcboy_ui.json` (the shared UI source) and the generated `art/`;
+  `src/ui/`: the editor layout header and its generated tables;
+  `scripts/build_ui.py` + `scripts/ui_art.py`: the generator.
 - `vendor/mpc-plugin-builder-sdk`: Akai's MIT plugin SDK (submodule).
 
 License: MIT, see `LICENSE`; third-party notices in `THIRD_PARTY.md`.

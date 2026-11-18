@@ -30,12 +30,25 @@ void ImportTriggers::onValue(int k, float plain, bool onAudioThread)
     if (s.high.exchange(true, std::memory_order_acq_rel)) return;   // already high: not an edge
     s.reset.store(true, std::memory_order_release);
     if (!onAudioThread) return;
+    accept(k);
+}
 
+bool ImportTriggers::accept(int k)
+{
+    Slot& s = slots_[k];
     const long long now = now_.load(std::memory_order_acquire)();
     const long long last = s.lastNs.load(std::memory_order_acquire);
-    if (last != 0 && now - last < kTriggerDebounceNs) return;
+    if (last != 0 && now - last < kTriggerDebounceNs) return false;
     s.lastNs.store(now, std::memory_order_release);
     s.pending.store(true, std::memory_order_release);   // acted on by process()
+    return true;
+}
+
+bool ImportTriggers::acceptFromEditor(int k)
+{
+    if (k < 0 || k >= kNumImportTriggers) return false;
+    slots_[k].reset.store(true, std::memory_order_release);   // the editor showed it on: write it back to 0
+    return accept(k);
 }
 
 void ImportTriggers::cancelPending()

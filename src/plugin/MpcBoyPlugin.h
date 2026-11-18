@@ -42,6 +42,28 @@ public:
     void loadExtraState(const uint8_t* data, size_t size) override;
     bool formatValue(int index, float plainValue, std::string& out) override;
 
+    // ---- editor edits (the Mac editor; main thread) -----------------------------------------
+    // See .agents/plans/mpcboy-gb-ui/00-design.md "Thread and edit contract".
+    //   0..50   editorBeginEdit / editorSet / editorEndEdit send audioMasterBeginEdit /
+    //           setNormalised + audioMasterAutomate / audioMasterEndEdit. Begin and end are
+    //           paired per parameter (a second begin or an end without a begin sends nothing);
+    //           endAllEditorEdits() ends whatever is open (editor close, cancelled tracking).
+    //   53..58  (cells) setNormalised for display, then a per-column atomic slot holding
+    //           {table, row, value}: the cursor captured at editorBeginEdit (or at the set when
+    //           no edit is open). process() applies it to that cell, even if the cursor moved.
+    //   60..62  (triggers) setNormalised(1) for display, then a per-trigger flag; process()
+    //           accepts it through ImportTriggers::acceptFromEditor (debounced).
+    //   51, 52, 59  setNormalised, as a host write (the cursor resyncs; the file is picked).
+    // 51..62 never send begin / automate / end: they are not automatable.
+    void editorBeginEdit(int index);
+    void editorSet(int index, float norm);
+    void editorEndEdit(int index);
+    void endAllEditorEdits();
+    bool editorEditOpen(int index) const;
+    // Live table playback per channel (any thread; relaxed atomics written once per block by the
+    // audio thread). The editor's channel LCDs and TABLE grid read it at 30 Hz.
+    const mpcboy::PlaybackState& playback() const { return engine_->playback(); }
+
     // Tests.
     mpcboy::ContentStore& content() { return *store_; }
     uint32_t hostRefreshCount() const { return hostRefreshes_.load(std::memory_order_relaxed); }
@@ -56,6 +78,23 @@ private:
     void serviceImport();   // audio thread: trigger resets, list changes
     void snapshotSettings(bool force);
     void resyncCursor();
+    void drainEditor();      // audio thread: apply the editor's cell edits and triggers
+    void drainEarly();       // audio thread: drainEditor() for the early-return paths, then publish
+    void sendHost(int opcode, int index, float opt);
+
+    // Editor -> audio thread slots (latest wins, any number of producers, never overflow).
+    // Cell slot: bit 63 valid, bits 40..47 row, 32..39 table (0-based), 0..31 value (int32).
+    std::atomic<uint64_t> cellSlots_[mpcboy::kEditorCols] = {};
+    std::atomic<bool> triggerSlots_[mpcboy::kNumImportTriggers] = {};
+    // The thread inside editorSet's setNormalised on a cell (0 = none): parameterChanged then
+    // leaves the cell to the drain, so an editor that runs on the audio thread cannot write the
+    // current cursor's cell instead of the captured one.
+    std::atomic<uintptr_t> editorWriter_{0};
+    // Editor thread only.
+    bool editOpen_[mpcboy::kTotalParams] = {};
+    int capTable_[mpcboy::kEditorCols] = {};
+    int capRow_[mpcboy::kEditorCols] = {};
+    bool capValid_[mpcboy::kEditorCols] = {};
 
     std::unique_ptr<mpcboy::Engine> engine_;
     std::unique_ptr<mpcboy::ContentStore> store_;

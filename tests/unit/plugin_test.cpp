@@ -482,3 +482,32 @@ TEST_CASE("plugin: full chunk round trip after randomising every parameter on th
             MESSAGE("param ", i, " ", r.p->param(i).id, " was ", norms[static_cast<size_t>(i)], " now ", r.p->getNormalised(i));
     CHECK(diffs == 0);
 }
+
+TEST_CASE("plugin: process() early returns publish idle playback and the block counter keeps moving only while it runs")
+{
+    PluginRig r;
+    r.run(r.pos + 256, {on(r.pos + 10, 60)}, 128);
+    CHECK(r.p->playback().load(0).note == 60);
+    CHECK(r.p->playback().load(0).active);
+    const uint32_t blocks = r.p->playback().blocks();
+
+    // No output buffers at all: nothing renders, the editor must not keep showing the note.
+    mpc::ProcessContext none;
+    none.outputs = nullptr;
+    none.numOutputs = 0;
+    none.numFrames = 128;
+    r.p->process(none);
+    for (int c = 0; c < 4; ++c)
+    {
+        const ChannelPlayback pb = r.p->playback().load(c);
+        CHECK(pb.note == -1);
+        CHECK_FALSE(pb.running);
+        CHECK_FALSE(pb.active);
+        CHECK(pb.level == 0);
+    }
+    CHECK(r.p->playback().blocks() != blocks);   // the idle publish is a published block too
+
+    // A normal block plays again.
+    r.run(r.pos + 256, {on(r.pos + 10, 62)}, 128);
+    CHECK(r.p->playback().load(0).note == 62);
+}

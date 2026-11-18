@@ -41,7 +41,8 @@ target_include_directories(gbcore PUBLIC
 # plugincore holds everything except the VSTPluginMain entry point so the native
 # tests can drive MpcBoyPlugin directly.
 file(GLOB PLUGINCORE_SRC CONFIGURE_DEPENDS src/plugin/*.cpp)
-list(REMOVE_ITEM PLUGINCORE_SRC "${CMAKE_SOURCE_DIR}/src/plugin/plugin_entry.cpp")
+list(REMOVE_ITEM PLUGINCORE_SRC "${CMAKE_SOURCE_DIR}/src/plugin/plugin_entry.cpp"
+  "${CMAKE_SOURCE_DIR}/src/plugin/plugin_entry_mac.cpp")
 add_library(plugincore STATIC ${PLUGINCORE_SRC})
 target_include_directories(plugincore PUBLIC "${SDK}/framework" src/plugin)
 target_link_libraries(plugincore PUBLIC gbcore)
@@ -52,6 +53,16 @@ find_package(Threads REQUIRED)
 target_link_libraries(plugincore PUBLIC Threads::Threads)
 if(MPCBOY_CPU_PROBE)
   target_compile_definitions(plugincore PUBLIC MPCBOY_CPU_PROBE=1)
+endif()
+
+# ---- shared UI interaction model (UI WP2) ------------------------------------
+# Platform-free; used by the native tests and the Mac editor only (the MPC firmware has its own
+# interaction, so the arm builds never compile it).
+if(MPCBOY_TARGET STREQUAL "native" OR MPCBOY_TARGET STREQUAL "mac-vst")
+  add_library(mpcboy_ui STATIC src/ui/ui_model.cpp)
+  target_include_directories(mpcboy_ui PUBLIC src/ui)
+  target_link_libraries(mpcboy_ui PUBLIC gbcore)
+  target_compile_options(mpcboy_ui PRIVATE -Werror)
 endif()
 
 if(MPCBOY_TARGET STREQUAL "mac-vst")
@@ -88,7 +99,7 @@ if(MPCBOY_TARGET STREQUAL "native")
     ${RACKBOY_TEST_SRC} ${MPCBOY_TEST_SRC} src/dsp/rackboy_resampler.cpp)
   target_include_directories(mpcboy_tests PRIVATE
     tests/third_party tests/rackboy tests/rackboy/support)
-  target_link_libraries(mpcboy_tests PRIVATE plugincore)   # exports gbcore
+  target_link_libraries(mpcboy_tests PRIVATE plugincore mpcboy_ui)   # exports gbcore
   # Copied rackboy suites find fixtures/ and audio/ relative to the cwd.
   add_test(NAME rackboy_suites COMMAND mpcboy_tests
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/rackboy")

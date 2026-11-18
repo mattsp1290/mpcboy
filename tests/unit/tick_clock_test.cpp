@@ -260,7 +260,7 @@ TEST_CASE("tick clock: ticks-per-beat labels, and at most 64 ticks per block")
 {
     CHECK(kNumTickChoices == 10);
     CHECK(kTicksPerBeatChoices[kDefaultTickChoice] == 24);
-    CHECK(std::string(kTickChoiceLabels[kDefaultTickChoice]) == "24/beat LSDJ");
+    CHECK(std::string(kTickChoiceLabels[kDefaultTickChoice]) == "24/beat");
     CHECK(std::string(kTickChoiceLabels[0]) == "96/beat");
     CHECK(std::string(kTickChoiceLabels[9]) == "3/beat");
     for (int i = 1; i < kNumTickChoices; ++i) CHECK(kTicksPerBeatChoices[i] < kTicksPerBeatChoices[i - 1]);

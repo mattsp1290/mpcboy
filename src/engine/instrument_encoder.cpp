@@ -73,9 +73,17 @@ rackboy::sav::RackboyInstrument encode_instrument(VoiceChannel ch, const Channel
         case VoiceChannel::Pulse2:
             inst.raw[1] = envelope_byte(s);
             if (ch == VoiceChannel::Pulse1)
-                inst.raw[4] = static_cast<uint8_t>((std::clamp<int>(s.sweepTime, 0, 7) << 4) |
-                                                   (s.sweepDown ? 0x08 : 0x00) |
-                                                   std::clamp<int>(s.sweepShift, 0, 7));
+            {
+                // The sweep is "off" when either its time or its amount (shift) is 0, and must then be
+                // written fully disabled (NR10 = 0). A sweep unit with time > 0 and shift 0 would still
+                // run the frequency-overflow check (freq + freq >> 0 = 2 x freq, SameBoy apu.c
+                // sweep_calculation_done) and silence high notes; shift > 0 with time 0 runs it at trigger.
+                const int time = std::clamp<int>(s.sweepTime, 0, 7);
+                const int shift = std::clamp<int>(s.sweepShift, 0, 7);
+                inst.raw[4] = (time == 0 || shift == 0)
+                                  ? uint8_t{0}
+                                  : static_cast<uint8_t>((time << 4) | (s.sweepDown ? 0x08 : 0x00) | shift);
+            }
             inst.raw[5] = table != rackboy::sav::kNoTable ? 0x10 : 0x00;
             inst.raw[7] = static_cast<uint8_t>((std::clamp<int>(s.duty, 0, 3) << 6) |
                                                (static_cast<uint8_t>(s.pan) & 0x03));

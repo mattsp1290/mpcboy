@@ -51,6 +51,11 @@ public:
     // the audio thread (WP5 rule 4; ContentStore::editLive enforces it).
     bool onCellParam(int col, int value, int table, int row, ContentStore& store);
 
+    // Audio thread: a Mac editor cell edit for an explicit cell (the cursor captured at click
+    // time). Unlike onCellParam there is no "shown" filter: the value is the user's, for a cell
+    // that need not be under the cursor any more. Returns whether it was applied.
+    bool applyCell(int col, int value, int table, int row, ContentStore& store);
+
     // Audio thread: the six values of the cell under the cursor. Stores them as
     // "shown" first (so the parameter writes that follow are filtered).
     void resync(const Content& live, int table, int row, int out[kEditorCols]);

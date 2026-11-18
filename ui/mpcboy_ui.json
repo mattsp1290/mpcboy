@@ -1,0 +1,313 @@
+{
+  "mpc": {
+    "style": {
+      "background": "ff1c1d27",
+      "accent": "ffe8558a",
+      "text": "ffeceae4",
+      "muted": "ffa3a7b0"
+    },
+    "pages": [
+      {
+        "name": "MAIN",
+        "controls": [
+          { "param": "PU1 Level", "widget": "fader",  "polarity": "unipolar" },
+          { "param": "PU2 Level", "widget": "fader",  "polarity": "unipolar" },
+          { "param": "WAV Level", "widget": "switch" },
+          { "param": "NOI Level", "widget": "fader",  "polarity": "unipolar" },
+
+          { "param": "PU1 Table", "widget": "slider", "overlay": "menu" },
+          { "param": "PU2 Table", "widget": "slider", "overlay": "menu" },
+          { "param": "WAV Table", "widget": "slider", "overlay": "menu" },
+          { "param": "NOI Table", "widget": "slider", "overlay": "menu" },
+
+          { "param": "Table Sync",   "widget": "switch" },
+          { "param": "Table Rate",   "widget": "slider", "overlay": "menu", "visibleWhen": { "param": "Table Sync", "choice": "Tempo" } },
+          { "param": "Table Start",  "widget": "switch", "visibleWhen": { "param": "Table Sync", "choice": "Tempo" } },
+          { "param": "Vel to Level", "widget": "switch" },
+
+          { "param": "Volume",     "widget": "fader", "polarity": "unipolar" },
+          { "param": "Bend Range", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "Retrigger",  "widget": "switch" },
+          { "param": "Note Off",   "widget": "switch" }
+        ]
+      },
+      {
+        "name": "PULSE1",
+        "controls": [
+          "empty",
+          "empty",
+          "empty",
+          { "param": "PU1 On", "widget": "switch" },
+
+          { "param": "PU1 Duty",  "widget": "switch" },
+          { "param": "PU1 Semi",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU1 Fine",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU1 Table", "widget": "slider", "overlay": "menu" },
+
+          { "param": "PU1 Level",    "widget": "fader", "polarity": "unipolar" },
+          { "param": "PU1 Env Dir",  "widget": "switch" },
+          { "param": "PU1 Env Time", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "PU1 Length",   "widget": "knob",  "polarity": "unipolar" },
+
+          { "param": "PU1 Swp Time", "widget": "knob",   "polarity": "unipolar" },
+          { "param": "PU1 Swp Dir",  "widget": "switch" },
+          { "param": "PU1 Swp Amt",  "widget": "knob",   "polarity": "unipolar" },
+          { "param": "PU1 Pan",      "widget": "switch" }
+        ]
+      },
+      {
+        "name": "PULSE2",
+        "controls": [
+          "empty",
+          "empty",
+          "empty",
+          { "param": "PU2 On", "widget": "switch" },
+
+          { "param": "PU2 Duty",  "widget": "switch" },
+          { "param": "PU2 Semi",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU2 Fine",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "PU2 Table", "widget": "slider", "overlay": "menu" },
+
+          { "param": "PU2 Level",    "widget": "fader", "polarity": "unipolar" },
+          { "param": "PU2 Env Dir",  "widget": "switch" },
+          { "param": "PU2 Env Time", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "PU2 Length",   "widget": "knob",  "polarity": "unipolar" },
+
+          "empty",
+          "empty",
+          "empty",
+          { "param": "PU2 Pan", "widget": "switch" }
+        ]
+      },
+      {
+        "name": "WAVE",
+        "controls": [
+          "empty",
+          "empty",
+          "empty",
+          { "param": "WAV On", "widget": "switch" },
+
+          { "param": "WAV Shape", "widget": "slider", "overlay": "menu" },
+          { "param": "WAV Semi",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "WAV Fine",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "WAV Table", "widget": "slider", "overlay": "menu" },
+
+          { "param": "WAV Level",  "widget": "switch" },
+          "empty",
+          "empty",
+          { "param": "WAV Length", "widget": "knob", "polarity": "unipolar" },
+
+          "empty",
+          "empty",
+          "empty",
+          { "param": "WAV Pan", "widget": "switch" }
+        ]
+      },
+      {
+        "name": "NOISE",
+        "controls": [
+          "empty",
+          "empty",
+          "empty",
+          { "param": "NOI On", "widget": "switch" },
+
+          { "param": "NOI Mode",  "widget": "switch" },
+          { "param": "NOI Semi",  "widget": "knob", "polarity": "bipolar" },
+          { "param": "NOI Pitch", "widget": "switch" },
+          { "param": "NOI Table", "widget": "slider", "overlay": "menu" },
+
+          { "param": "NOI Level",    "widget": "fader", "polarity": "unipolar" },
+          { "param": "NOI Env Dir",  "widget": "switch" },
+          { "param": "NOI Env Time", "widget": "knob",  "polarity": "unipolar" },
+          { "param": "NOI Length",   "widget": "knob",  "polarity": "unipolar" },
+
+          "empty",
+          { "param": "NOI FixPitch", "widget": "knob", "polarity": "unipolar", "visibleWhen": { "param": "NOI Pitch", "choice": "Fixed" } },
+          "empty",
+          { "param": "NOI Pan", "widget": "switch" }
+        ]
+      },
+      {
+        "name": "TABLE",
+        "controls": [
+          "empty",
+          "empty",
+          { "param": "Edit Table", "widget": "knob", "polarity": "unipolar" },
+          { "param": "Edit Row",   "widget": "knob", "polarity": "unipolar" },
+
+          "empty",
+          "empty",
+          { "param": "Row Vol",  "widget": "knob", "polarity": "unipolar" },
+          { "param": "Row Semi", "widget": "knob", "polarity": "bipolar" },
+
+          { "param": "Row Cmd1", "widget": "slider", "overlay": "menu" },
+          { "param": "Row Val1", "widget": "knob", "polarity": "unipolar" },
+          { "param": "Row Cmd2", "widget": "slider", "overlay": "menu" },
+          { "param": "Row Val2", "widget": "knob", "polarity": "unipolar" },
+
+          { "param": "Import File", "widget": "knob", "polarity": "unipolar" },
+          { "param": "Import Now",  "widget": "switch" },
+          { "param": "Import Undo", "widget": "switch" },
+          { "param": "Import Scan", "widget": "switch" }
+        ]
+      }
+    ]
+  },
+  "gb": {
+    "palette": {
+      "overlay": "1c1d27",
+      "bezel": "2a2c3b",
+      "plate": "343747",
+      "plateHighlight": "4a4e62",
+      "plateShadow": "121219",
+      "text": "eceae4",
+      "textDim": "a3a7b0",
+      "shell": "cbc6bb",
+      "shellHighlight": "e4e0d6",
+      "shellDark": "948f86",
+      "pointer": "262a55",
+      "rubber": "4c4f61",
+      "rubberSelected": "5a5e72",
+      "arcTrack": "474b5e",
+      "magenta": "e8558a",
+      "lcdField": "0f380f",
+      "lcdInk": "9bbc0f",
+      "lcdCursor": "9bbc0f",
+      "lcdCursorInk": "0f380f",
+      "lcdPlayhead": "2a5c2a",
+      "lcdPlayheadInk": "e0f8d0",
+      "lcdBeat": "184818",
+      "cartridge": "262a55",
+      "tabOnText": "1c1d27"
+    },
+    "colours": {
+      "pu1": "ff5a7e",
+      "pu2": "f5c542",
+      "wav": "35c9c1",
+      "noi": "9d8cff",
+      "dmg": "9bbc0f"
+    },
+    "pageColours": {
+      "MAIN": "dmg",
+      "PULSE1": "pu1",
+      "PULSE2": "pu2",
+      "WAVE": "wav",
+      "NOISE": "noi",
+      "TABLE": "dmg"
+    },
+    "controlColours": {
+      "MAIN": {
+        "PU1 Level": "pu1", "PU2 Level": "pu2", "WAV Level": "wav", "NOI Level": "noi",
+        "PU1 Table": "pu1", "PU2 Table": "pu2", "WAV Table": "wav", "NOI Table": "noi"
+      }
+    },
+    "wordmark": "MPCBOY",
+    "titles": {
+      "MAIN": "MAIN",
+      "PULSE1": "PULSE 1",
+      "PULSE2": "PULSE 2",
+      "WAVE": "WAVE",
+      "NOISE": "NOISE",
+      "TABLE": "TABLE"
+    },
+    "qlinks": { "bankDirection": "Row", "boundsMargin": [8, 6] },
+    "sharedSlots": {
+      "MAIN": [
+        { "row": 2, "col": 1, "qlinkCue": "TEMPO RATE",
+          "control": { "param": "Free Rate", "widget": "knob", "polarity": "unipolar", "visibleWhen": { "param": "Table Sync", "choice": "Free" } } }
+      ]
+    },
+    "legends": {
+      "MAIN":   [ { "row": 0, "text": "LEVEL" }, { "row": 1, "text": "TABLES" }, { "row": 2, "text": "TABLE CLOCK" }, { "row": 3, "text": "MASTER" } ],
+      "PULSE1": [ { "row": 1, "text": "TONE" }, { "row": 2, "text": "ENVELOPE" }, { "row": 3, "text": "SWEEP + OUT" } ],
+      "PULSE2": [ { "row": 1, "text": "TONE" }, { "row": 2, "text": "ENVELOPE" }, { "row": 3, "text": "SWEEP + OUT" } ],
+      "WAVE":   [ { "row": 1, "text": "TONE" }, { "row": 2, "text": "ENVELOPE" }, { "row": 3, "text": "SWEEP + OUT" } ],
+      "NOISE":  [ { "row": 1, "text": "TONE" }, { "row": 2, "text": "ENVELOPE" }, { "row": 3, "text": "SWEEP + OUT" } ],
+      "TABLE":  [ { "row": 0, "col": 2, "text": "CURSOR" }, { "row": 1, "col": 2, "text": "ROW" }, { "row": 2, "text": "COMMANDS" }, { "row": 3, "text": "IMPORT" } ]
+    },
+    "decals": {
+      "PULSE2": [ { "row": 3, "col": 0, "cols": 3, "text": "SWEEP: PU1 ONLY" } ],
+      "WAVE":   [ { "row": 2, "col": 1, "cols": 2, "text": "NO ENVELOPE" }, { "row": 3, "col": 0, "cols": 3, "text": "SWEEP: PU1 ONLY" } ],
+      "NOISE":  [ { "row": 3, "col": 0, "cols": 1, "text": "SWEEP: PU1 ONLY" } ]
+    },
+    "hiddenDecals": {
+      "NOISE":  [ { "row": 3, "col": 1, "text": "FIXED PITCH ONLY" } ]
+    },
+    "panels": {
+      "PULSE1": [ { "kind": "lcdChannel", "row": 0, "col": 0, "rows": 1, "cols": 3, "tag": "PU1", "motif": "duty" } ],
+      "PULSE2": [ { "kind": "lcdChannel", "row": 0, "col": 0, "rows": 1, "cols": 3, "tag": "PU2", "motif": "duty" } ],
+      "WAVE":   [ { "kind": "lcdChannel", "row": 0, "col": 0, "rows": 1, "cols": 3, "tag": "WAV", "motif": "wave" } ],
+      "NOISE":  [ { "kind": "lcdChannel", "row": 0, "col": 0, "rows": 1, "cols": 3, "tag": "NOI", "motif": "noise" } ],
+      "TABLE": [
+        {
+          "kind": "lcdTable", "image": "lcd_table_panel.png", "row": 0, "col": 0, "rows": 2, "cols": 2,
+          "grid": {
+            "charScale": 3, "mpcRowPitch": 26, "padding": 4,
+            "live": { "rows": 16, "scale": 2, "pitch": 15, "headerScale": 1, "headerHeight": 11, "fieldInset": 3, "markerStep": 5, "lastChar": 30 },
+            "cursorImage": "cursor.png",
+            "columns": [
+              { "title": "ROW",  "x": 1,  "chars": 2 },
+              { "title": "VOL",  "x": 5,  "chars": 2 },
+              { "title": "SEMI", "x": 9,  "chars": 3 },
+              { "title": "CMD",  "x": 14, "chars": 1 },
+              { "title": "VAL",  "x": 19, "chars": 2 },
+              { "title": "CMD",  "x": 23, "chars": 1 },
+              { "title": "VAL",  "x": 28, "chars": 2 }
+            ],
+            "commandCard": ["D DELAY", "E ENV", "H HOP", "K KILL", "L SLIDE", "N NOISE", "P PITCH", "R RETRIG", "S SWEEP", "V VIB", "W WAVE"]
+          }
+        }
+      ]
+    },
+    "mpcDynamics": { "valueLabels": true, "filmStrips": true },
+    "dynamics": {
+      "MAIN": [
+        { "kind": "filmStrip", "art": "ledPlate", "param": "PU1 On", "colour": "pu1", "row": 0, "col": 0, "x": 252, "y": 4 },
+        { "kind": "filmStrip", "art": "ledPlate", "param": "PU2 On", "colour": "pu2", "row": 0, "col": 1, "x": 252, "y": 4 },
+        { "kind": "filmStrip", "art": "ledPlate", "param": "WAV On", "colour": "wav", "row": 0, "col": 2, "x": 252, "y": 4 },
+        { "kind": "filmStrip", "art": "ledPlate", "param": "NOI On", "colour": "noi", "row": 0, "col": 3, "x": 252, "y": 4 }
+      ],
+      "PULSE1": [
+        { "kind": "filmStrip", "art": "ledLcd", "param": "PU1 On", "colour": "pu1", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "duty", "param": "PU1 Duty", "caption": "DUTY", "row": 0, "col": 0, "section": "tone", "y": 32 },
+        { "kind": "filmStrip", "art": "envTime", "param": "PU1 Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "section": "env", "y": 32 },
+        { "kind": "filmStrip", "art": "envDir", "param": "PU1 Env Dir", "row": 0, "col": 0, "section": "env", "align": "right", "y": 32 },
+        { "kind": "valueLabel", "param": "PU1 Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
+      ],
+      "PULSE2": [
+        { "kind": "filmStrip", "art": "ledLcd", "param": "PU2 On", "colour": "pu2", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "duty", "param": "PU2 Duty", "caption": "DUTY", "row": 0, "col": 0, "section": "tone", "y": 32 },
+        { "kind": "filmStrip", "art": "envTime", "param": "PU2 Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "section": "env", "y": 32 },
+        { "kind": "filmStrip", "art": "envDir", "param": "PU2 Env Dir", "row": 0, "col": 0, "section": "env", "align": "right", "y": 32 },
+        { "kind": "valueLabel", "param": "PU2 Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
+      ],
+      "WAVE": [
+        { "kind": "filmStrip", "art": "ledLcd", "param": "WAV On", "colour": "wav", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "waveShape", "param": "WAV Shape", "caption": "SHAPE", "row": 0, "col": 0, "section": "tone", "y": 32 },
+        { "kind": "valueLabel", "param": "WAV Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
+      ],
+      "NOISE": [
+        { "kind": "filmStrip", "art": "ledLcd", "param": "NOI On", "colour": "noi", "row": 0, "col": 0, "section": "tag", "y": 66 },
+        { "kind": "filmStrip", "art": "envTime", "param": "NOI Env Time", "caption": "ENVELOPE", "row": 0, "col": 0, "section": "env", "y": 32 },
+        { "kind": "filmStrip", "art": "envDir", "param": "NOI Env Dir", "row": 0, "col": 0, "section": "env", "align": "right", "y": 32 },
+        { "kind": "valueLabel", "param": "NOI Table", "caption": "TABLE", "colour": "lcdInk", "fontHeight": 30.0, "row": 0, "col": 0, "section": "note", "spanTo": "table", "y": 30, "h": 40 }
+      ],
+      "TABLE": [
+        { "kind": "valueLabel", "param": "Edit Row", "column": 0, "colour": "lcdCursorInk", "fontHeight": 24.0 },
+        { "kind": "valueLabel", "param": "Row Vol",  "column": 1, "colour": "lcdCursorInk", "fontHeight": 24.0 },
+        { "kind": "valueLabel", "param": "Row Semi", "column": 2, "colour": "lcdCursorInk", "fontHeight": 24.0 },
+        { "kind": "valueLabel", "param": "Row Cmd1", "column": 3, "colour": "lcdCursorInk", "fontHeight": 24.0 },
+        { "kind": "valueLabel", "param": "Row Val1", "column": 4, "colour": "lcdCursorInk", "fontHeight": 24.0 },
+        { "kind": "valueLabel", "param": "Row Cmd2", "column": 5, "colour": "lcdCursorInk", "fontHeight": 24.0 },
+        { "kind": "valueLabel", "param": "Row Val2", "column": 6, "colour": "lcdCursorInk", "fontHeight": 24.0 }
+      ]
+    },
+    "tabBar": {
+      "position": "bottom",
+      "height": 76,
+      "buttonWidth": 200,
+      "buttonHeight": 52,
+      "pitch": 212
+    }
+  }
+}
